@@ -8,6 +8,7 @@ object wndMSAAV: TwndMSAAV
   Color = clBtnFace
   Constraints.MinHeight = 500
   Constraints.MinWidth = 400
+  DoubleBuffered = True
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
   Font.Height = -12
@@ -49,7 +50,6 @@ object wndMSAAV: TwndMSAAV
   OnClose = FormClose
   OnCreate = FormCreate
   OnDestroy = FormDestroy
-  OnPaint = FormPaint
   OnResize = FormResize
   PixelsPerInch = 96
   TextHeight = 14
@@ -381,7 +381,7 @@ object wndMSAAV: TwndMSAAV
         Width = 582
         Height = 364
         Align = alClient
-        DoubleBuffered = False
+        DoubleBuffered = True
         HideSelection = False
         Indent = 19
         MultiSelectStyle = [msControlSelect, msShiftSelect]
@@ -435,7 +435,7 @@ object wndMSAAV: TwndMSAAV
     Left = 176
     Top = 400
     Bitmap = {
-      494C01010E008C016C0710001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010E008C01B00710001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000004000000001002000000000000040
       0000000000000000000000000000000000000000000000000000BDBDBD007A7A
       7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A
@@ -1171,6 +1171,20 @@ object wndMSAAV: TwndMSAAV
             OnClick = mnuTVSSelClick
           end
         end
+        object mnuTVOpen: TMenuItem
+          Caption = '&Open in Browser'
+          GroupIndex = 2
+          object mnuTVOAll: TMenuItem
+            Caption = '&All'
+            Enabled = False
+            OnClick = mnuTVOAllClick
+          end
+          object mnuTVOSel: TMenuItem
+            Caption = '&Selected Items'
+            Enabled = False
+            OnClick = mnuTVOSelClick
+          end
+        end
       end
       object mnuLang: TMenuItem
         Caption = '&Language'
@@ -1198,7 +1212,7 @@ object wndMSAAV: TwndMSAAV
     Left = 256
     Top = 200
     Bitmap = {
-      494C01013E0050007C010F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01013E005000C0010F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       00000000000036000000280000003C000000F0000000010020000000000000E1
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000
@@ -3076,13 +3090,31 @@ object wndMSAAV: TwndMSAAV
     OnPopup = PopupMenu2Popup
     Left = 534
     Top = 286
-    object mnuSAll: TMenuItem
-      Caption = 'Save &All'
-      OnClick = mnuSAllClick
+    object mnuSave: TMenuItem
+      Caption = '&Save'
+      object mnuSAll: TMenuItem
+        Caption = '&All'
+        OnClick = mnuSAllClick
+      end
+      object mnuSSel: TMenuItem
+        Caption = '&Selected items'
+        OnClick = mnuSSelClick
+      end
     end
-    object mnuSSel: TMenuItem
-      Caption = 'Save &Selected items'
-      OnClick = mnuSSelClick
+    object mnuOpenB: TMenuItem
+      Caption = '&Open in Browser'
+      object mnuOAll: TMenuItem
+        Caption = '&All'
+        OnClick = mnuOAllClick
+      end
+      object mnuOSel: TMenuItem
+        Caption = '&Selected Items'
+        OnClick = mnuOSelClick
+      end
+    end
+    object mnuSelMode: TMenuItem
+      Caption = 'S&elect Mode'
+      OnClick = mnuSelModeClick
     end
   end
 end

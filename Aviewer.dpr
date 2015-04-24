@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 {$R 'bmp.res' 'bmp.rc'}
 
 uses
+  //ShareMem,
   Forms,
   Windows,
   SysUtils,
@@ -113,6 +114,6 @@ begin
         Application.Initialize;
         Application.MainFormOnTaskbar := True;
         Application.CreateForm(TwndMSAAV, wndMSAAV);
-        Application.Run;
+  Application.Run;
     end;
 end.

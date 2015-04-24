@@ -27,74 +27,18 @@ uses
   ActiveX, MSHTML_tlb, ExtCtrls, Shlobj, ComObj, MSXML2_tlb,
   MsHTMDid, SHDOCVW, global_var, get_iweb, TransCheckBox,iAccessible2Lib_tlb, ISimpleDOM,
   treelist, Menus, MMSystem, Thread, TipWnd, UIAutomationClient_TLB, UIA_TLB, PanelBtn,
-  AccCTRLs, frmSet, Math, IntList, System.Actions, StrUtils;
+  AccCTRLs, frmSet, Math, IntList, System.Actions, StrUtils, HTMLparser;
 
 const
-    IID_IEnumVARIANT:    TGUID = '{00020404-0000-0000-c000-000000000046}';
-    IID_IDispatchEx : TGuid = '{a6ef9860-c720-11d0-9337-00a0c90dcaa9}';
     IID_IServiceProvider: TGUID = '{6D5140C1-7436-11CE-8034-00AA006009FA}';
-    IID_NULL : TGUID = '{00000000-0000-0000-0000-000000000000}';
-    PROPID_ACC_NAME             : TGUID = '{608d3df8-8128-4aa7-a428-f55e49267291}';
-    PROPID_ACC_VALUE            : TGUID = '{123fe443-211a-4615-9527-c45a7e93717a}';
-    PROPID_ACC_DESCRIPTION      : TGUID = '{4d48dfe4-bd3f-491f-a648-492d6f20c588}';
-    PROPID_ACC_ROLE             : TGUID = '{cb905ff2-7bd1-4c05-b3c8-e6c241364d70}';
-    PROPID_ACC_STATE            : TGUID = '{a8d4d5b0-0a21-42d0-a5c0-514e984f457b}';
-    PROPID_ACC_HELP             : TGUID = '{c831e11f-44db-4a99-9768-cb8f978b7231}';
-    PROPID_ACC_KEYBOARDSHORTCUT : TGUID = '{7d9bceee-7d1e-4979-9382-5180f4172c34}';
-    PROPID_ACC_DEFAULTACTION    : TGUID = '{180c072b-c27f-43c7-9922-f63562a4632b}';
 
-    PROPID_ACC_HELPTOPIC        : TGUID = '{787d1379-8ede-440b-8aec-11f7bf9030b3}';
-    PROPID_ACC_FOCUS            : TGUID = '{6eb335df-1c29-4127-b12c-dee9fd157f2b}';
-    PROPID_ACC_SELECTION        : TGUID = '{b99d073c-d731-405b-9061-d95e8f842984}';
-    PROPID_ACC_PARENT           : TGUID = '{474c22b6-ffc2-467a-b1b5-e958b4657330}';
-
-    PROPID_ACC_NAV_UP           : TGUID = '{016e1a2b-1a4e-4767-8612-3386f66935ec}';
-    PROPID_ACC_NAV_DOWN         : TGUID = '{031670ed-3cdf-48d2-9613-138f2dd8a668}';
-    PROPID_ACC_NAV_LEFT         : TGUID = '{228086cb-82f1-4a39-8705-dcdc0fff92f5}';
-    PROPID_ACC_NAV_RIGHT        : TGUID = '{cd211d9f-e1cb-4fe5-a77c-920b884d095b}';
-    PROPID_ACC_NAV_PREV         : TGUID = '{776d3891-c73b-4480-b3f6-076a16a15af6}';
-    PROPID_ACC_NAV_NEXT         : TGUID = '{1cdc5455-8cd9-4c92-a371-3939a2fe3eee}';
-    PROPID_ACC_NAV_FIRSTCHILD   : TGUID = '{cfd02558-557b-4c67-84f9-2a09fce40749}';
-    PROPID_ACC_NAV_LASTCHILD    : TGUID = '{302ecaa5-48d5-4f8d-b671-1a8d20a77832}';
     P2WDEF = 350;
     P4HDEF = 250;
 
-    EM_SHOWBALLOONTIP = $1503;
-    EM_HIDEBALLOONTIP = $1504;
-    TTI_ERROR = 3;
-    HTML_STYLE = '<head>' + #13#10 +
-		'<meta charset="utf-8">' + #13#10 +
-    '<style>' + #13#10 + 'body {font-family:verdana}' + #13#10 +
-		'input[type=checkbox]:checked ~ section[id^="x-details"] {display:block}' + #13#10 +
-		'input[type=checkbox] ~ section[id^="x-details"] {display:none}' + #13#10 +
-		'input[type=checkbox]:checked ~ label:before { transform: rotate(90deg); }' + #13#10 +
-		'input[type=checkbox] ~ label:before { content:"►"; font-size: 1em; position: relative;  transition: .5s linear; }' + #13#10 +
-		'input[type=checkbox]:checked ~ label:before { content:"▼"; font-size: 1em; position: relative; transition: .5s linear;  color: blue; }' + #13#10 +
-		'input[type=checkbox]:focus + label {outline:2px solid #4040FF;}' + #13#10 +
-		'input[type=checkbox] + label {outline:1px solid grey;}' + #13#10 +
-		'label {display:inline-block;width:30em;height:1em;margin-left:-24px;background:white;font-family:verdana;font-weight:bold;cursor:pointer;padding-top:.5em;}' + #13#10 +
-		'section[id^="x-details"] {width:29em;border:1px dashed}' + #13#10 +
-		'</style>' + #13#10 + '</head>' + #13#10 + '<body>';
+    
+
 type
-  PEditBalloonTip = ^TEditBalloonTip;
 
-
-
-  EDITBALLOONTIP = record
-
-    cbStruct: DWORD;
-
-    pszTitle: PWChar;
-
-    pszText: PWChar;
-
-    ttiIcon: Integer;
-
-  end;
-
-
-
-  TEditBalloonTip = EDITBALLOONTIP;
    PTreeData = ^TTreeData;
    TTreeData = record
       Acc: IAccessible;
@@ -104,7 +48,7 @@ type
     FIE = record
         Iweb: IWebBrowser2;
     end;
-  //FCPList用
+
     PCP = ^TCP;
     TCP = record
         CP: IConnectionPoint;
@@ -203,6 +147,14 @@ type
     mnuSSel: TMenuItem;
     mnuTVSAll: TMenuItem;
     mnuTVSSel: TMenuItem;
+    mnuSave: TMenuItem;
+    mnuOpenB: TMenuItem;
+    mnuOAll: TMenuItem;
+    mnuOSel: TMenuItem;
+    mnuTVOpen: TMenuItem;
+    mnuTVOAll: TMenuItem;
+    mnuTVOSel: TMenuItem;
+    mnuSelMode: TMenuItem;
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure acFocusExecute(Sender: TObject);
     procedure acCursorExecute(Sender: TObject);
@@ -211,7 +163,6 @@ type
     procedure acRectExecute(Sender: TObject);
     procedure acOnlyFocusExecute(Sender: TObject);
     procedure Timer1Timer(Sender: TObject);
-    procedure FormPaint(Sender: TObject);
     procedure acParentExecute(Sender: TObject);
     procedure acChildExecute(Sender: TObject);
     procedure acPrevSExecute(Sender: TObject);
@@ -251,31 +202,35 @@ type
     procedure mnuTVSSelClick(Sender: TObject);
     procedure mnuSAllClick(Sender: TObject);
     procedure mnuSSelClick(Sender: TObject);
+    procedure mnuTVOAllClick(Sender: TObject);
+    procedure mnuOAllClick(Sender: TObject);
+    procedure mnuTVOSelClick(Sender: TObject);
+    procedure mnuOSelClick(Sender: TObject);
+    procedure mnuSelModeClick(Sender: TObject);
   private
     { Private declarations }
-    Cookie: Integer;
+    HTMLs: array [0..2, 0..1] of string;
+    HTMLsFF: array [0..2, 0..1] of string;
+    ARIAs: array [0..1, 0..1] of string;
+    IA2Sts: array [0..17] of string;
+    sHTML, sTxt, sTypeIE, sTypeFF, sARIA: string;
+    bSelMode: Boolean;
     iFocus, iRefCnt, ShowSrcLen: integer;
-    CP: IConnectionPoint;
-    CPC: IConnectionPointContainer;
-    IE: IWebBrowser2;
-    FCPList: TList;
-    FIEList: TList;
-    FCURList, FCACList: TList;
     hHook: THandle;
-    LangList: TStringList;
+    LangList, ClsNames: TStringList;
     rType, rTarg: string;
     arPT: array [0..2] of TPoint;
     lMSAA: array[0..11] of string;
     lIA2: array [0..13] of string;
     lUIA: array [0..60] of string;
+    Roles: array [0..42] of string;
     oldPT: TPoint;
     WndFocus, WndLabel, WndDesc, WndTarg: TwndFocusRect;
     WndTip: TfrmTipWnd;
     hRgn1, hRgn2, hRgn3: hRgn;
     None, ConvErr, HelpURL, DllPath, APPDir, sTrue, sFalse: string;
     Created: boolean;
-    oldIEHwnd: hwnd;
-    iEvSrcEle, CEle: IHTMLElement;
+    CEle: IHTMLElement;
     SDom: ISImpleDOMNode;
     UIEle: IUIAutomationElement;
     TreeTH: TreeThread;
@@ -296,13 +251,8 @@ type
     iAcc, accRoot, DocAcc: IAccessible;
     VarParent: variant;
     iMode: integer;
-    ExTip, OnTree: boolean;
+    ExTip: boolean;
     procedure ExecOnlyFocus;
-    function GetSource(iDoc: IHTMLDOCUMENT): string;
-    procedure GetFrame(var FIEList: TList);
-    procedure ConnectIEEvent;
-    procedure OnMouseEnter(Sender: TObject);
-    procedure OnMouseLeave(Sender: TObject);
     function MSAAText(pAcc: IAccessible = nil; TextOnly: boolean = false): string;
     function MSAAText4Tip(pAcc: IAccessible = nil): string;
     function MSAAText4HTML(pAcc: IAccessible = nil; tab: string = ''): string;
@@ -310,35 +260,31 @@ type
     function HTMLText: string;
     function HTMLText4FF: string;
     function ARIAText: string;
-    function ARIAText4FF: string;
+
     function SetIA2Text(pAcc: IAccessible = nil; SetTL: boolean = True): string;
     function UIAText: string;
 
     procedure SizeChange;
     procedure ExecMSAAMode(sender: TObject);
-    procedure ExecFFArrow(sender: TObject);
-    procedure Delay_ms(ms: cardinal);
     //Thread terminate
     procedure ThDone(Sender: TObject);
     procedure ReflexID(sID: string; isEle: ISimpleDOMNODE; Labelled: boolean = true);
     procedure ShowBalloonTip(Control: TWinControl; Icon: integer; Title: string; Text: string; RC: TRect; X, Y:integer; Track:boolean = false);
     procedure SetBalloonPos(X, Y:integer);
     procedure ReflexACC(ParentNode: TTreeNode; ParentAcc: IAccessible);
-    procedure GetTree(ParentNode: TTreeNode; ParentAcc: IAccessible);
     procedure ReflexIA2Rel(pNode: TTreenode; ia2: IAccessible2);
     function GetSameAcc: boolean;
     function IsSameUIElement(ia1, ia2: IAccessible): boolean;
     procedure SetTreeMode(pNode: TTreeNode);
     function AccIsNull(tAcc: IAccessible): boolean;
     procedure mnuLangChildClick(Sender: TObject);
-    function LoadTranslation(Sec, Ident, Def: string):string;
-    function LoadTranslation_Path(Sec, Ident, Def, Path: string):string;
-    function LoadTransInt(Sec, Ident:string;  Def: integer):integer;
     procedure ReflexTV(cNode: TTreeNode; var HTML: string; var iCnt: integer; ForSel: boolean = false);
     function Get_RoleText(Acc: IAccessible; Child: integer): string;
     function GetIA2Role(iRole: integer): string;
     function GetIA2State(iRole: integer): string;
     procedure ExecCmdLine;
+    function GetTVAllItems: string;
+    function GetTVSelItems: string;
   protected
     { Protected declarations  }
 
@@ -359,26 +305,16 @@ type
     procedure WMCopyData(var Msg: TWMCopyData); Message WM_COPYDATA;
     Procedure SetAbsoluteForegroundWindow(HWND: hWnd);
     function GetWindowNameLC(Wnd: HWND): string;
-    //IDispatch
-    function GetTypeInfoCount(out Count: Integer): HResult; stdcall;
-    function GetTypeInfo(Index, LocaleID: Integer; out TypeInfo): HResult; stdcall;
-    function GetIDsOfNames(const IID: TGUID; Names: Pointer;
-      NameCount, LocaleID: Integer; DispIDs: Pointer): HResult; stdcall;
-    function Invoke(DispID: Integer; const IID: TGUID; LocaleID: Integer;
-      Flags: Word; var Params; VarResult, ExcepInfo, ArgErr: Pointer): HResult; virtual; stdcall;
-
-    //procedure WMNotify(var Msg:TWMNotify);message WM_NOTIFY;
   end;
 
 var
   wndMSAAV: TwndMSAAV;
-  OriginalProc: TFNWndProc;
   ac: IAccessible;
-  StopWait, DMode: boolean;
-  bTer, bTer2: boolean;
-  rNode: TTreeNode;
+  DMode: boolean;
+  bTer: boolean;
+  refNode: TTreeNode;
   TBList: TIntegerList;
-  CNames: array of string;
+
 
 implementation
 
@@ -513,7 +449,6 @@ var
     i:cardinal;
     pAcc: IAccessible;
     s: string;
-    pWB: IWebBrowser2;
     iDis: iDispatch;
     function SetiAcc: HResult;
     begin
@@ -526,30 +461,9 @@ begin
 
         EVENT_OBJECT_FOCUS:
         begin
-            if not wndMSAAV.acFocus.Checked then
-                Exit;
-            try
-
-            s := wndMSAAV.GetWindowNameLC(hwnd);
-            if (s = 'internet explorer_server') and (wndMSAAV.oldIEHwnd <> hwnd) then
-            begin
-                GetIEFromHWND(hwnd, pWB);
-                if pWB <> nil then
-                begin
-                    wndMSAAV.oldIEHwnd := hwnd;
-                    wndMSAAV.IE := pWB;
-                    wndMSAAV.ConnectIEEvent;
-                    wndMSAAV.CEle := nil;
-                    wndMSAAV.tbParent.Enabled := false;
-                    wndMSAAV.tbChild.Enabled := false;
-                    wndMSAAV.tbPrevS.Enabled := false;
-                    wndMSAAV.tbNextS.Enabled := false;
-                    wndMSAAV.acParent.Enabled := wndMSAAV.tbParent.Enabled;
-                    wndMSAAV.acChild.Enabled := wndMSAAV.tbChild.Enabled;
-                    wndMSAAV.acPrevS.Enabled := wndMSAAV.tbPrevS.Enabled;
-                    wndMSAAV.acNextS.Enabled := wndMSAAV.tbNextS.Enabled;
-                end;
-            end;
+          if not wndMSAAV.acFocus.Checked then
+            Exit;
+          try
 
             i := GetWindowLong(hwnd, GWL_HINSTANCE);
             if i = hInstance then
@@ -557,19 +471,8 @@ begin
 
                 exit;
             end;
-            //if (not wndMSAAV.acOnlyFOcus.Checked) and (not wndMSAAV.acFocus.Checked) then exit;
-
-            //if SUCCEEDED(AccessibleObjectFromEvent(hwnd, idObject, idChild, @wndMSAAV.iAcc, vChild)) then
-            //begin
-
-                {if (s = 'internet explorer_server') or (s = 'macromediaflashplayeractivex') then
-                    wndMSAAV.iMode := 0
-                else if (s = 'mozillawindowclass') or (s = 'chrome_renderwidgethosthwnd') or (s = 'mozillawindowclass') or (s = 'chrome_widgetwin_0') or (s = 'chrome_widgetwin_1') then
-                    wndMSAAV.iMode := 1
-                else
-                    wndMSAAV.iMode := 2;   }
+              s := wndMSAAV.GetWindowNameLC(hwnd);
                 wndMSAAV.iMode := wndMSAAV.GetOpeMode(s);
-                //if wndMSAAV.iMode = 0 then
                 if (not wndMSAAV.acMSAAMode.Checked) then
                 begin
                     if (wndMSAAV.acOnlyFOcus.Checked) then
@@ -630,11 +533,11 @@ begin
                     end;
                 end;
 
-            except
-                on E:Exception do
-                    ShowErr(E.Message);
+          except
+            on E:Exception do
+              ShowErr(E.Message);
             end;
-        end;
+      end;
 
     end;
 end;
@@ -676,297 +579,136 @@ end;
 
 function TwndMSAAV.GetIA2Role(iRole: integer): string;
 var
-	ini: TMemIniFile;
   PC:PChar;
   ovValue: OleVariant;
 
 begin
-        ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
-        try
-            case iRole of
-            IA2_ROLE_CANVAS: result := ini.ReadString('IA2', 'IA2_ROLE_CANVAS', 'canvas');
-            IA2_ROLE_CAPTION: result := ini.ReadString('IA2', 'IA2_ROLE_CAPTION', 'Caption');
-            IA2_ROLE_CHECK_MENU_ITEM: result := ini.ReadString('IA2', 'IA2_ROLE_CHECK_MENU_ITEM', 'Check menu item');
-            IA2_ROLE_COLOR_CHOOSER: result := ini.ReadString('IA2', 'IA2_ROLE_COLOR_CHOOSER', 'Color chooser');
-            IA2_ROLE_DATE_EDITOR: result := ini.ReadString('IA2', 'IA2_ROLE_DATE_EDITOR', 'Date editor');
-            IA2_ROLE_DESKTOP_ICON: result := ini.ReadString('IA2', 'IA2_ROLE_DESKTOP_ICON', 'Desktop icon');
-            IA2_ROLE_DESKTOP_PANE: result := ini.ReadString('IA2', 'IA2_ROLE_DESKTOP_PANE', 'Desktop pane');
-            IA2_ROLE_DIRECTORY_PANE: result := ini.ReadString('IA2', 'IA2_ROLE_DIRECTORY_PANE', 'Directory pane');
-            IA2_ROLE_EDITBAR: result := ini.ReadString('IA2', 'IA2_ROLE_EDITBAR', 'Editbar');
-            IA2_ROLE_EMBEDDED_OBJECT: result := ini.ReadString('IA2', 'IA2_ROLE_EMBEDDED_OBJECT', 'Embedded object');
-            IA2_ROLE_ENDNOTE: result := ini.ReadString('IA2', 'IA2_ROLE_ENDNOTE', 'Endnote');
-            IA2_ROLE_FILE_CHOOSER: result := ini.ReadString('IA2', 'IA2_ROLE_FILE_CHOOSER', 'File chooser');
-            IA2_ROLE_FONT_CHOOSER: result := ini.ReadString('IA2', 'IA2_ROLE_FONT_CHOOSER', 'Font chooser');
-            IA2_ROLE_FOOTER: result := ini.ReadString('IA2', 'IA2_ROLE_FOOTER', 'Footer');
-            IA2_ROLE_FOOTNOTE: result := ini.ReadString('IA2', 'IA2_ROLE_FOOTNOTE', 'Footnote');
-            IA2_ROLE_FORM: result := ini.ReadString('IA2', 'IA2_ROLE_FORM', 'Form');
-            IA2_ROLE_FRAME: result := ini.ReadString('IA2', 'IA2_ROLE_FRAME', 'Frame');
-            IA2_ROLE_GLASS_PANE: result := ini.ReadString('IA2', 'IA2_ROLE_GLASS_PANE', 'Glass pane');
-            IA2_ROLE_HEADER: result := ini.ReadString('IA2', 'IA2_ROLE_HEADER', 'Header');
-            IA2_ROLE_HEADING: result := ini.ReadString('IA2', 'IA2_ROLE_HEADING', 'Heading');
-            IA2_ROLE_ICON: result := ini.ReadString('IA2', 'IA2_ROLE_ICON', 'Icon');
-            IA2_ROLE_IMAGE_MAP: result := ini.ReadString('IA2', 'IA2_ROLE_IMAGE_MAP', 'Image map');
-            IA2_ROLE_INPUT_METHOD_WINDOW: result := ini.ReadString('IA2', 'IA2_ROLE_INPUT_METHOD_WINDOW', 'Input method window');
-            IA2_ROLE_INTERNAL_FRAME: result := ini.ReadString('IA2', 'IA2_ROLE_INTERNAL_FRAME', 'Internal frame');
-            IA2_ROLE_LABEL: result := ini.ReadString('IA2', 'IA2_ROLE_LABEL', 'Label');
-            IA2_ROLE_LAYERED_PANE: result := ini.ReadString('IA2', 'IA2_ROLE_LAYERED_PANE', 'Layered pane');
-            IA2_ROLE_NOTE: result := ini.ReadString('IA2', 'IA2_ROLE_NOTE', 'Note');
-            IA2_ROLE_OPTION_PANE: result := ini.ReadString('IA2', 'IA2_ROLE_OPTION_PANE', 'Option pane');
-            IA2_ROLE_PAGE: result := ini.ReadString('IA2', 'IA2_ROLE_PAGE', 'Role pane');
-            IA2_ROLE_PARAGRAPH: result := ini.ReadString('IA2', 'IA2_ROLE_PARAGRAPH', 'Paragraph');
-            IA2_ROLE_RADIO_MENU_ITEM: result := ini.ReadString('IA2', 'IA2_ROLE_RADIO_MENU_ITEM', 'Radio menu item');
-            IA2_ROLE_REDUNDANT_OBJECT: result := ini.ReadString('IA2', 'IA2_ROLE_REDUNDANT_OBJECT', 'Redundant object');
-            IA2_ROLE_ROOT_PANE: result := ini.ReadString('IA2', 'IA2_ROLE_ROOT_PANE', 'Root pane');
-            IA2_ROLE_RULER: result := ini.ReadString('IA2', 'IA2_ROLE_RULER', 'Ruler');
-            IA2_ROLE_SCROLL_PANE: result := ini.ReadString('IA2', 'IA2_ROLE_SCROLL_PANE', 'Scroll pane');
-            IA2_ROLE_SECTION: result := ini.ReadString('IA2', 'IA2_ROLE_SECTION', 'Section');
-            IA2_ROLE_SHAPE: result := ini.ReadString('IA2', 'IA2_ROLE_SHAPE', 'Shape');
-            IA2_ROLE_SPLIT_PANE: result := ini.ReadString('IA2', 'IA2_ROLE_SPLIT_PANE', 'Split pane');
-            IA2_ROLE_TEAR_OFF_MENU: result := ini.ReadString('IA2', 'IA2_ROLE_TEAR_OFF_MENU', 'Tear off menu');
-            IA2_ROLE_TERMINAL: result := ini.ReadString('IA2', 'IA2_ROLE_TERMINAL', 'Terminal');
-            IA2_ROLE_TEXT_FRAME: result := ini.ReadString('IA2', 'IA2_ROLE_TEXT_FRAME', 'Text frame');
-            IA2_ROLE_TOGGLE_BUTTON: result := ini.ReadString('IA2', 'IA2_ROLE_TOGGLE_BUTTON', 'Toggle button');
-            IA2_ROLE_VIEW_PORT: result := ini.ReadString('IA2', 'IA2_ROLE_VIEW_PORT', 'View port');
-            else
-            begin
-                PC := StrAlloc(255);
-                ovValue := iROle;
-                GetRoleTextW(ovValue, PC, StrBufSize(PC));
-                result := PC;
-                StrDispose(PC);
-            end;
-            end;
-        finally
-            ini.Free;
-        end;
+
+  case iRole of
+    1025..1067: result := Roles[iRole - 1025];
+    else
+    begin
+      PC := StrAlloc(255);
+      ovValue := iROle;
+      GetRoleTextW(ovValue, PC, StrBufSize(PC));
+      result := PC;
+      StrDispose(PC);
+    end;
+  end;
 end;
 
 function TwndMSAAV.GetIA2State(iRole: integer): string;
-var
-	ini: TMemIniFile;
-    begin
-        ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
-        try
+begin
+  Result := '';
+
             if (iRole and IA2_STATE_ACTIVE) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_ACTIVE', 'Active');
+                Result := Result + IA2Sts[0];
             end;
 
             if (iRole and IA2_STATE_ARMED) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_ARMED', 'Armed');
+                Result := Result + IA2Sts[1];
             end;
 
             if (iRole and IA2_STATE_DEFUNCT) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_DEFUNCT', 'Defunct');
+                Result := Result + IA2Sts[2];
             end;
 
             if (iRole and IA2_STATE_EDITABLE) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_EDITABLE', 'Editable');
+                Result := Result + IA2Sts[3];
             end;
 
             if (iRole and IA2_STATE_HORIZONTAL) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_HORIZONTAL', 'Horizontal');
+                Result := Result + IA2Sts[4];
             end;
 
             if (iRole and IA2_STATE_ICONIFIED) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_ICONIFIED', 'Iconified');
+                Result := Result + IA2Sts[5];
             end;
 
             if (iRole and IA2_STATE_INVALID_ENTRY) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_INVALID_ENTRY', 'Invalid entry');
+                Result := Result + IA2Sts[6];
             end;
 
             if (iRole and IA2_STATE_MANAGES_DESCENDANTS) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_MANAGES_DESCENDANTS', 'Manages descendants');
+                Result := Result + IA2Sts[7];
             end;
 
             if (iRole and IA2_STATE_MODAL) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_MODAL', 'Modal');
+                Result := Result + IA2Sts[8];
             end;
 
             if (iRole and IA2_STATE_MULTI_LINE) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_MULTI_LINE', 'Multi line');
+                Result := Result + IA2Sts[9];
             end;
 
             if (iRole and IA2_STATE_OPAQUE) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_OPAQUE', 'Opaque');
+                Result := Result + IA2Sts[10];
             end;
 
             if (iRole and IA2_STATE_REQUIRED) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_REQUIRED', 'Required');
+                Result := Result + IA2Sts[11];
             end;
 
             if (iRole and IA2_STATE_SELECTABLE_TEXT) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_SELECTABLE_TEXT', 'Selectable text');
+                Result := Result + IA2Sts[12];
             end;
 
             if (iRole and IA2_STATE_SINGLE_LINE) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_SINGLE_LINE', 'Single line');
+                Result := Result + IA2Sts[13];
             end;
 
             if (iRole and IA2_STATE_STALE) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_STALE', 'Stale');
+                Result := Result + IA2Sts[14];
             end;
 
             if (iRole and IA2_STATE_SUPPORTS_AUTOCOMPLETION) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_SUPPORTS_AUTOCOMPLETION', 'Supports autocompletion');
+                Result := Result + IA2Sts[15];
             end;
 
             if (iRole and IA2_STATE_TRANSIENT) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_TRANSIENT', 'Transient');
+                Result := Result + IA2Sts[16];
             end;
 
             if (iRole and IA2_STATE_VERTICAL) <> 0 then
             begin
                 if Result <> '' then Result := result + ', ';
-                Result := Result + ini.ReadString('IA2', 'IA2_STATE_VERTICAL', 'Vertical');
+                Result := Result + IA2Sts[17];
             end;
 
-        finally
-            ini.Free;
-        end;
-end;
-
-function TwndMSAAV.LoadTransInt(Sec, Ident:string; Def: integer):integer;
-var
-	ini: TMemIniFile;
-    s: string;
-begin
-    Result := Def;
-    ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
-	try
-        if ini.SectionExists(Sec) then
-            Result := Ini.Readinteger(Sec, Ident, Def)
-        else
-        begin
-            if LowerCase(RightStr(Sec, 1)) = 's' then
-            begin
-                s := LeftStr(Sec, Length(Sec)-1);
-                if ini.SectionExists(s) then
-                    Result := Ini.Readinteger(S, Ident, Def);
-            end
-            else
-            begin
-                s := Sec + 's';
-                if ini.SectionExists(s) then
-                    Result := Ini.Readinteger(S, Ident, Def);
-            end;
-        end;
-    finally
-        ini.Free;
-    end;
-end;
-
-function TwndMSAAV.LoadTranslation_Path(Sec, Ident, Def, Path: string):string;
-var
-	ini: TMemIniFile;
-    s: string;
-begin
-    Result := Def;
-    ini := TMemIniFile.Create(Path, TEncoding.Unicode);
-	try
-        if ini.SectionExists(Sec) then
-            Result := Ini.ReadString(Sec, Ident, Def)
-        else
-        begin
-            if LowerCase(RightStr(Sec, 1)) = 's' then
-            begin
-                s := LeftStr(Sec, Length(Sec)-1);
-                if ini.SectionExists(s) then
-                    Result := Ini.ReadString(S, Ident, Def);
-            end
-            else
-            begin
-                s := Sec + 's';
-                if ini.SectionExists(s) then
-                    Result := Ini.ReadString(S, Ident, Def);
-            end;
-        end;
-    finally
-        ini.Free;
-    end;
-
-end;
-
-function TwndMSAAV.LoadTranslation(Sec, Ident, Def: string):string;
-var
-	ini: TMemIniFile;
-    s: string;
-begin
-    Result := Def;
-    ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
-	try
-        if ini.SectionExists(Sec) then
-            Result := Ini.ReadString(Sec, Ident, Def)
-        else
-        begin
-            if LowerCase(RightStr(Sec, 1)) = 's' then
-            begin
-                s := LeftStr(Sec, Length(Sec)-1);
-                if ini.SectionExists(s) then
-                    Result := Ini.ReadString(S, Ident, Def);
-            end
-            else
-            begin
-                s := Sec + 's';
-                if ini.SectionExists(s) then
-                    Result := Ini.ReadString(S, Ident, Def);
-            end;
-        end;
-    finally
-        ini.Free;
-    end;
-end;
-
-procedure TwndMSAAV.Delay_ms(ms: cardinal);
-var
-    STime: Cardinal;
-begin
-
-
-    STime := timeGetTime;
-    while True do
-    begin
-        if StopWait then break;
-        if (timeGetTime - STime) >= ms then break;
-
-        Application.ProcessMessages;
-        Sleep(1);
-    end;
-    StopWait := false;
 end;
 
 procedure ReflexList(var FIEList: TList; hDoc: IHTMLDocument2);
@@ -1011,84 +753,6 @@ begin
     end;
 end;
 
-
-procedure TwndMSAAV.GetFrame(var FIEList: TList);
-var
-    TIE: PIE;
-    iDoc: IHTMLDocument2;
-    i: integer;
-begin
-    if IE = nil then Exit;
-    for i := 0 to FIEList.Count - 1 do
-    begin
-        if Assigned(FIEList.Items[i]) then
-            Dispose(FIEList.Items[i]);
-    end;
-    FIEList.Clear;
-    New(TIE);
-    TIE.Iweb := IE;
-    FIEList.Add(TIE);
-    if SUCCEEDED(IE.Document.QueryInterface(IID_IHTMLDocument2, iDoc)) then
-    begin
-        ReflexList(FIEList, iDoc);
-    end;
-end;
-
-procedure TwndMSAAV.ConnectIEEvent;
-var
-    i: integer;
-    TCP: PCP;
-    iDoc: IHTMLDocument2;
-    pWB: IWebBrowser2;
-    iDis: IDispatch;
-begin
-    if CP <> nil then
-        CP.Unadvise(Cookie);
-    if SUCCEEDED(IE.QueryInterface(IID_IConnectionPointContainer, CPC)) then
-    begin
-        if SUCCEEDED(CPC.FindConnectionPoint(DWebBrowserEvents2, CP)) then
-        begin
-            CP.Advise(Self, Cookie);
-        end;
-
-    end;
-     for i := 0 to FCPList.Count - 1 do
-     begin
-        if Assigned(FCPList.Items[i]) then
-        begin
-            PCP(FCPList.Items[i])^.CP.Unadvise(PCP(FCPList.Items[i])^.Cookie);
-            Dispose(FCPList.Items[i]);
-        end;
-     end;
-     FCPList.Clear;
-     GetFrame(FIEList);
-     for i := 0 to FIEList.Count - 1 do
-     begin
-        pWB := PIE(FIEList.Items[i]).Iweb;
-        if (pWB.LocationURL <> '') then
-        begin
-            if SUCCEEDED(pWB.Document.QueryInterface(IID_IHTMLDocument, iDis)) then
-            begin
-                if SUCCEEDED(iDis.QueryInterface(IID_IHTMLDocument2, iDoc)) then
-                begin
-                    if SUCCEEDED(iDis.QueryInterface(IID_IConnectionPointContainer, CPC)) then
-                    begin
-                        New(TCP);
-                        if SUCCEEDED(CPC.FindConnectionPoint(DIID_HTMLDocumentEvents, TCP^.CP)) then
-                        begin
-
-                            TCP^.CP.Advise(Self, TCP^.Cookie);
-                            FCPList.Add(TCP);
-                        end
-                        else
-                            Dispose(TCP);
-
-                    end;
-                end;
-            end;
-        end;
-     end;
-end;
 
 Procedure TwndMSAAV.SetAbsoluteForegroundWindow(HWND: hWnd);
 var
@@ -1411,47 +1075,6 @@ begin
 
 end;
 
-procedure TwndMSAAV.GetTree(ParentNode: TTreeNode; ParentAcc: IAccessible);
-begin
-    //TreeView1.Items.BeginUpdate;
-    try
-    OnTree := True;
-    bTer := False;
-    sNode := nil;
-    ReflexACC(ParentNode, ParentAcc);
-
-    if bTer then
-    begin
-        sNode := nil;
-        TreeView1.Items.Clear;
-    end;
-
-
-        OnTree := False;
-        if Assigned(sNode) then
-        begin
-
-
-            if wndMSAAV.TreeView1.Items.Count > 0 then
-            begin
-                if sNode <> nil then
-                begin
-                    sNode.Expanded := true;
-                    wndMSAAV.TreeView1.SetFocus;
-                    wndMSAAV.TreeView1.TopItem := sNode;
-                    sNode.Selected := True;
-                    wndMSAAV.GetNaviState;
-                end;
-            end;
-
-        end
-        else
-            wndMSAAV.TreeView1.Items.Clear;
-    finally
-        //TreeView1.Items.EndUpdate;
-    end;
-end;
-
 procedure TwndMSAAV.ReflexACC(ParentNode: TTreeNode; ParentAcc: IAccessible);
 var
     cAcc, tAcc: IAccessible;
@@ -1473,7 +1096,7 @@ var
         TD^.Acc := cAcc;
         TD^.iID := iCH;
         pNode := cNode;
-        rNode := TreeView1.Items.AddChildObject(pNode, NodeCap, Pointer(TD));
+        refNode := TreeView1.Items.AddChildObject(pNode, NodeCap, Pointer(TD));
     end;
 
     procedure SName;
@@ -1518,10 +1141,10 @@ begin
           (sRC.Right = cRC.Right) and (sRC.Bottom = cRC.Bottom) then
         begin
 
-            sNode := rNode;
+            sNode := refNode;
         end;
 
-        cNode := rNode;
+        cNode := refNode;
 
         // iChild := cAcc.accChildCount;
         cAcc.Get_accChildCount(iChild);
@@ -1625,7 +1248,9 @@ Example:
     TreeList1.Items.Clear;
     TreeList1.Items.EndUpdate;
     mnuTVSAll.Enabled := False;
+    mnuTVOAll.Enabled := False;
 		mnuTVSSel.Enabled := False;
+    mnuTVOSel.Enabled := False;
     iDefIndex := -1;
     //if not Treemode then
     //begin
@@ -1672,7 +1297,7 @@ Example:
                           //iSP := iAcc as IServiceProvider;
 													//if (SUCCEEDED(iSP.QueryService(IID_IHTMLELEMENT, IID_IHTMLELEMENT, iEle))) then
 													//begin
-														if (LowerCase(iEle.tagName) = 'body') and (varParent > 0) then iEle := iEVSrcEle;
+														//if (LowerCase(iEle.tagName) = 'body') and (varParent > 0) then iEle := iEVSrcEle;
                         		iDom := iEle as IHTMLDOMNODE;
                         		CEle := iEle;
                         		if mnuARIA.Checked then
@@ -1744,10 +1369,10 @@ Example:
                   //begin
                     iSP := iAcc as IServiceProvider;
                     GetNaviState(True);
-
                     iRes := iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, isEle);
 										if SUCCEEDED(iRes) then
                     begin
+
                       SDom := isEle;
                       // GetNaviState;
                       if mnuARIA.Checked then ARIAText;
@@ -1967,8 +1592,6 @@ begin
     if pAcc = nil then pAcc := iAcc;
     if (iMode <> 1) then Exit;
     if (not mnuMSAA.Checked) then Exit;
-    //if flgIA2 = 0 then Exit;
-    rNode := nil;
     oList := TStringList.Create;
     try
 
@@ -2267,6 +1890,7 @@ begin
     if pAcc = nil then pAcc := iAcc;
     if (iMode <> 1) then Exit;
     if (not mnuMSAA.Checked) then Exit;
+
     //if flgIA2 = 0 then Exit;
     rNode := nil;
     oList := TStringList.Create;
@@ -2302,7 +1926,10 @@ begin
                         end;
                     except
                         on E: Exception do
+                        begin
                             MSAAs[0] := E.Message;
+
+                        end;
                     end;
                 end;
 
@@ -2469,8 +2096,6 @@ begin
                         end
                         else if (i = 4) {and ((flgIA2 and 16) <> 0)} then
                         begin
-                           node := nil;
-
                             try
                                 if SUCCEEDED(ia2.Get_nRelations(iRole)) then
                                 begin
@@ -2481,7 +2106,7 @@ begin
                                         iAL.Get_RelationType(s);
 
 
-
+                                        ccNode := nil;
 
                                         if SetTL then
                                         begin
@@ -2547,6 +2172,7 @@ begin
                         end
                         else if i = 9 then
                         begin
+                          Node := nil;
                         	if SetTL then
                           begin
                         		node := nodes.AddChild(rNode, lIA2[10]);
@@ -2993,7 +2619,7 @@ begin
     pa := TTreeData(Node.Data^).Acc;
     if not assigned(pa) then
         Exit;
-    ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
+    ini := TMemIniFile.Create(TransPath, TEncoding.UTF8);
     try
         MSAAs[0] := ini.ReadString('MSAA', 'Name', 'Name') + ':';
         MSAAs[1] := ini.ReadString('MSAA', 'State', 'State') + ':';
@@ -3055,6 +2681,8 @@ begin
 
     end;}
 end;
+
+
 
 function TwndMSAAV.MSAAText(pAcc: IAccessible = nil; TextOnly: boolean = false): string;
 var
@@ -3241,12 +2869,12 @@ begin
         if not TextOnly then
         begin
         	nodes := TreeList1.Items;
-        	rNode := nodes.AddChild(nil, lMSAA[0]);
+        	refNode := nodes.AddChild(nil, lMSAA[0]);
         	for i := 0 to 10 do
         	begin
             	if (flgMSAA and TruncPow(2, i)) <> 0 then
             	begin
-                	node := nodes.AddChild(rNode, lMSAA[i+1]);
+                	node := nodes.AddChild(refNode, lMSAA[i+1]);
                 	TreeList1.SetNodeColumn(node, 1, MSAAs[i]);
                 	Result := Result + lMSAA[i+1] + ':' + #9 + MSAAs[i] + #13#10;
                 	if i = 4 then
@@ -3255,7 +2883,7 @@ begin
                 	end;
             	end;
         	end;
-          rNode.Expand(True);
+          refNode.Expand(True);
         end
         else
         begin
@@ -3274,46 +2902,19 @@ end;
 
 function TwndMSAAV.HTMLText: string;
 var
-    HTMLs: array [0..2, 0..1] of widestring;
-    iAttrCol: IHTMLATTRIBUTECOLLECTION;
-    iDomAttr: IHTMLDOMATTRIBUTE;
-    s, sHTML, sType: string;
+
+    s: string;
     hAttrs: widestring;
-    ovValue: OleVariant;
     i: integer;
     rNode, Node, sNode: TTreeNode;
-    ini: TMemIniFile;
-
-    aPC, aPC2: array [0..64] of pWidechar;
-    aSI: array [0..64] of Smallint;
-    PC, PC2:PChar;
-    SI: Smallint;
-    PU, PU2: PUINT;
-    WD: Word;
+    HTMLP: THtmlParser;
 begin
     if ((CEle = nil) and (Imode = 0)) or ((SDOM = nil) and (iMode = 1)) then
     begin
         GetNaviState(True);
         Exit;
     end;
-    sHTML := 'HTML';
-    HTMLs[0, 0] := 'Element name';
-    HTMLs[1, 0] := 'Attributes';
-    HTMLs[2, 0] := 'Code';
-    if FileExists(Transpath) then
-    begin
-        ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
-	    try
-            sHTML := ini.ReadString('HTML', 'HTML', sHTML);
-            HTMLs[0, 0] := ini.ReadString('HTML', 'Element_name', HTMLs[0, 0]);
-            HTMLs[1, 0] := ini.ReadString('HTML', 'Attributes', HTMLs[1, 0]);
-            HTMLs[2, 0] := ini.ReadString('HTML', 'Code', HTMLs[2, 0]);
-            sType := '(' + ini.ReadString('HTML', 'outerHTML', 'outerHTML') + ')';
-            HTMLs[2, 0] := HTMLs[2, 0] + Stype;
-        finally
-            ini.Free;
-        end;
-    end;
+    for i := 0 to 2 do HTMLs[i, 1] := '';
 
 
 
@@ -3324,81 +2925,30 @@ begin
         rNode := TreeList1.Items.AddChild(nil, sHTML);
         Node := TreeList1.Items.AddChild(rNode, HTMLS[0, 0]);
         TreeList1.SetNodeColumn(node, 1, HTMLS[0, 1]);
-        iAttrCol := (CEle as IHTMLDOMNODE).attributes as IHTMLATTRIBUTECOLLECTION;
+
+
         sNode := nil;
-        for i := 0 to iAttrCol.length - 1 do
-        begin
-            ovValue := i;
-            iDomAttr := iAttrCol.item(ovValue) as IHTMLDomAttribute;
-            if iDomAttr.specified then
+        HTMLP := THTMLParser.Create;
+        try
+          HTMLP.Text := CEle.outerHTML;
+          HTMLP.NextTag;
+          for i := 0 to HTMLP.Tag.Params.Count - 1 do
+          begin
+            s := lowerCase(HTMLP.Tag.GetAttrName(i));
+            if (s <> 'role') and (Copy(s, 1, 4) <> 'aria') then
             begin
-                s := lowerCase(VarToStr(iDomAttr.nodeName));
-                if (s <> 'role') and (Copy(s, 1, 4) <> 'aria') then
-                begin
-                    try
-                        if sNode = nil then
-                        begin
-                            Node := TreeList1.Items.AddChild(rNode, HTMLS[1, 0]);
-                            sNode := Node;
-                        end;
-                        Node := TreeList1.Items.AddChild(sNode, VarToStr(iDOmAttr.nodeName));
-                        if VarHaveValue(iDomAttr.nodeValue) then
-                        begin
-                            TreeList1.SetNodeColumn(node, 1, VarToStr(iDomAttr.nodeValue));
-                            hattrs := hattrs + VarToStr(iDOmAttr.nodeName)  + VarToStr(iDomAttr.nodeValue) + '"' + #13#10;
-                        end;
-                    except
-                        on E:Exception do
-                        begin
-                            ShowErr(E.Message);
-                        end;
-                    end;
-                end;
+              if sNode = nil then
+              begin
+                Node := TreeList1.Items.AddChild(rNode, HTMLS[1, 0]);
+                sNode := Node;
+              end;
+              Node := TreeList1.Items.AddChild(sNode, HTMLP.Tag.GetAttrName(i));
+              TreeList1.SetNodeColumn(node, 1, HTMLP.Tag.GetAttrValue(i));
+              hattrs := hattrs + HTMLP.Tag.GetAttrName(i)  + HTMLP.Tag.GetAttrValue(i) + '"' + #13#10;
             end;
-        end;
-    end
-    else if iMode = 1 then
-    begin
-        SDOM.get_nodeInfo(PC, SI, PC2, PU, PU2, WD);
-
-        HTMLS[0, 1] := PC;
-        rNode := TreeList1.Items.AddChild(nil, sHTML);
-        Node := TreeList1.Items.AddChild(rNode, HTMLS[0, 0]);
-        TreeList1.SetNodeColumn(node, 1, HTMLS[0, 1]);
-        SDOM.get_attributes(65, aPC[0], aSI[0], aPC2[0], WD);
-        if WD > 0 then
-        begin
-            Node := TreeList1.Items.AddChild(rNode, HTMLS[1, 0]);
-            sNode := Node;
-
-            for i := 0 to WD - 1 do
-            begin
-                s := LowerCase(aPC[i]);
-                if s = 'role' then
-                begin
-                    //
-                end
-                else if Copy(s, 1, 4) = 'aria' then
-                begin
-                    //
-                end
-                else
-                begin
-                    try
-
-                        Node := TreeList1.Items.AddChild(sNode, aPC[i]);
-                        TreeList1.SetNodeColumn(node, 1, aPC2[i]);
-                        hattrs := hattrs + WideString(aPC[i]) + '","' + WideString(aPC2[i]) + #13#10;
-                    except
-
-                    end;
-                end;
-            end;
-        end
-        else
-        begin
-            Node := TreeList1.Items.AddChild(rNode, HTMLs[1, 0]);
-            TreeList1.SetNodeColumn(node, 1, none)
+          end;
+        finally
+          HTMLP.Free;
         end;
     end
     else
@@ -3415,9 +2965,6 @@ begin
 
     HTMLs[2, 1] := CEle.outerHTML;
 
-
-        //Node := TreeList1.Items.AddChild(rNode, HTMLS[2, 0]);
-        //TreeList1.SetNodeColumn(node, 1, HTMLS[2, 1]);
         Result := sHTML + #13#10 + HTMLS[0, 0] + ':' + #9 +  HTMLS[0, 1] +
                   #13#10 + HTMLS[1, 0] + ':' + #9 +  HTMLS[1, 1] +
                   #13#10 + HTMLS[2, 0] + ':' + #9 +  HTMLS[2, 1] + #13#10#13#10;
@@ -3428,8 +2975,8 @@ end;
 
 function TwndMSAAV.HTMLText4FF: string;
 var
-    HTMLs: array [0..2, 0..1] of string;
-    hAttrs, s, Path, sHTML, sType, sTxt: string;
+
+    hAttrs, s, Path, d: string;
     i: integer;
     aPC, aPC2: array [0..64] of pWidechar;
     aSI: array [0..64] of Smallint;
@@ -3438,7 +2985,6 @@ var
     PU, PU2: PUINT;
     WD, tWD: Word;
     rNode, Node, sNode: TTreeNode;
-    ini: TMemIniFile;
     iText: ISimpleDOMText;
     iSP: iServiceProvider;
 begin
@@ -3447,55 +2993,28 @@ begin
         GetNaviState(True);
         Exit;
     end;
-
-    sHTML := 'HTML';
-    HTMLs[0, 0] := 'Element name';
-    HTMLs[1, 0] := 'Attributes';
-    HTMLs[2, 0] := 'Code';
-    if FileExists(Transpath) then
-    begin
-        ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
-	    try
-            sHTML := ini.ReadString('HTML', 'HTML', sHTML);
-            HTMLs[0, 0] := ini.ReadString('HTML', 'Element_name', HTMLs[0, 0]);
-            HTMLs[1, 0] := ini.ReadString('HTML', 'Attributes', HTMLs[1, 0]);
-            HTMLs[2, 0] := ini.ReadString('HTML', 'Code', HTMLs[2, 0]);
-            sTxt := ini.ReadString('HTML', 'Text', 'Text');
-            sType := '(' + ini.ReadString('HTML', 'innerHTML', 'innerHTML') + ')';
-            //HTMLs[2, 0] := HTMLs[2, 0] + Stype;
-        finally
-            ini.Free;
-        end;
-    end;
+    for i := 0 to 2 do HTMLsFF[i, 1] := '';
     try
         Path := IncludeTrailingPathDelimiter(ExtractFileDir(Application.ExeName));
         SDOM.get_nodeInfo(PC, SI, PC2, PU, PU2, tWD);
 
         if tWD <> 3 then
-            HTMLS[0, 1] := PC
+            HTMLsFF[0, 1] := PC
         else
-            HTMLS[0, 1] := sTxt;
+            HTMLsFF[0, 1] := sTxt;
         rNode := TreeList1.Items.AddChild(nil, sHTML);
-        Node := TreeList1.Items.AddChild(rNode, HTMLS[0, 0]);
-        TreeList1.SetNodeColumn(node, 1, HTMLS[0, 1]);
+        Node := TreeList1.Items.AddChild(rNode, HTMLsFF[0, 0]);
+        TreeList1.SetNodeColumn(node, 1, HTMLsFF[0, 1]);
         SDOM.get_attributes(65, aPC[0], aSI[0], aPC2[0], WD);
         if WD > 0 then
         begin
-            Node := TreeList1.Items.AddChild(rNode, HTMLS[1, 0]);
+            Node := TreeList1.Items.AddChild(rNode, HTMLsFF[1, 0]);
             sNode := Node;
 
             for i := 0 to WD - 1 do
             begin
                 s := LowerCase(aPC[i]);
-                if s = 'role' then
-                begin
-                    //
-                end
-                else if Copy(s, 1, 4) = 'aria' then
-                begin
-                    //
-                end
-                else
+                if (s <> 'role') and (Copy(s, 1, 4) <> 'aria') then
                 begin
                     try
 
@@ -3510,18 +3029,18 @@ begin
         end
         else
         begin
-            Node := TreeList1.Items.AddChild(rNode, HTMLs[1, 0]);
+            Node := TreeList1.Items.AddChild(rNode, HTMLsFF[1, 0]);
             TreeList1.SetNodeColumn(node, 1, none)
         end;
         if hattrs = '' then
-            HTMLS[1, 1] := none
+            HTMLsFF[1, 1] := none
         else
-            HTMLS[1, 1] := hattrs;
+            HTMLsFF[1, 1] := hattrs;
         PC := '';
         if tWD <> 3 then
         begin
             SDOM.get_innerHTML(PC);
-            HTMLs[2, 0] := HTMLs[2, 0] + Stype;
+            d := HTMLsFF[2, 0] + StypeFF;
         end
         else
         begin
@@ -3529,16 +3048,16 @@ begin
             if SUCCEEDED(iSP.QueryInterface(IID_ISIMPLEDOMTEXT, iText)) then
             begin
                 iText.get_domText(PC);
-                HTMLs[2, 0] := HTMLs[2, 0] + '(' + sTxt + ')';
+                d := HTMLsFF[2, 0] + '(' + sTxt + ')';
             end;
         end;
 
-        HTMLs[2, 1] := PC;
+        HTMLsFF[2, 1] := PC;
 
-        Result := sHTML + #13#10 + HTMLS[0, 0] + ':' + #9 +  HTMLS[0, 1] +
-                  #13#10 + HTMLS[1, 0] + ':' + #9 +  HTMLS[1, 1] +
-                  #13#10 + HTMLS[2, 0] + ':' + #9 +  HTMLS[2, 1] + #13#10#13#10;
-        Memo1.Text := HTMLS[2, 0] + ':' + #13#10 +  HTMLS[2, 1] + #13#10#13#10;
+        Result := sHTML + #13#10 + HTMLsFF[0, 0] + ':' + #9 +  HTMLsFF[0, 1] +
+                  #13#10 + HTMLsFF[1, 0] + ':' + #9 +  HTMLsFF[1, 1] +
+                  #13#10 + d + ':' + #9 +  HTMLsFF[2, 1] + #13#10#13#10;
+        Memo1.Text := d + ':' + #13#10 +  HTMLsFF[2, 1] + #13#10#13#10;
         rNode.Expand(True);
     except
 
@@ -3709,15 +3228,14 @@ end;
 
 function TwndMSAAV.ARIAText: string;
 var
-    ARIAs: array [0..1, 0..1] of string;
+
     iAttrCol: IHTMLATTRIBUTECOLLECTION;
     iDomAttr: IHTMLDOMATTRIBUTE;
     aEle: IHTMLELEMENT;
-    s,  sAria: string;
+    s: string;
     List, List2: TStringList;
     ovValue: OleVariant;
     i: integer;
-    ini: TMemInifile;
     aAttrs, LowerS: string;
     rNode, Node, rcNode: TTreeNode;
     aPC, aPC2: array [0..64] of pchar;
@@ -3749,20 +3267,6 @@ begin
         WndTarg := nil;
     end;
 
-    sAria := 'ARIA';
-    ARIAs[0, 0] := 'Role';
-    ARIAs[1, 0] := 'Attributes';
-    if FileExists(Transpath) then
-    begin
-        ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
-	    try
-            sAria := ini.ReadString('ARIA', 'ARIA', sAria);
-            ARIAs[0, 0] := ini.ReadString('ARIA', 'Role', ARIAs[0, 0]);
-            ARIAs[1, 0] := ini.ReadString('ARIA', 'Attributes', ARIAs[1, 0]);
-        finally
-            ini.Free;
-        end;
-    end;
         if (iMode = 0) then
         begin
             iAttrCol := (CEle as IHTMLDOMNODE).attributes as IHTMLATTRIBUTECOLLECTION;
@@ -4004,7 +3508,7 @@ const
     end;
     function GetCID(iid: integer):string;
     begin
-        ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
+        ini := TMemIniFile.Create(TransPath, TEncoding.UTF8);
         try
             result := ini.ReadString('UIA', inttoStr(iid), none);
         finally
@@ -4013,7 +3517,7 @@ const
     end;
     function GetOT:string;
     begin
-        ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
+        ini := TMemIniFile.Create(TransPath, TEncoding.UTF8);
         try
             if OT = OrientationType_Horizontal then
                 result := ini.ReadString('UIA', 'OrientationType_Horizontal', 'Horizontal')
@@ -4455,45 +3959,6 @@ begin
               	    on E: Exception do
                         UIAs[53] := E.Message;
               end;
-              {try
-              hr := UIEle.GetCurrentPatternAs(UIA_RangeValuePatternId,  IID_IUIAutomationRangeValuePattern, pRV);
-              //hr := UIEle.GetCurrentPatternAs(UIA_RangeValuePatternId,  IID_IRangeValueProvider, pRv);
-              iRV := IUIAutomationRangeValuePattern(pRV^);
-              //hr := iRV.SetValue(1.0); //iRV.Get_CurrentValue(dblRV);
-              hr := iRVprov.Get_Value(dblRV);
-              caption := inttostr(hr);
-              except
-              	    on E: Exception do
-                        caption := E.Message;
-              end;}
-              {if SUCCEEDED(UIEle.GetCurrentPatternAs(UIA_RangeValuePatternId, IID_IUIAutomationRangeValuePattern, pointer(iRV))) then
-              begin
-              	if SUCCEEDED(iRV.Get_CurrentValue(dblRV)) then
-                 	//UIAs[53] := 'PK';//Floattostr(dblRV);
-              end;  }
-              {for i := 0 to 5 do
-              begin
-              	try
-              		if SUCCEEDED(UIEle.GetCurrentPropertyValue(30047+i, oval)) then
-                	begin
-                  	if VarHaveValue(oval) then
-                  	begin
-                    	if VarIsType(oval, varDouble)  then
-                  		begin
-                  			UIAs[53+i] := Floattostr(oval);
-                  		end
-                      else if VarIsType(oval, varBoolean)  then
-                      begin
-                      	iBool := oval;
-                        UIAs[53+i] := IfThen(iBool <> 0, sTrue, sFalse);
-                      end;
-                  	end;
-                	end;
-                except
-                    on E: Exception do
-                        UIAs[53+i] := E.Message;
-                end;
-              end; }
             end;
             Result := lUIA[0] + #13#10;
             nodes := TreeList1.Items;
@@ -4635,119 +4100,6 @@ begin
 
 end;
 
-function TwndMSAAV.ARIAText4FF: string;
-var
-    ARIAs: array [0..1, 0..1] of string;
-    s, Path, sARIA: string;
-    List, List2: TStringList;
-    i: integer;
-    aPC, aPC2: array [0..64] of pWidechar;
-    aSI: array [0..64] of Smallint;
-    WD: Word;
-    ini: TMemInifile;
-    aAttrs: string;
-    rNode, Node: TTreeNode;
-begin
-    if SDOM = nil then
-    begin
-        GetNaviState(True);
-        Exit;
-    end;
-    sAria := 'ARIA';
-    ARIAs[0, 0] := 'Role';
-    ARIAs[1, 0] := 'Attributes';
-    if FileExists(Transpath) then
-    begin
-        ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
-	    try
-            sAria := ini.ReadString('ARIA', 'ARIA', sAria);
-            ARIAs[0, 0] := ini.ReadString('ARIA', 'Role', ARIAs[0, 0]);
-            ARIAs[1, 0] := ini.ReadString('ARIA', 'Attributes', ARIAs[1, 0]);
-        finally
-            ini.Free;
-        end;
-    end;
-    try
-        Path := IncludeTrailingPathDelimiter(ExtractFileDir(Application.ExeName));
-        SDOM.get_attributes(65, aPC[0], aSI[0], aPC2[0], WD);
-        for i := 0 to WD - 1 do
-        begin
-            s := LowerCase(aPC[i]);
-            if s = 'role' then
-            begin
-                Arias[0, 1] := aPC2[i];
-            end
-            else if Copy(s, 1, 4) = 'aria' then
-            begin
-                aattrs := aattrs + '"' +  WideString(aPC[i]) + '","' + WideString(aPC2[i]) + '"' +  #13#10;
-            end;
-        end;
-        if ARIAs[0, 1] = '' then
-            ARIAs[0, 1] := none;
-        if aattrs = '' then
-            ARIAS[1, 1] := none
-        else
-            ARIAs[1, 1] := aattrs;
-        rNode := TreeList1.Items.AddChild(nil, sAria);
-        Node := TreeList1.Items.AddChild(rNode, Arias[0, 0]);
-        TreeList1.SetNodeColumn(node, 1, Arias[0, 1]);
-        Node := TreeList1.Items.AddChild(rNode, Arias[1, 0]);
-        if aattrs = '' then
-            TreeList1.SetNodeColumn(node, 1, Arias[1, 1])
-        else
-        begin
-            rNode := Node;
-            List := TStringList.Create;
-            List2 := TStringList.Create;
-            try
-                List.Text := aattrs;
-                for i := 0 to List.Count - 1 do
-                begin
-                    List2.Clear;
-                    List2.CommaText := List[i];
-                    if List2.Count >= 1 then
-                    begin
-                        Node := TreeList1.Items.AddChild(rNode, List2[0]);
-                        if List2.Count >= 2 then
-                        begin
-                            TreeList1.SetNodeColumn(node, 1, List2[1]);
-                        end;
-                    end;
-                end;
-            finally
-                List.Free;
-                List2.Free;
-            end;
-        end;
-        Result := sAria + #13#10#13#10 + Arias[0, 0] + ':' + #9 +  Arias[0, 1] +
-                  #13#10 + Arias[1, 0] + ':' + #9 +  Arias[1, 1] + #13#10#13#10;
-        rNode.Expand(True);
-    except
-
-    end;
-end;
-
-function TwndMSAAV.GetSource(iDoc: IHTMLDOCUMENT): string;
-var
-    AStream:TMemoryStream;
-    List: TStringList;
-begin
-    AStream:=TMemoryStream.Create;
-    try
-        (iDoc as IPersistStreamInit).Save(TStreamAdapter.Create(AStream),false);
-        List := TStringList.Create;
-        try
-            AStream.Seek(0,soFromBeginning);
-            List.LoadFromStream(AStream);
-            Result := List.Text;
-            //Result := LoadMemoFromMemoryStream(AStream);
-        finally
-            List.Free;
-        end;
-    finally
-        AStream.Free;
-    end;
-end;
 
 procedure TwndMSAAV.SetBalloonPos(X, Y:integer);
 begin
@@ -4756,30 +4108,7 @@ begin
 end;
 
 procedure TwndMSAAV.ShowBalloonTip(Control: TWinControl; Icon: integer; Title: string; Text: string; RC: TRect; X, Y:integer; Track:boolean = false);
-{const
-  TOOLTIPS_CLASS = 'tooltips_class32';
-  TTS_ALWAYSTIP = $01;
-  TTS_NOPREFIX = $02;
-  TTS_BALLOON = $40;
-  TTF_SUBCLASS = $0010;
-  TTF_TRANSPARENT = $0100;
-  TTF_CENTERTIP = $0002;
-  TTM_ADDTOOL = $0400 + 50;
-  TTM_SETTITLE = (WM_USER + 32);
-  ICC_WIN95_CLASSES = $000000FF;
-type
-  TOOLINFO = packed record
-    cbSize: Integer;
-    uFlags: Integer;
-    hwnd: THandle;
-    uId: Integer;
-    rect: TRect;
-    hinst: THandle;
-    lpszText: PWideChar;
-    lParam: Integer;
-  end;  }
 var
-  //hWndTip: THandle;
 
   hhWnd: THandle;
   TP1: TPoint;
@@ -4792,8 +4121,7 @@ begin
     RC.Left, RC.Top, 0, 0, hhWnd, 0, HInstance, nil);
   if hWndTip <> 0 then
   begin
-    {SetWindowPos(hWndTip, HWND_TOPMOST, 0, 0, 0, 0,
-      SWP_NOACTIVATE or SWP_NOMOVE or SWP_NOSIZE);  }
+
 
     ti.cbSize := SizeOf(ti);
     if not Track then
@@ -4803,15 +4131,11 @@ begin
     ti.hwnd := wnd{hhWnd};
     ti.uId := 1;
     ti.lpszText := PChar(Text);
-    //Windows.GetClientRect(hhWnd, ti.rect);
     ti.Rect := RC;
-    //SendMessage(hWndTip, TTM_SETTIPBKCOLOR, BackCL, 0);
-    //SendMessage(hWndTip, TTM_SETTIPTEXTCOLOR, TextCL, 0);
 
     SendMessageW(hWndTip,TTM_SETMAXTIPWIDTH,0,640);
     SendMessage(hWndTip, TTM_ADDTOOL, 1, Integer(@ti));
     SendMessage(hWndTip, TTM_SETTITLE, Icon,  Integer(PChar(title)));
-    //SendMessageW(hWndTip,TTM_UPDATETIPTEXTW,0,Integer(@ti));
 
     TP1.X := Control.Left;
     TP1.Y := Control.Top;
@@ -4850,8 +4174,6 @@ begin
     acShowTip.Checked := not acShowTip.Checked;
     if acShowTip.Checked then
     begin
-        {if not Assigned(WndTip) then
-            WndTip := TfrmTipWnd.Create(self); }
         ShowTipWnd;
     end
     else
@@ -4873,13 +4195,12 @@ var
     RC: TRect;
     vChild: variant;
     Mon : TMonitor;
-    s, src, c, inner, outer, sTxt: string;
+    s, src, c, inner, outer: string;
     sLeft, sTop, i, iRes: integer;
     iSP: IServiceProvider;
     iEle: IHTMLElement;
     isd: ISimpleDOMNode;
     PC: pchar;
-    ini: TMemInifile;
     PC2:PChar;
     SI: Smallint;
     PU, PU2: PUINT;
@@ -4899,16 +4220,9 @@ begin
             s := s + SetIA2Text(iacc, false);
         if mnublnCode.Checked then
         begin
-            ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
-	        try
-
-            c := ini.ReadString('HTML', 'Code', 'Code');
-            inner := '(' + ini.ReadString('HTML', 'innerHTML', 'innerHTML') + ')';
-            outer := '(' + ini.ReadString('HTML', 'outerHTML', 'outerHTML') + ')';
-            sTxt := ini.ReadString('HTML', 'Text', 'Text');
-            finally
-                ini.Free;
-            end;
+          c := sHTML;
+          inner := sTypeFF;
+          outer := sTypeIE;
             iSP := iAcc as IServiceProvider;
             if iMode = 0 then
             begin
@@ -4989,8 +4303,7 @@ begin
                           sLeft := Mon.WorkareaRect.Left
                       else
                           sLeft := RC.Left;
-                     //caption := 'T:' + inttostr(stop) + '/L:' + inttostr(sleft);
-                    //ShowBalloonTip(self{WndTip.TipInfo}, 1, 'Aviewer', s, RC, sLeft, sTop);
+
                     SetBalloonPos(sLeft, sTop);
             end
             else
@@ -5190,15 +4503,18 @@ var
   i: integer;
 begin
   Result := 2;
+
   if (LowerCase(CName) = 'internet explorer_server') or (LowerCase(CName) = 'macromediaflashplayeractivex') then
     Result := 0
   else
   begin
-    for i := Low(CNames) to High(CNames) do
+    for i := 0 to ClsNames.Count - 1 do
     begin
-      if (CNames[i] = LowerCase(CName)) then
+
+      if (ClsNames[i] = LowerCase(CName)) then
       begin
         Result := 1;
+
         break;
       end;
     end;
@@ -5239,15 +4555,16 @@ begin
             begin
                 if SUCCEEDED(WindowFromAccessibleObject(pAcc, Wnd)) then
                 begin
-                    po.x := arPT[0].X;
-                    po.y := arPT[0].y;
-                    UIAuto.ElementFromPoint(po, UIEle);
+
                     i := GetWindowLong(Wnd, GWL_HINSTANCE);
                     if i = hInstance then
                     begin
-                        pAcc := nil;
+                        pAcc :=nil;
                         exit;
                     end;
+                    po.x := arPT[0].X;
+                    po.y := arPT[0].y;
+                    UIAuto.ElementFromPoint(po, UIEle);
                     //if IsSameUIElement(iAcc, pAcc) then
                         //Exit;
                     if ( not acOnlyFOcus.Checked) then
@@ -5362,11 +4679,11 @@ end;
 procedure TwndMSAAV.FormClose(Sender: TObject; var Action: TCloseAction);
 var
     ini: TMemINiFile;
-    i: integer;
 begin
     //UIAuto.Free;
+
     UIAuto := nil;
-    CoUnInitialize;
+
     NotifyWinEvent(EVENT_OBJECT_DESTROY, Handle, OBJID_CLIENT, 0);
 
     if hHook <> 0 then
@@ -5401,39 +4718,12 @@ begin
     finally
         ini.Free;
     end;
-    if CP <> nil then
-        CP.Unadvise(Cookie);
-    for i := 0 to FCPList.Count - 1 do
-    begin
-        if Assigned(FCPList.Items[i]) then
-            Dispose(PCP(FCPList.Items[i]));
-    end;
-    for i := 0 to FIEList.Count - 1 do
-    begin
-        if Assigned(FIEList.Items[i]) then
-            Dispose(PIE(FIEList.Items[i]));
-    end;
-    for i := 0 to FCURList.Count - 1 do
-    begin
-        if Assigned(FCURList.Items[i]) then
-            Dispose(PUIA(FCURList.Items[i]));
-    end;
-    for i := 0 to FCACList.Count - 1 do
-    begin
-        if Assigned(FCACList.Items[i]) then
-            Dispose(PUIA(FCACList.Items[i]));
-    end;
 
-    FCPList.Clear;
-    FCPList.Free;
-    FIEList.Clear;
-    FIEList.Free;
-    FCURList.Clear;
-    FCURList.Free;
-    FCACList.Clear;
-    FCACList.Free;
+
+    ClsNames.Free;
     TBList.Free;
     LangList.Free;
+    CoUnInitialize;
     if hWndTip <> 0 then
         DestroyWindow(hWndTip);
     except
@@ -5478,10 +4768,6 @@ begin
 
     end;
     //DoubleBuffered := True;
-    FCPList := TList.Create;
-    FIEList := TList.Create;
-    FCURList := TList.Create;
-    FCACList := TList.Create;
     TBList := TIntegerList.Create;
     LangList := TStringList.Create;
     Created := True;
@@ -5495,7 +4781,8 @@ begin
     acPrevS.Enabled := tbPrevS.Enabled;
     acNextS.Enabled := tbNextS.Enabled;
     iFocus := 1;
-    StopWait := False;
+    bSelMode := False;
+    mnuSelMode.Checked := bSelMode;
     if mnuLang.Visible then
     begin
         if  (FindFirst(TransDir + '*.ini', faAnyFile, Rec) = 0) then
@@ -5520,17 +4807,6 @@ end;
 procedure TwndMSAAV.FormDestroy(Sender: TObject);
 begin
     if Assigned(TreeTH) then TreeTH.Free;
-
-end;
-
-procedure TwndMSAAV.FormPaint(Sender: TObject);
-begin
-    {if Created then
-    begin
-        Created := False;
-        CopyDataToOld(Handle);
-
-    end;  }
 
 end;
 
@@ -5645,68 +4921,6 @@ begin
     end;
 end;
 
-//procedure TwndMSAAV.TreeView1Addition(Sender: TObject; Node: TTreeNode);
-//var
-//    ovChild: Olevariant;
-//    function Get_RoleText(Acc: IAccessible; Child: integer): string;
-//    var
-//        PC:PChar;
-//        ovValue: OleVariant;
-//    begin
-//        ovChild := Child;
-//        //ovValue := Acc.accRole[ovChild];
-//        try
-//                    //if (IDispatch(ovValue) = nil) then
-//            if not VarHaveValue(ovValue) then
-//            begin
-//                Result := None;
-//            end
-//            else
-//            begin
-//                if VarIsNumeric(ovValue) then
-//                begin
-//                    PC := StrAlloc(255);
-//                    GetRoleTextW(ovValue, PC, StrBufSize(PC));
-//                    Result := PC;
-//                    StrDispose(PC);
-//                end
-//                else if VarIsStr(ovValue) then
-//                begin
-//                    Result := VarToStr(ovValue);
-//                end;
-//            end;
-//        except
-//            Result := None;
-//        end;
-//    end;
-//begin
-//
-//    try
-//        if (node.Data <> nil) and (TTreeData(Node.Data^).Acc <> nil) and (Assigned(TreeTH)) then
-//        begin
-//            Application.ProcessMessages;
-//            ovChild := TTreeData(Node.Data^).iID;
-//            TTreeData(Node.Data^).Acc.Get_accName(ovChild, ws);
-//            if ws = '' then ws := None;
-//            Role := Get_ROLETExt(TTreeData(Node.Data^).Acc, ovChild);
-//            node.Text := ws + ' - ' + Role;
-//            TTreeData(Node.Data^).Acc.accLocation(cRC.Left, cRC.Top, cRC.Right, cRC.Bottom, ovChild);
-//            if (sRC.Left = cRC.Left) and (sRC.Top = cRC.Top) and (sRC.Right = cRC.Right) and (sRC.Bottom = cRC.Bottom) then
-//            begin
-//
-//                //dMSAAV.TreeView1.SetFocus;
-//                wndMSAAV.TreeView1.TopItem := node;
-//
-//                node.Selected := True;
-//                node.Expanded := true;
-//                wndMSAAV.GetNaviState;
-//            end;
-//        end;
-//    except
-//
-//    end;
-//end;
-
 procedure TwndMSAAV.SetTreeMode(pNode: TTreeNode);
 var
     b: boolean;
@@ -5777,6 +4991,7 @@ begin
   	//if Node.IsVisible then
     //begin
     mnuTVSAll.Enabled := True;
+    mnuTVOAll.Enabled := True;
     Node.ImageIndex := 61;
     node.ExpandedImageIndex := 61;
     Node.SelectedIndex := 61;
@@ -5804,12 +5019,19 @@ end;
 procedure TwndMSAAV.TreeView1Change(Sender: TObject; Node: TTreeNode);
 begin
 
-    if TreeView1.Items.Count <= 0 then
-        Exit;
+
     if TreeView1.SelectionCount = 0 then
-    	mnuTVSSel.Enabled := False
+    begin
+    	mnuTVSSel.Enabled := False;
+      mnuTVOSel.Enabled := False;
+    end
     else
+    begin
     	mnuTVSSel.Enabled := True;
+      mnuTVOSel.Enabled := True;
+    end;
+    if bSelMode then Exit;
+
     try
         if (not Assigned(TreeTH)) or (TreeTH.Finished)  then
         begin
@@ -5968,112 +5190,6 @@ begin
         mnuARIA.Checked := false;
         mnuHTML.Checked := false;
     end;
-end;
-
-procedure TwndMSAAV.ExecFFArrow(sender: TObject);
-var
-    RC: Trect;
-    Serv: IServiceProvider;
-    pEle, ppEle: ISimpleDOMNode;
-    PC, PC2: PWideChar;
-    SI: SmallInt;
-    PU, PU2: PUINT;
-    WD: Word;
-    tc: TComponent;
-    s: string;
-begin
-    if SDOM = nil then
-    begin
-        GetNaviState(True);
-        Exit;
-    end;
-
-    if (Sender is TComponent) then
-    begin
-        tc := Sender as TComponent;
-    end
-    else
-        Exit;
-    s := LowerCase(tc.Name);
-    if (s = 'tbparent') or (s = 'acparent') then
-    begin
-        if not SUCCEEDED(SDOM.get_parentNode(pEle)) then
-            Exit;
-    end
-    else if (s = 'tbchild') or (s = 'acchild') then
-    begin
-        if not SUCCEEDED(SDOM.get_firstChild(pEle)) then
-            Exit;
-    end
-    else if (s = 'tbprevs') or (s = 'acprevs') then
-    begin
-        if not SUCCEEDED(SDOM.get_previousSibling(pEle)) then
-            Exit;
-    end
-    else if (s = 'tbnexts') or (s = 'acnexts') then
-    begin
-        try
-            if not SUCCEEDED(SDOM.get_nextSibling(pEle)) then
-                pEle := nil;
-        except
-            pEle := nil;
-        end;
-        try
-            if pEle = nil then
-            begin
-              if SUCCEEDED(SDOM.get_parentNode(pEle)) then
-              begin
-                if SUCCEEDED(pEle.get_nodeInfo(PC, SI, PC2, PU, PU2, WD)) then
-                begin
-                  if Integer(WD) = 1 then
-                  begin
-                    if SUCCEEDED(pEle.get_firstChild(ppEle)) then
-                    begin
-                      if SUCCEEDED(ppEle.get_nodeInfo(PC, SI, PC2, PU, PU2, WD)) then
-                      begin
-                        if Integer(WD) = 1 then
-                        begin
-                          if SDOM = ppEle then
-                            pEle := nil;
-                        end;
-                      end;
-                    end;
-                  end;
-                end;
-              end;
-            end;
-        except
-
-        end;
-    end
-    else
-        pEle := nil;
-    iAcc := nil;
-        if pEle <> nil then
-        begin
-            if SUCCEEDED(pEle.QueryInterface(IID_IServiceProvider, Serv)) then
-            begin
-                if SUCCEEDED(Serv.QueryService(IID_IACCESSIBLE, IID_IACCESSIBLE, iACC)) then
-                begin
-                    iAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, 0);
-                    if (acRect.Checked) then
-                        ShowRectWnd2(clRed, RC);
-                    //varParent := 0;
-                    SDOM := pEle;
-                    GetNaviState;
-                    if (mnuMSAA.Checked <> false) and (Assigned(iACc)) then //MSAA text start
-                    begin
-                        MSAAText;
-                    end;
-                    if (mnuIA2.Checked) and (Assigned(iACc)) then
-                            SetIA2Text;
-                    if mnuARIA.Checked then
-                        ARIAText4FF;
-                    if mnuHTML.Checked then
-                        HTMLText4FF;
-                end;
-            end;
-        end;
 end;
 
 procedure TwndMSAAV.ExecMSAAMode(sender: TObject);
@@ -6751,122 +5867,117 @@ end;
 
 function TwndMSAAV.LoadLang: string;
 var
-	//ini: TMemIniFile;
+	  ini: TMemIniFile;
     d, Msg, UIA_fail: string;
-    cList: TStringList;
     i: integer;
 begin
     Result := 'CoCreateInstance failed.';
-    if FileExists(Transpath) then
-    begin
-        //ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
-        cList := TStringList.Create;
+    ini := TMemIniFile.Create(TransPath, TEncoding.UTF8);
+    ClsNames := TStringList.Create;
 	    try
-            //lMSAA: array[0..11] of string;
-            //lIA2: array [0..10] of string;
-            //lUIA: array [0..28] of string;
-            lMSAA[0] := LoadTranslation('MSAA', 'MSAA', 'MS Active Accessibility');
-            lMSAA[1] := LoadTranslation('MSAA', 'accName','accName');
-            lMSAA[2] := LoadTranslation('MSAA', 'accRole','accRole');
-            lMSAA[3] := LoadTranslation('MSAA', 'accState','accState');
-            lMSAA[4] := LoadTranslation('MSAA', 'accDescription','accDescription');
-            lMSAA[5] := LoadTranslation('MSAA', 'accDefaultAction','accDefaultAction');
-            lMSAA[6] := LoadTranslation('MSAA', 'accValue','accValue');
-            lMSAA[7] := LoadTranslation('MSAA', 'accParent','accParent');
-            lMSAA[8] := LoadTranslation('MSAA', 'accChildCount','accChildCount');
-            lMSAA[9] := LoadTranslation('MSAA', 'accHelp','accHelp');
-            lMSAA[10] := LoadTranslation('MSAA', 'accHelpTopic','accHelpTopic');
-            lMSAA[11] := LoadTranslation('MSAA', 'accKeyboardShortcut','accKeyboardShortcut');
+
+            lMSAA[0] := ini.ReadString('MSAA', 'MSAA', 'MS Active Accessibility');
+            lMSAA[1] := ini.ReadString('MSAA', 'accName','accName');
+            lMSAA[2] := ini.ReadString('MSAA', 'accRole','accRole');
+            lMSAA[3] := ini.ReadString('MSAA', 'accState','accState');
+            lMSAA[4] := ini.ReadString('MSAA', 'accDescription','accDescription');
+            lMSAA[5] := ini.ReadString('MSAA', 'accDefaultAction','accDefaultAction');
+            lMSAA[6] := ini.ReadString('MSAA', 'accValue','accValue');
+            lMSAA[7] := ini.ReadString('MSAA', 'accParent','accParent');
+            lMSAA[8] := ini.ReadString('MSAA', 'accChildCount','accChildCount');
+            lMSAA[9] := ini.ReadString('MSAA', 'accHelp','accHelp');
+            lMSAA[10] := ini.ReadString('MSAA', 'accHelpTopic','accHelpTopic');
+            lMSAA[11] := ini.ReadString('MSAA', 'accKeyboardShortcut','accKeyboardShortcut');
 
 
-            lIA2[0] := LoadTranslation('IA2', 'IA2', 'IAccessible2');
-            lIA2[1] := LoadTranslation('IA2', 'Name','Name');
-            lIA2[2] := LoadTranslation('IA2', 'Role','Role');
-            lIA2[3] := LoadTranslation('IA2', 'States','States');
-            lIA2[4] := LoadTranslation('IA2', 'Description','Description');
-            lIA2[5] := LoadTranslation('IA2', 'Relations','Relations');
+            lIA2[0] := ini.ReadString('IA2', 'IA2', 'IAccessible2');
+            lIA2[1] := ini.ReadString('IA2', 'Name','Name');
+            lIA2[2] := ini.ReadString('IA2', 'Role','Role');
+            lIA2[3] := ini.ReadString('IA2', 'States','States');
+            lIA2[4] := ini.ReadString('IA2', 'Description','Description');
+            lIA2[5] := ini.ReadString('IA2', 'Relations','Relations');
             //lIA2[6] := LoadTranslation('IA2', 'RelationTargets','Relation Targets');
-            lIA2[6] := LoadTranslation('IA2', 'Attributes','Object Attributes');
-            lIA2[7] := LoadTranslation('IA2', 'Value','Value');
-            lIA2[8] := LoadTranslation('IA2', 'LocalizedExtendedRole','LocalizedExtendedRole');
-            lIA2[9] := LoadTranslation('IA2', 'LocalizedExtendedStates','LocalizedExtendedStates');
-            lIA2[10] := LoadTranslation('IA2', 'RangeValue','RangeValue');
-            lIA2[11] := LoadTranslation('IA2', 'RV_Value','Value');
-            lIA2[12] := LoadTranslation('IA2', 'RV_Minimum','Minimum');
-            lIA2[13] := LoadTranslation('IA2', 'RV_Maximum','Maximum');
+            lIA2[6] := ini.ReadString('IA2', 'Attributes','Object Attributes');
+            lIA2[7] := ini.ReadString('IA2', 'Value','Value');
+            lIA2[8] := ini.ReadString('IA2', 'LocalizedExtendedRole','LocalizedExtendedRole');
+            lIA2[9] := ini.ReadString('IA2', 'LocalizedExtendedStates','LocalizedExtendedStates');
+            lIA2[10] := ini.ReadString('IA2', 'RangeValue','RangeValue');
+            lIA2[11] := ini.ReadString('IA2', 'RV_Value','Value');
+            lIA2[12] := ini.ReadString('IA2', 'RV_Minimum','Minimum');
+            lIA2[13] := ini.ReadString('IA2', 'RV_Maximum','Maximum');
 
 
-            lUIA[0] := LoadTranslation('UIA', 'UIA', 'UIAutomation');
-            lUIA[1] := LoadTranslation('UIA', 'CurrentAcceleratorKey','CurrentAcceleratorKey');
-            lUIA[2] := LoadTranslation('UIA', 'CurrentAccessKey','CurrentAccessKey');
-            lUIA[3] := LoadTranslation('UIA', 'CurrentAriaProperties','CurrentAriaProperties');
-            lUIA[4] := LoadTranslation('UIA', 'CurrentAriaRole','CurrentAriaRole');
-            lUIA[5] := LoadTranslation('UIA', 'CurrentAutomationId','CurrentAutomationId');
-            lUIA[6] := LoadTranslation('UIA', 'CurrentBoundingRectangle','CurrentBoundingRectangle');
-            lUIA[7] := LoadTranslation('UIA', 'CurrentClassName','CurrentClassName');
-            lUIA[8] := LoadTranslation('UIA', 'CurrentControlType','CurrentControlType');
-            lUIA[9] := LoadTranslation('UIA', 'CurrentCulture','CurrentCulture');
-            lUIA[10] := LoadTranslation('UIA', 'CurrentFrameworkId','CurrentFrameworkId');
-            lUIA[11] := LoadTranslation('UIA', 'CurrentHasKeyboardFocus','CurrentHasKeyboardFocus');
-            lUIA[12] := LoadTranslation('UIA', 'CurrentHelpText','CurrentHelpText');
-            lUIA[13] := LoadTranslation('UIA', 'CurrentIsControlElement','CurrentIsControlElement');
-            lUIA[14] := LoadTranslation('UIA', 'CurrentIsContentElement','CurrentIsContentElement');
-            lUIA[15] := LoadTranslation('UIA', 'CurrentIsDataValidForForm','CurrentIsDataValidForForm');
-            lUIA[16] := LoadTranslation('UIA', 'CurrentIsEnabled','CurrentIsEnabled');
-            lUIA[17] := LoadTranslation('UIA', 'CurrentIsKeyboardFocusable','CurrentIsKeyboardFocusable');
-            lUIA[18] := LoadTranslation('UIA', 'CurrentIsOffscreen','CurrentIsOffscreen');
-            lUIA[19] := LoadTranslation('UIA', 'CurrentIsPassword','CurrentIsPassword');
-            lUIA[20] := LoadTranslation('UIA', 'CurrentIsRequiredForForm','CurrentIsRequiredForForm');
-            lUIA[21] := LoadTranslation('UIA', 'CurrentItemStatus','CurrentItemStatus');
-            lUIA[22] := LoadTranslation('UIA', 'CurrentItemType','CurrentItemType');
-            lUIA[23] := LoadTranslation('UIA', 'CurrentLocalizedControlType','CurrentLocalizedControlType');
-            lUIA[24] := LoadTranslation('UIA', 'CurrentName','CurrentName');
-            lUIA[25] := LoadTranslation('UIA', 'CurrentNativeWindowHandle','CurrentNativeWindowHandle');
-            lUIA[26] := LoadTranslation('UIA', 'CurrentOrientation','CurrentOrientation');
-            lUIA[27] := LoadTranslation('UIA', 'CurrentProcessId','CurrentProcessId');
-            lUIA[28] := LoadTranslation('UIA', 'CurrentProviderDescription','CurrentProviderDescription');
-            lUIA[29] := LoadTranslation('UIA', 'CurrentControllerFor','CurrentControllerFor');
-            lUIA[30] := LoadTranslation('UIA', 'CurrentDescribedBy','CurrentDescribedBy');
-            lUIA[31] := LoadTranslation('UIA', 'CurrentFlowsTo','CurrentFlowsTo');
-            lUIA[32] := LoadTranslation('UIA', 'CurrentLabeledBy','CurrentLabeledBy');
-            lUIA[33] := LoadTranslation('UIA', 'CurrentLiveSetting','CurrentLiveSetting');
+            lUIA[0] := ini.ReadString('UIA', 'UIA', 'UIAutomation');
+            lUIA[1] := ini.ReadString('UIA', 'CurrentAcceleratorKey','CurrentAcceleratorKey');
+            lUIA[2] := ini.ReadString('UIA', 'CurrentAccessKey','CurrentAccessKey');
+            lUIA[3] := ini.ReadString('UIA', 'CurrentAriaProperties','CurrentAriaProperties');
+            lUIA[4] := ini.ReadString('UIA', 'CurrentAriaRole','CurrentAriaRole');
+            lUIA[5] := ini.ReadString('UIA', 'CurrentAutomationId','CurrentAutomationId');
+            lUIA[6] := ini.ReadString('UIA', 'CurrentBoundingRectangle','CurrentBoundingRectangle');
+            lUIA[7] := ini.ReadString('UIA', 'CurrentClassName','CurrentClassName');
+            lUIA[8] := ini.ReadString('UIA', 'CurrentControlType','CurrentControlType');
+            lUIA[9] := ini.ReadString('UIA', 'CurrentCulture','CurrentCulture');
+            lUIA[10] := ini.ReadString('UIA', 'CurrentFrameworkId','CurrentFrameworkId');
+            lUIA[11] := ini.ReadString('UIA', 'CurrentHasKeyboardFocus','CurrentHasKeyboardFocus');
+            lUIA[12] := ini.ReadString('UIA', 'CurrentHelpText','CurrentHelpText');
+            lUIA[13] := ini.ReadString('UIA', 'CurrentIsControlElement','CurrentIsControlElement');
+            lUIA[14] := ini.ReadString('UIA', 'CurrentIsContentElement','CurrentIsContentElement');
+            lUIA[15] := ini.ReadString('UIA', 'CurrentIsDataValidForForm','CurrentIsDataValidForForm');
+            lUIA[16] := ini.ReadString('UIA', 'CurrentIsEnabled','CurrentIsEnabled');
+            lUIA[17] := ini.ReadString('UIA', 'CurrentIsKeyboardFocusable','CurrentIsKeyboardFocusable');
+            lUIA[18] := ini.ReadString('UIA', 'CurrentIsOffscreen','CurrentIsOffscreen');
+            lUIA[19] := ini.ReadString('UIA', 'CurrentIsPassword','CurrentIsPassword');
+            lUIA[20] := ini.ReadString('UIA', 'CurrentIsRequiredForForm','CurrentIsRequiredForForm');
+            lUIA[21] := ini.ReadString('UIA', 'CurrentItemStatus','CurrentItemStatus');
+            lUIA[22] := ini.ReadString('UIA', 'CurrentItemType','CurrentItemType');
+            lUIA[23] := ini.ReadString('UIA', 'CurrentLocalizedControlType','CurrentLocalizedControlType');
+            lUIA[24] := ini.ReadString('UIA', 'CurrentName','CurrentName');
+            lUIA[25] := ini.ReadString('UIA', 'CurrentNativeWindowHandle','CurrentNativeWindowHandle');
+            lUIA[26] := ini.ReadString('UIA', 'CurrentOrientation','CurrentOrientation');
+            lUIA[27] := ini.ReadString('UIA', 'CurrentProcessId','CurrentProcessId');
+            lUIA[28] := ini.ReadString('UIA', 'CurrentProviderDescription','CurrentProviderDescription');
+            lUIA[29] := ini.ReadString('UIA', 'CurrentControllerFor','CurrentControllerFor');
+            lUIA[30] := ini.ReadString('UIA', 'CurrentDescribedBy','CurrentDescribedBy');
+            lUIA[31] := ini.ReadString('UIA', 'CurrentFlowsTo','CurrentFlowsTo');
+            lUIA[32] := ini.ReadString('UIA', 'CurrentLabeledBy','CurrentLabeledBy');
+            lUIA[33] := ini.ReadString('UIA', 'CurrentLiveSetting','CurrentLiveSetting');
             //Added 2014/06/23
-            lUIA[34] := LoadTranslation('UIA', 'IsDockPatternAvailable','IsDockPatternAvailable');
-            lUIA[35] := LoadTranslation('UIA', 'IsExpandCollapsePatternAvailable','IsExpandCollapsePatternAvailable');
-            lUIA[36] := LoadTranslation('UIA', 'IsGridItemPatternAvailable','IsGridItemPatternAvailable');
-            lUIA[37] := LoadTranslation('UIA', 'IsGridPatternAvailable','IsGridPatternAvailable');
-            lUIA[38] := LoadTranslation('UIA', 'IsInvokePatternAvailable','IsInvokePatternAvailable');
-            lUIA[39] := LoadTranslation('UIA', 'IsMultipleViewPatternAvailable','IsMultipleViewPatternAvailable');
-            lUIA[40] := LoadTranslation('UIA', 'IsRangeValuePatternAvailable','IsRangeValuePatternAvailable');
-            lUIA[41] := LoadTranslation('UIA', 'IsScrollPatternAvailable','IsScrollPatternAvailable');
-            lUIA[42] := LoadTranslation('UIA', 'IsScrollItemPatternAvailable','IsScrollItemPatternAvailable');
-            lUIA[43] := LoadTranslation('UIA', 'IsSelectionItemPatternAvailable','IsSelectionItemPatternAvailable');
-            lUIA[44] := LoadTranslation('UIA', 'IsSelectionPatternAvailable','IsSelectionPatternAvailable');
-            lUIA[45] := LoadTranslation('UIA', 'IsTablePatternAvailable','IsTablePatternAvailable');
-            lUIA[46] := LoadTranslation('UIA', 'IsTableItemPatternAvailable','IsTableItemPatternAvailable');
-            lUIA[47] := LoadTranslation('UIA', 'IsTextPatternAvailable','IsTextPatternAvailable');
-            lUIA[48] := LoadTranslation('UIA', 'IsTogglePatternAvailable','IsTogglePatternAvailable');
-            lUIA[49] := LoadTranslation('UIA', 'IsTransformPatternAvailable','IsTransformPatternAvailable');
-            lUIA[50] := LoadTranslation('UIA', 'IsValuePatternAvailable','IsValuePatternAvailable');
-            lUIA[51] := LoadTranslation('UIA', 'IsWindowPatternAvailable','IsWindowPatternAvailable');
-            lUIA[52] := LoadTranslation('UIA', 'IsItemContainerPatternAvailable','IsItemContainerPatternAvailable');
-            lUIA[53] := LoadTranslation('UIA', 'IsVirtualizedItemPatternAvailable','IsVirtualizedItemPatternAvailable');
+            lUIA[34] := ini.ReadString('UIA', 'IsDockPatternAvailable','IsDockPatternAvailable');
+            lUIA[35] := ini.ReadString('UIA', 'IsExpandCollapsePatternAvailable','IsExpandCollapsePatternAvailable');
+            lUIA[36] := ini.ReadString('UIA', 'IsGridItemPatternAvailable','IsGridItemPatternAvailable');
+            lUIA[37] := ini.ReadString('UIA', 'IsGridPatternAvailable','IsGridPatternAvailable');
+            lUIA[38] := ini.ReadString('UIA', 'IsInvokePatternAvailable','IsInvokePatternAvailable');
+            lUIA[39] := ini.ReadString('UIA', 'IsMultipleViewPatternAvailable','IsMultipleViewPatternAvailable');
+            lUIA[40] := ini.ReadString('UIA', 'IsRangeValuePatternAvailable','IsRangeValuePatternAvailable');
+            lUIA[41] := ini.ReadString('UIA', 'IsScrollPatternAvailable','IsScrollPatternAvailable');
+            lUIA[42] := ini.ReadString('UIA', 'IsScrollItemPatternAvailable','IsScrollItemPatternAvailable');
+            lUIA[43] := ini.ReadString('UIA', 'IsSelectionItemPatternAvailable','IsSelectionItemPatternAvailable');
+            lUIA[44] := ini.ReadString('UIA', 'IsSelectionPatternAvailable','IsSelectionPatternAvailable');
+            lUIA[45] := ini.ReadString('UIA', 'IsTablePatternAvailable','IsTablePatternAvailable');
+            lUIA[46] := ini.ReadString('UIA', 'IsTableItemPatternAvailable','IsTableItemPatternAvailable');
+            lUIA[47] := ini.ReadString('UIA', 'IsTextPatternAvailable','IsTextPatternAvailable');
+            lUIA[48] := ini.ReadString('UIA', 'IsTogglePatternAvailable','IsTogglePatternAvailable');
+            lUIA[49] := ini.ReadString('UIA', 'IsTransformPatternAvailable','IsTransformPatternAvailable');
+            lUIA[50] := ini.ReadString('UIA', 'IsValuePatternAvailable','IsValuePatternAvailable');
+            lUIA[51] := ini.ReadString('UIA', 'IsWindowPatternAvailable','IsWindowPatternAvailable');
+            lUIA[52] := ini.ReadString('UIA', 'IsItemContainerPatternAvailable','IsItemContainerPatternAvailable');
+            lUIA[53] := ini.ReadString('UIA', 'IsVirtualizedItemPatternAvailable','IsVirtualizedItemPatternAvailable');
             //Added 2014/06/25
-            lUIA[54] := LoadTranslation('UIA', 'RangeValue','RangeValue');
-            lUIA[55] := LoadTranslation('UIA', 'RV_Value','Value');
-            lUIA[56] := LoadTranslation('UIA', 'RV_IsReadOnly','IsReadOnly');
-            lUIA[57] := LoadTranslation('UIA', 'RV_Minimum','Minimum');
-            lUIA[58] := LoadTranslation('UIA', 'RV_Maximum','Maximum');
-            lUIA[59] := LoadTranslation('UIA', 'RV_LargeChange','LargeChange');
-            lUIA[60] := LoadTranslation('UIA', 'RV_SmallChange','SmallChange');
+            lUIA[54] := ini.ReadString('UIA', 'RangeValue','RangeValue');
+            lUIA[55] := ini.ReadString('UIA', 'RV_Value','Value');
+            lUIA[56] := ini.ReadString('UIA', 'RV_IsReadOnly','IsReadOnly');
+            lUIA[57] := ini.ReadString('UIA', 'RV_Minimum','Minimum');
+            lUIA[58] := ini.ReadString('UIA', 'RV_Maximum','Maximum');
+            lUIA[59] := ini.ReadString('UIA', 'RV_LargeChange','LargeChange');
+            lUIA[60] := ini.ReadString('UIA', 'RV_SmallChange','SmallChange');
 
 
 
-            HelpURL := LoadTranslation('General', 'Help_URL', 'http://www.google.com/');
-            Caption := LoadTranslation('General', 'MSAA_Caption', 'Accessibility Viewer');
-            Font.Name := LoadTranslation('General', 'FontName', 'Arial');
-            Font.Size := LoadTransInt('General', 'FontSize', 9);
-            d := LoadTranslation('General', 'Charset', 'ASCII_CHARSET');
+            HelpURL := ini.ReadString('General', 'Help_URL', 'http://www.google.com/');
+            Caption := ini.ReadString('General', 'MSAA_Caption', 'Accessibility Viewer');
+            Font.Name := ini.ReadString('General', 'FontName', 'Arial');
+            Font.Size := ini.ReadInteger('General', 'FontSize', 9);
+            d := ini.ReadString('General', 'Charset', 'ASCII_CHARSET');
             d := UpperCase(d);
             if d = 'ANSI_CHARSET' then Font.Charset := 0
             else if d = 'DEFAULT_CHARSET' then Font.Charset := 1
@@ -6888,132 +5999,208 @@ begin
             else if d = 'EASTEUROPE_CHARSET' then Font.Charset := 238
             else if d = 'OEM_CHARSET' then Font.Charset := 255
             else Font.Charset := 0;
-            mnuSelD.Caption := LoadTranslation('General', 'MSAA_gbSelDisplay', 'Select Display');
-            tbFocus.Hint := LoadTranslation('General', 'MSAA_tbFocusHint', 'Watch Focus');
-            tbCursor.Hint := LoadTranslation('General', 'MSAA_tbCursorHint', 'Watch Cursor');
-            tbRectAngle.Hint := LoadTranslation('General', 'MSAA_tbRectAngleHint', 'Show Highlight Rectangle');
+            mnuSelD.Caption := ini.ReadString('General', 'MSAA_gbSelDisplay', 'Select Display');
+            tbFocus.Hint := ini.ReadString('General', 'MSAA_tbFocusHint', 'Watch Focus');
+            tbCursor.Hint := ini.ReadString('General', 'MSAA_tbCursorHint', 'Watch Cursor');
+            tbRectAngle.Hint := ini.ReadString('General', 'MSAA_tbRectAngleHint', 'Show Highlight Rectangle');
 
-            tbShowtip.Hint :=  LoadTranslation('General', 'MSAA_tbBalloonHint', 'Show Balloon tip');
+            tbShowtip.Hint :=  ini.ReadString('General', 'MSAA_tbBalloonHint', 'Show Balloon tip');
             acShowTip.Hint := tbShowtip.Hint;
-            tbCopy.Hint := LoadTranslation('General', 'MSAA_tbCopyHint', 'Copy Text to Clipborad');
-            tbOnlyFocus.Hint := LoadTranslation('General', 'MSAA_tbFocusOnly', 'Focus rectangle only');
+            tbCopy.Hint := ini.ReadString('General', 'MSAA_tbCopyHint', 'Copy Text to Clipborad');
+            tbOnlyFocus.Hint := ini.ReadString('General', 'MSAA_tbFocusOnly', 'Focus rectangle only');
 
-            tbParent.Hint := LoadTranslation('General', 'MSAA_tbParentHint', 'Navigates to parent object');
-            tbChild.Hint := LoadTranslation('General', 'MSAA_tbChildHint', 'Navigates to first child object');
-            tbPrevS.Hint := LoadTranslation('General', 'MSAA_tbPrevSHint', 'Navigates to previous sibling object');
-            tbNextS.Hint := LoadTranslation('General', 'MSAA_tbNextSHint', 'Navigates to next sibling object');
-            tbHelp.Hint := LoadTranslation('General', 'MSAA_tbHelpHint', 'Show online help');
+            tbParent.Hint := ini.ReadString('General', 'MSAA_tbParentHint', 'Navigates to parent object');
+            tbChild.Hint := ini.ReadString('General', 'MSAA_tbChildHint', 'Navigates to first child object');
+            tbPrevS.Hint := ini.ReadString('General', 'MSAA_tbPrevSHint', 'Navigates to previous sibling object');
+            tbNextS.Hint := ini.ReadString('General', 'MSAA_tbNextSHint', 'Navigates to next sibling object');
+            tbHelp.Hint := ini.ReadString('General', 'MSAA_tbHelpHint', 'Show online help');
             tbHelp.Hint := tbHelp.Hint + '(' +HelpURL + ')';
 
-            //tbFont.Hint := LoadTranslation('Generals', 'MSAA_tbFontHint', 'Show font dialog');
-            tbMSAAMode.Hint := LoadTranslation('General', 'MSAA_tbMSAAModeHint', '');
-            tbRegister.Hint := LoadTranslation('General', 'MSAA_tbMSAASetHint', 'Show Setting Dialog');
-            //acFocus.Hint := LoadTranslation('General', 'MSAA_tbFocusHint', 'Watch Focus(F9)');
-            //acCursor.Hint := LoadTranslation('General', 'MSAA_tbCursorHint', 'Watch Cursor(F10)');
-            //acRect.Hint := LoadTranslation('General', 'MSAA_tbRectAngleHint', 'Show Highlight Rectangle(F11)');
-            //acCopy.Hint := LoadTranslation('General', 'MSAA_tbCopyHint', 'Copy Text to Clipborad(F12)');
-            mnuLang.Caption := LoadTranslation('General', 'mnuLang', '&Language');
-            mnuView.Caption := LoadTranslation('General', 'mnuView', '&View');
-            mnuMSAA.Caption := LoadTranslation('General', 'MSAA_cbMSAA', 'MSAA');
-            mnuARIA.Caption := LoadTranslation('General', 'MSAA_cbARIA', 'ARIA');
-            mnuHTML.Caption := LoadTranslation('General', 'MSAA_cbHTML', 'HTML');
-            mnuIA2.Caption := LoadTranslation('General', 'MSAA_cbIA2', 'IA2');
-            mnuUIA.Caption := LoadTranslation('General', 'MSAA_cbUIA', 'UIAutomation');
-            mnuMSAA.Hint := LoadTranslation('General', 'MSAA_cbMSAAHint', '');
-            mnuARIA.Hint := LoadTranslation('General', 'MSAA_cbARIAHint', '');
-            mnuHTML.Hint := LoadTranslation('General', 'MSAA_cbHTMLHint', '');
-            mnuIA2.Hint := LoadTranslation('General', 'MSAA_cbIA2Hint', '');
-            mnuUIA.Hint := LoadTranslation('General', 'MSAA_cbUIAHint', '');
-            None := LoadTranslation('General', 'none', '(none)');
-            ConvErr := LoadTranslation('General', 'MSAA_ConvertError', 'Format is invalid: %s');
-            Msg := LoadTranslation('General', 'MSAA_HookIsFailed', 'SetWinEventHook is Failed!!');
+            tbMSAAMode.Hint := ini.ReadString('General', 'MSAA_tbMSAAModeHint', '');
+            tbRegister.Hint := ini.ReadString('General', 'MSAA_tbMSAASetHint', 'Show Setting Dialog');
+            mnuLang.Caption := ini.ReadString('General', 'mnuLang', '&Language');
+            mnuView.Caption := ini.ReadString('General', 'mnuView', '&View');
+            mnuMSAA.Caption := ini.ReadString('General', 'MSAA_cbMSAA', 'MSAA');
+            mnuARIA.Caption := ini.ReadString('General', 'MSAA_cbARIA', 'ARIA');
+            mnuHTML.Caption := ini.ReadString('General', 'MSAA_cbHTML', 'HTML');
+            mnuIA2.Caption := ini.ReadString('General', 'MSAA_cbIA2', 'IA2');
+            mnuUIA.Caption := ini.ReadString('General', 'MSAA_cbUIA', 'UIAutomation');
+            mnuMSAA.Hint := ini.ReadString('General', 'MSAA_cbMSAAHint', '');
+            mnuARIA.Hint := ini.ReadString('General', 'MSAA_cbARIAHint', '');
+            mnuHTML.Hint := ini.ReadString('General', 'MSAA_cbHTMLHint', '');
+            mnuIA2.Hint := ini.ReadString('General', 'MSAA_cbIA2Hint', '');
+            mnuUIA.Hint := ini.ReadString('General', 'MSAA_cbUIAHint', '');
+            None := ini.ReadString('General', 'none', '(none)');
+            ConvErr := ini.ReadString('General', 'MSAA_ConvertError', 'Format is invalid: %s');
+            Msg := ini.ReadString('General', 'MSAA_HookIsFailed', 'SetWinEventHook is Failed!!');
 
-            sTrue := LoadTranslation('General', 'true', 'True');
-            sFalse := LoadTranslation('General', 'false', 'False');
-            mnuTVSave.Caption := LoadTranslation('General', 'mnuSave', '&Save');
-            mnuTVSAll.Caption := LoadTranslation('General', 'mnuSaveAll', '&All items');
-            mnuTVSSel.Caption := LoadTranslation('General', 'mnuSaveSelect', '&Selected items');
+            sTrue := ini.ReadString('General', 'true', 'True');
+            sFalse := ini.ReadString('General', 'false', 'False');
+            mnuTVSave.Caption := ini.ReadString('General', 'mnuSave', '&Save');
+            mnuTVSAll.Caption := ini.ReadString('General', 'mnuSaveAll', '&All items');
+            mnuTVSSel.Caption := ini.ReadString('General', 'mnuSaveSelect', '&Selected items');
 
-            mnuSAll.Caption := LoadTranslation('General', 'mnuTVSAll', 'Save &All items');
-            mnuSSel.Caption := LoadTranslation('General', 'mnuTVSSelect', 'Save &Selected items');
+            mnuTVOpen.Caption := ini.ReadString('General', 'mnuOpen', '&Open in Browser');
+            mnuTVOAll.Caption := ini.ReadString('General', 'mnuOpenAll', '&All items');
+            mnuTVOSel.Caption := ini.ReadString('General', 'mnuOpenSelect', '&Selected items');
 
+            mnuSave.Caption := ini.ReadString('General', 'mnuSave', '&Save');
+            mnuSAll.Caption := ini.ReadString('General', 'mnuSaveAll', '&All items');
+            mnuSSel.Caption := ini.ReadString('General', 'mnuSaveSelect', '&Selected items');
 
+            mnuOpenB.Caption := ini.ReadString('General', 'mnuOpen', '&Open in Browser');
+            mnuOAll.Caption := ini.ReadString('General', 'mnuOpenAll', '&All items');
+            mnuOSel.Caption := ini.ReadString('General', 'mnuOpenSelect', '&Selected items');
 
-            tbFocus.Caption := LoadTranslation('General', 'MSAA_tbFocusName', 'Focus');
-            tbCursor.Caption := LoadTranslation('General', 'MSAA_tbCursorName', 'Cursor');
-            tbRectAngle.Caption := LoadTranslation('General', 'MSAA_tbRectAngleName', 'Highlight Rectangle');
-            tbShowtip.Caption :=  LoadTranslation('General', 'MSAA_tbBalloonName', 'Balloon tip');
-            tbCopy.Caption := LoadTranslation('General', 'MSAA_tbCopyName', 'Copy');
-            tbOnlyFocus.Caption := LoadTranslation('General', 'MSAA_tbFocusOnlyName', 'Focus only');
-            tbParent.Caption := LoadTranslation('General', 'MSAA_tbParentName', 'Parent');
-            tbChild.Caption := LoadTranslation('General', 'MSAA_tbChildName', 'Child');
-            tbPrevS.Caption := LoadTranslation('General', 'MSAA_tbPrevSName', 'Previous');
-            tbNextS.Caption := LoadTranslation('General', 'MSAA_tbNextSName', 'Next');
-            tbHelp.Caption := LoadTranslation('General', 'MSAA_tbHelpName', 'Help');
-            //tbFont.Caption := LoadTranslation('General', 'MSAA_tbFontName', 'Font');
-            tbMSAAMode.Caption := LoadTranslation('General', 'MSAA_tbMSAAModeName', 'MSAA');
-            tbRegister.Caption := LoadTranslation('General', 'MSAA_tbMSAASetName', 'Settings');
+            mnuSelMode.Caption := ini.ReadString('General', 'mnuSelMode', 'S&elect Mode');
 
-            mnuReg.Caption := LoadTranslation('General', 'MSAA_mnuReg', '&Register');
-            mnuUnReg.Caption := LoadTranslation('General', 'MSAA_mnuUnreg', '&Unregister');
-            mnuReg.Hint := LoadTranslation('General', 'MSAA_mnuRegHint', 'Register IAccessible2Proxy.dll');
-            mnuUnReg.Hint := LoadTranslation('General', 'MSAA_mnuUnregHint', 'Unregister IAccessible2Proxy.dll');
+            tbFocus.Caption := ini.ReadString('General', 'MSAA_tbFocusName', 'Focus');
+            tbCursor.Caption := ini.ReadString('General', 'MSAA_tbCursorName', 'Cursor');
+            tbRectAngle.Caption := ini.ReadString('General', 'MSAA_tbRectAngleName', 'Highlight Rectangle');
+            tbShowtip.Caption :=  ini.ReadString('General', 'MSAA_tbBalloonName', 'Balloon tip');
+            tbCopy.Caption := ini.ReadString('General', 'MSAA_tbCopyName', 'Copy');
+            tbOnlyFocus.Caption := ini.ReadString('General', 'MSAA_tbFocusOnlyName', 'Focus only');
+            tbParent.Caption := ini.ReadString('General', 'MSAA_tbParentName', 'Parent');
+            tbChild.Caption := ini.ReadString('General', 'MSAA_tbChildName', 'Child');
+            tbPrevS.Caption := ini.ReadString('General', 'MSAA_tbPrevSName', 'Previous');
+            tbNextS.Caption := ini.ReadString('General', 'MSAA_tbNextSName', 'Next');
+            tbHelp.Caption := ini.ReadString('General', 'MSAA_tbHelpName', 'Help');
+            tbMSAAMode.Caption := ini.ReadString('General', 'MSAA_tbMSAAModeName', 'MSAA');
+            tbRegister.Caption := ini.ReadString('General', 'MSAA_tbMSAASetName', 'Settings');
 
-            Memo1.AccName := LoadTranslation('General', 'MSAA_CodeEdit', 'Code');
-            Memo1.Hint := LoadTranslation('General', 'MSAA_CodeEditHint', '');
+            mnuReg.Caption := ini.ReadString('General', 'MSAA_mnuReg', '&Register');
+            mnuUnReg.Caption := ini.ReadString('General', 'MSAA_mnuUnreg', '&Unregister');
+            mnuReg.Hint := ini.ReadString('General', 'MSAA_mnuRegHint', 'Register IAccessible2Proxy.dll');
+            mnuUnReg.Hint := ini.ReadString('General', 'MSAA_mnuUnregHint', 'Unregister IAccessible2Proxy.dll');
+
+            Memo1.AccName := ini.ReadString('General', 'MSAA_CodeEdit', 'Code');
+            Memo1.Hint := ini.ReadString('General', 'MSAA_CodeEditHint', '');
             Memo1.AccDesc := GetLongHint(Memo1.Hint);
-            TreeList1.Columns[0].Header := LoadTranslation('General', 'MSAA_tlColumn1', 'Intarfece');
-            TreeList1.Columns[1].Header := LoadTranslation('General', 'MSAA_tlColumn2', 'Value');
-            TreeList1.AccName := PChar(LoadTranslation('General', 'MSAA_ListName', 'Result List'));
-            d := PChar(LoadTranslation('General', 'MSAA_ListName', 'Result List'));
+            TreeList1.Columns[0].Header := ini.ReadString('General', 'MSAA_tlColumn1', 'Intarfece');
+            TreeList1.Columns[1].Header := ini.ReadString('General', 'MSAA_tlColumn2', 'Value');
+            TreeList1.AccName := PChar(ini.ReadString('General', 'MSAA_ListName', 'Result List'));
+            d := PChar(ini.ReadString('General', 'MSAA_ListName', 'Result List'));
             SetWindowText(TreeList1.Handle, PWideChar(d));
-            TreeList1.Hint := LoadTranslation('General', 'MSAA_ListHint', '');
+            TreeList1.Hint := ini.ReadString('General', 'MSAA_ListHint', '');
             TreeList1.AccDesc := GetLongHint(TreeList1.Hint);
-            TreeView1.AccName := PChar(LoadTranslation('General', 'MSAA_TVName', 'Accessibility Tree'));
-            //d := PChar(LoadTranslation('General', 'MSAA_TVName', 'Accessibility Tree'));
-            //SetWindowText(TreeView1.Handle, PWideChar(d));
-            TreeView1.Hint := LoadTranslation('General', 'MSAA_TVHint', '');
+            TreeView1.AccName := PChar(ini.ReadString('General', 'MSAA_TVName', 'Accessibility Tree'));
+            TreeView1.Hint := ini.ReadString('General', 'MSAA_TVHint', '');
             TreeView1.AccDesc := GetLongHint(TreeView1.Hint);
-            UIA_fail := LoadTranslation('General', 'UIA_CreationError', 'CoCreateInstance failed. ');
+            UIA_fail := ini.ReadString('General', 'UIA_CreationError', 'CoCreateInstance failed. ');
 
-            PB1.Hint :=  LoadTranslation('General', 'Collapse_TV_Hint', 'Collapse(or Expand) Button for TreeView');
-            PB2.Hint :=  LoadTranslation('General', 'Collapse_TL_Hint', 'Collapse(or Expand) Button for TreeList');
-            PB3.Hint :=  LoadTranslation('General', 'Collapse_CE_Hint', 'Collapse(or Expand) Button for CodeEdit');
+            PB1.Hint :=  ini.ReadString('General', 'Collapse_TV_Hint', 'Collapse(or Expand) Button for TreeView');
+            PB2.Hint :=  ini.ReadString('General', 'Collapse_TL_Hint', 'Collapse(or Expand) Button for TreeList');
+            PB3.Hint :=  ini.ReadString('General', 'Collapse_CE_Hint', 'Collapse(or Expand) Button for CodeEdit');
             PB1.AccDesc := PB1.Hint;
             PB2.AccDesc := PB2.Hint;
             PB3.AccDesc := PB3.Hint;
-            acTVCol.Caption := LoadTranslation('General', 'mnuTreeView', '&TreeView');
-            acTLCol.Caption := LoadTranslation('General', 'mnuTreeList', 'Tree&List');
-            acMMCol.Caption := LoadTranslation('General', 'mnuCodeEdit', '&CodeEdit');
-            mnuColl.Caption := LoadTranslation('General', 'mnuCollapse', '&Collapse');
+            acTVCol.Caption := ini.ReadString('General', 'mnuTreeView', '&TreeView');
+            acTLCol.Caption := ini.ReadString('General', 'mnuTreeList', 'Tree&List');
+            acMMCol.Caption := ini.ReadString('General', 'mnuCodeEdit', '&CodeEdit');
+            mnuColl.Caption := ini.ReadString('General', 'mnuCollapse', '&Collapse');
 
-            mnuTVcont.Caption := LoadTranslation('General', 'mnuTVContent', '&Treeview contents');
-            mnuTarget.Caption := LoadTranslation('General', 'mnuTarget', '&Target only');
-            mnuAll.Caption := LoadTranslation('General', 'mnuAll', '&All related objects');
+            mnuTVcont.Caption := ini.ReadString('General', 'mnuTVContent', '&Treeview contents');
+            mnuTarget.Caption := ini.ReadString('General', 'mnuTarget', '&Target only');
+            mnuAll.Caption := ini.ReadString('General', 'mnuAll', '&All related objects');
 
-            rType := LoadTranslation('IA2', 'RelationType', 'Relation Type');
-            rTarg := LoadTranslation('IA2', 'RelationTargets', 'Relation Targets');
-            mnuBln.Caption := LoadTranslation('General', 'mnubln', 'Balloon tip(&B)');
-            mnublnMSAA.Caption :=  LoadTranslation('General', 'mnublnMSAA', '&MS Active Accessibility');
-            mnublnIA2.Caption :=  LoadTranslation('General', 'mnublnIA2', '&IAccessible2');
-            mnublnCode.Caption :=  LoadTranslation('General', 'mnublnCode', '&Source code');
+            rType := ini.ReadString('IA2', 'RelationType', 'Relation Type');
+            rTarg := ini.ReadString('IA2', 'RelationTargets', 'Relation Targets');
+            mnuBln.Caption := ini.ReadString('General', 'mnubln', 'Balloon tip(&B)');
+            mnublnMSAA.Caption :=  ini.ReadString('General', 'mnublnMSAA', '&MS Active Accessibility');
+            mnublnIA2.Caption :=  ini.ReadString('General', 'mnublnIA2', '&IAccessible2');
+            mnublnCode.Caption :=  ini.ReadString('General', 'mnublnCode', '&Source code');
 
-            ShowSrcLen := LoadTransInt('General', 'ShowSrcLen', 2000);
-            cList.CommaText := LoadTranslation('General', 'ClassNames', '"mozillawindowclass","chrome_renderwidgethosthwnd","mozillawindowclass","chrome_widgetwin_0","chrome_widgetwin_1"');
-            SetLength(CNames, cList.Count);
-            for i := 0 to cList.Count - 1 do
-            begin
-              CNames[i] := cList.Strings[i];
-            end;
+            ShowSrcLen := ini.ReadInteger('General', 'ShowSrcLen', 2000);
+            ClsNames.CommaText := ini.ReadString('General', 'ClassNames', '"mozillawindowclass","chrome_renderwidgethosthwnd","mozillawindowclass","chrome_widgetwin_0","chrome_widgetwin_1"');
 
-            SaveDlg.Filter :=  LoadTranslation('General', 'SaveDLGFilter', 'HTML File|*.htm*|Text File|*.txt|All|*.*');
+            
+
+            SaveDlg.Filter :=  ini.ReadString('General', 'SaveDLGFilter', 'HTML File|*.htm*|Text File|*.txt|All|*.*');
+
+            sHTML := ini.ReadString('HTML', 'HTML', 'HTML');
+            HTMLs[0, 0] := ini.ReadString('HTML', 'Element_name', 'Element Name');
+            HTMLs[1, 0] := ini.ReadString('HTML', 'Attributes', 'Attributes');
+            HTMLs[2, 0] := ini.ReadString('HTML', 'Code', 'Code');
+            sTypeIE := '(' + ini.ReadString('HTML', 'outerHTML', 'outerHTML') + ')';
+            HTMLs[2, 0] := HTMLs[2, 0] + StypeIE;
+
+            HTMLsFF[0, 0] := HTMLs[0, 0];
+            HTMLsFF[1, 0] := HTMLs[1, 0];
+            HTMLsFF[2, 0] := HTMLs[2, 0];
+            sTxt := ini.ReadString('HTML', 'Text', 'Text');
+            sTypeFF := '(' + ini.ReadString('HTML', 'innerHTML', 'innerHTML') + ')';
+
+            sAria := ini.ReadString('ARIA', 'ARIA', 'ARIA');
+            ARIAs[0, 0] := ini.ReadString('ARIA', 'Role', 'Role');
+            ARIAs[1, 0] := ini.ReadString('ARIA', 'Attributes', 'Attributes');
+
+            Roles[0] := ini.ReadString('IA2', 'IA2_ROLE_CANVAS', 'canvas');
+            Roles[1] := ini.ReadString('IA2', 'IA2_ROLE_CAPTION', 'Caption');
+            Roles[2] := ini.ReadString('IA2', 'IA2_ROLE_CHECK_MENU_ITEM', 'Check menu item');
+            Roles[3] := ini.ReadString('IA2', 'IA2_ROLE_COLOR_CHOOSER', 'Color chooser');
+            Roles[4] := ini.ReadString('IA2', 'IA2_ROLE_DATE_EDITOR', 'Date editor');
+            Roles[5] := ini.ReadString('IA2', 'IA2_ROLE_DESKTOP_ICON', 'Desktop icon');
+            Roles[6] := ini.ReadString('IA2', 'IA2_ROLE_DESKTOP_PANE', 'Desktop pane');
+            Roles[7] := ini.ReadString('IA2', 'IA2_ROLE_DIRECTORY_PANE', 'Directory pane');
+            Roles[8] := ini.ReadString('IA2', 'IA2_ROLE_EDITBAR', 'Editbar');
+            Roles[9] := ini.ReadString('IA2', 'IA2_ROLE_EMBEDDED_OBJECT', 'Embedded object');
+            Roles[10] := ini.ReadString('IA2', 'IA2_ROLE_ENDNOTE', 'Endnote');
+            Roles[11] := ini.ReadString('IA2', 'IA2_ROLE_FILE_CHOOSER', 'File chooser');
+            Roles[12] := ini.ReadString('IA2', 'IA2_ROLE_FONT_CHOOSER', 'Font chooser');
+            Roles[13] := ini.ReadString('IA2', 'IA2_ROLE_FOOTER', 'Footer');
+            Roles[14] := ini.ReadString('IA2', 'IA2_ROLE_FOOTNOTE', 'Footnote');
+            Roles[15] := ini.ReadString('IA2', 'IA2_ROLE_FORM', 'Form');
+            Roles[16] := ini.ReadString('IA2', 'IA2_ROLE_FRAME', 'Frame');
+            Roles[17] := ini.ReadString('IA2', 'IA2_ROLE_GLASS_PANE', 'Glass pane');
+            Roles[18] := ini.ReadString('IA2', 'IA2_ROLE_HEADER', 'Header');
+            Roles[19] := ini.ReadString('IA2', 'IA2_ROLE_HEADING', 'Heading');
+            Roles[20] := ini.ReadString('IA2', 'IA2_ROLE_ICON', 'Icon');
+            Roles[21] := ini.ReadString('IA2', 'IA2_ROLE_IMAGE_MAP', 'Image map');
+            Roles[22] := ini.ReadString('IA2', 'IA2_ROLE_INPUT_METHOD_WINDOW', 'Input method window');
+            Roles[23] := ini.ReadString('IA2', 'IA2_ROLE_INTERNAL_FRAME', 'Internal frame');
+            Roles[24] := ini.ReadString('IA2', 'IA2_ROLE_LABEL', 'Label');
+            Roles[25] := ini.ReadString('IA2', 'IA2_ROLE_LAYERED_PANE', 'Layered pane');
+            Roles[26] := ini.ReadString('IA2', 'IA2_ROLE_NOTE', 'Note');
+            Roles[27] := ini.ReadString('IA2', 'IA2_ROLE_OPTION_PANE', 'Option pane');
+            Roles[28] := ini.ReadString('IA2', 'IA2_ROLE_PAGE', 'Role pane');
+            Roles[29] := ini.ReadString('IA2', 'IA2_ROLE_PARAGRAPH', 'Paragraph');
+            Roles[30] := ini.ReadString('IA2', 'IA2_ROLE_RADIO_MENU_ITEM', 'Radio menu item');
+            Roles[31] := ini.ReadString('IA2', 'IA2_ROLE_REDUNDANT_OBJECT', 'Redundant object');
+            Roles[32] := ini.ReadString('IA2', 'IA2_ROLE_ROOT_PANE', 'Root pane');
+            Roles[33] := ini.ReadString('IA2', 'IA2_ROLE_RULER', 'Ruler');
+            Roles[34] := ini.ReadString('IA2', 'IA2_ROLE_SCROLL_PANE', 'Scroll pane');
+            Roles[35] := ini.ReadString('IA2', 'IA2_ROLE_SECTION', 'Section');
+            Roles[36] := ini.ReadString('IA2', 'IA2_ROLE_SHAPE', 'Shape');
+            Roles[37] := ini.ReadString('IA2', 'IA2_ROLE_SPLIT_PANE', 'Split pane');
+            Roles[38] := ini.ReadString('IA2', 'IA2_ROLE_TEAR_OFF_MENU', 'Tear off menu');
+            Roles[39] := ini.ReadString('IA2', 'IA2_ROLE_TERMINAL', 'Terminal');
+            Roles[40] := ini.ReadString('IA2', 'IA2_ROLE_TEXT_FRAME', 'Text frame');
+            Roles[41] := ini.ReadString('IA2', 'IA2_ROLE_TOGGLE_BUTTON', 'Toggle button');
+            Roles[42] := ini.ReadString('IA2', 'IA2_ROLE_VIEW_PORT', 'View port');
+
+            IA2Sts[0] := ini.ReadString('IA2', 'IA2_STATE_ACTIVE', 'Active');
+            IA2Sts[1] := ini.ReadString('IA2', 'IA2_STATE_ARMED', 'Armed');
+            IA2Sts[2] := ini.ReadString('IA2', 'IA2_STATE_DEFUNCT', 'Defunct');
+            IA2Sts[3] := ini.ReadString('IA2', 'IA2_STATE_EDITABLE', 'Editable');
+            IA2Sts[4] := ini.ReadString('IA2', 'IA2_STATE_HORIZONTAL', 'Horizontal');
+            IA2Sts[5] := ini.ReadString('IA2', 'IA2_STATE_ICONIFIED', 'Iconified');
+            IA2Sts[6] := ini.ReadString('IA2', 'IA2_STATE_INVALID_ENTRY', 'Invalid entry');
+            IA2Sts[7] := ini.ReadString('IA2', 'IA2_STATE_MANAGES_DESCENDANTS', 'Manages descendants');
+            IA2Sts[8] := ini.ReadString('IA2', 'IA2_STATE_MODAL', 'Modal');
+            IA2Sts[9] := ini.ReadString('IA2', 'IA2_STATE_MULTI_LINE', 'Multi line');
+            IA2Sts[10] := ini.ReadString('IA2', 'IA2_STATE_OPAQUE', 'Opaque');
+            IA2Sts[11] := ini.ReadString('IA2', 'IA2_STATE_REQUIRED', 'Required');
+            IA2Sts[12] := ini.ReadString('IA2', 'IA2_STATE_SELECTABLE_TEXT', 'Selectable text');
+            IA2Sts[13] := ini.ReadString('IA2', 'IA2_STATE_SINGLE_LINE', 'Single line');
+            IA2Sts[14] := ini.ReadString('IA2', 'IA2_STATE_STALE', 'Stale');
+            IA2Sts[15] := ini.ReadString('IA2', 'IA2_STATE_SUPPORTS_AUTOCOMPLETION', 'Supports autocompletion');
+            IA2Sts[16] := ini.ReadString('IA2', 'IA2_STATE_TRANSIENT', 'Transient');
+            IA2Sts[17] := ini.ReadString('IA2', 'IA2_STATE_VERTICAL', 'Vertical');
+
         finally
             Result := UIA_fail;
-            cList.Free;
+            ini.Free;
         end;
-    end
-    else
-        TransPath := '';
 end;
 
 procedure TwndMSAAV.Load;
@@ -7047,7 +6234,7 @@ begin
             TransPath := TransDir + d;
         end;
 
-        UIA_fail := LoadLang;
+        LoadLang;
         Width := ini.ReadInteger('Settings', 'Width', 335);
         Height := ini.ReadInteger('Settings', 'Height', 500);
         //P2W, P4H: integer;
@@ -7094,10 +6281,10 @@ begin
     begin
         if FileExists(TransDir + LangList[i]) then
         begin
-            //ini := TMemIniFile.Create(TransDir + LangList[i], TEncoding.Unicode);
+            ini := TMemIniFile.Create(TransDir + LangList[i], TEncoding.UTF8);
             try
                 mItem := MainMenu1.CreateMenuItem;
-                mItem.Caption := LoadTranslation_Path('General', 'Language', 'English', TransDir + LangList[i]);
+                mItem.Caption := ini.ReadString('General', 'Language', 'English');
                 mItem.RadioItem := True;
                 mItem.GroupIndex := 1;
                 //mItem.AutoCheck := True;
@@ -7108,7 +6295,7 @@ begin
                     mItem.Checked := False;
                 mnuLang.Add(mItem);
             finally
-                //ini.Free;
+                ini.Free;
             end;
         end;
     end;
@@ -7250,6 +6437,7 @@ end;
 
 
 
+
 procedure TwndMSAAV.mnuAllClick(Sender: TObject);
 begin
     if (not mnuTarget.Checked) and (not mnuAll.Checked) then
@@ -7264,7 +6452,7 @@ end;
 
 procedure TwndMSAAV.ReflexTV(cNode: TTreeNode; var HTML: string; var iCnt: integer; ForSel: boolean = false);
 var
-	i, ulCnt: integer;
+	i: integer;
   tab, temp: string;
   Role: string;
   ws: widestring;
@@ -7333,7 +6521,6 @@ var
 
 begin
 	tab := #9;
-  ulCnt := 0;
 	if cNode.Level > 0 then
   begin
 		for i := 1 to cNode.Level do
@@ -7344,7 +6531,6 @@ begin
   	if cNode.Selected then
     begin
 			HTML := HTML + GetLIContents(TTreeData(cNode.Data^).Acc, TTreeData(cNode.Data^).iID, cNode);
-      Inc(ulCnt);
     end;
   end
   else
@@ -7376,7 +6562,6 @@ begin
   				if cNode.Item[i].Selected then
           begin
        			temp := temp + #13#10 + tab + #9 + GetLIContents(TTreeData(cNode.Item[i].Data^).Acc, TTreeData(cNode.Item[i].Data^).iID, cNode.Item[i]) + '</li>';
-            Inc(ulCnt);
           end;
         end
   			else
@@ -7386,7 +6571,7 @@ begin
     if temp <> '' then
     begin
       if ForSel then
-      begin //ulの回数が多い？
+      begin
         HTML := HTML + #13#10 + tab + '<ul>' + temp + #13#10 + tab + '</ul>';
       end
       else
@@ -7410,33 +6595,97 @@ begin
 	mnuTVSAllClick(self);
 end;
 
+procedure TwndMSAAV.mnuSelModeClick(Sender: TObject);
+begin
+  bSelMode := not bSelMode;
+  mnuSelmode.Checked := bSelMode;
+end;
+
 procedure TwndMSAAV.mnuSSelClick(Sender: TObject);
 begin
 	mnuTVSSelClick(self);
 end;
 
-procedure TwndMSAAV.mnuTVSAllClick(Sender: TObject);
+function GetTemp(var S: String): Boolean;
+var
+  Len: Integer;
+begin
+  Len := Windows.GetTempPath(0, nil);
+  if Len > 0 then
+  begin
+    SetLength(S, Len);
+    Len := Windows.GetTempPath(Len, PChar(S));
+    SetLength(S, Len);
+    S := SysUtils.IncludeTrailingPathDelimiter(S);
+    Result := Len > 0;
+  end else
+    Result := False;
+end;
+
+
+
+function TwndMSAAV.GetTVAllItems: string;
 var
 	d, temp: string;
   sList: TStringList;
   i: integer;
 begin
-		//Save Treeview contents
-    if TreeView1.Items.Count > 0 then
-    begin
-      i := 0;
+  i := 0;
+  ReflexTV(TreeView1.Items.Item[0], d, i);
+  sList := TStringList.Create;
+  try
 
-    	ReflexTV(TreeView1.Items.Item[0], d, i);
+    temp := APPDir + 'output.html';
+    if FileExists(temp) then
+    begin
+      sList.LoadFromFile(temp, TEncoding.UTF8);
+      sList.Text := StringReplace(sList.Text, '%contents%', d, [rfReplaceAll, rfIgnoreCase]);
+    end
+    else
+      sList.Text := d;
+    Result := sList.Text;
+  finally
+    sList.Free;
+  end;
+end;
+
+procedure TwndMSAAV.mnuOAllClick(Sender: TObject);
+begin
+  mnuTVOAllClick(self);
+end;
+
+procedure TwndMSAAV.mnuTVOAllClick(Sender: TObject);
+var
+  temp: string;
+  sList: TStringList;
+begin
+  if TreeView1.Items.Count > 0 then
+  begin
+    if GetTemp(temp) then
+    begin
       sList := TStringList.Create;
       try
-      	temp := APPDir + 'output.html';
-        if FileExists(temp) then
-        begin
-        	sList.LoadFromFile(temp, TEncoding.UTF8);
-          sList.Text := StringReplace(sList.Text, '%contents%', d, [rfReplaceAll, rfIgnoreCase]);
-        end
-        else
-        	sList.Text := d;
+        sList.Text := GetTVAllItems;
+        sList.SaveToFile(temp+'aviewer.html', TEncoding.UTF8);
+        ShellExecute(Handle, 'open', PWideChar(temp+'aviewer.html'), nil, nil, SW_SHOW);
+      finally
+        sList.Free;
+      end;
+    end;
+  end;
+end;
+
+
+procedure TwndMSAAV.mnuTVSAllClick(Sender: TObject);
+var
+  sList: TStringList;
+begin
+    if TreeView1.Items.Count > 0 then
+    begin
+      sList := TStringList.Create;
+      try
+
+        sList.Text := GetTVAllItems;
 
         if SaveDLG.Execute then
         begin
@@ -7450,7 +6699,7 @@ begin
 
 end;
 
-procedure TwndMSAAV.mnuTVSSelClick(Sender: TObject);
+function TwndMSAAV.GetTVSelItems: string;
 var
 	d, temp: string;
   sList: TStringList;
@@ -7504,11 +6753,7 @@ var
     	Res := Res + #13#10 + tab + '<section id="x-details' + inttostr(iCnt) + '">';
 
       Res := Res + MSAAText4HTML(Acc, tab);
-      {IA2[0] := LoadTranslation('IA2', 'IA2', 'IAccessible2');
-            lIA2[1] := LoadTranslation('IA2', 'Name','Name');
-            lIA2[2] := LoadTranslation('IA2', 'Role','Role');
-            lIA2[3] := LoadTranslation('IA2', 'States','States');
-            lIA2[4] := LoadTranslation('IA2', 'Description','Description');}
+      
       if (iMode = 1) and (SUCCEEDED(Acc.QueryInterface(IID_ISERVICEPROVIDER, isp))) then//FF
       begin
       	Res := Res + IA2Text4HTML(Acc, tab);
@@ -7525,12 +6770,10 @@ var
     end;
   end;
 begin
-		//Save Treeview contents
-    if (TreeView1.SelectionCount > 0) and (TreeView1.Items.Count > 0) then
+  Result := '';
+  if (TreeView1.SelectionCount > 0) and (TreeView1.Items.Count > 0) then
     begin
-      //showmessage(inttostr(Treeview1.SelectionCount));
-      {i := 0;
-    	ReflexTV(TreeView1.Items.Item[0], d, i, True);  }
+
       iCnt := 0;
       for i := 0 to TreeView1.SelectionCount - 1 do
       begin
@@ -7547,6 +6790,51 @@ begin
         end
         else
         	sList.Text := d;
+        Result := sList.Text;
+      finally
+        sList.Free;
+      end;
+    end;
+end;
+
+procedure TwndMSAAV.mnuOSelClick(Sender: TObject);
+begin
+  mnuTVOSelClick(self);
+end;
+
+procedure TwndMSAAV.mnuTVOSelClick(Sender: TObject);
+var
+  temp: string;
+  sList: TStringList;
+begin
+  if (TreeView1.SelectionCount > 0) and (TreeView1.Items.Count > 0) then
+  begin
+    if GetTemp(temp) then
+    begin
+      sList := TStringList.Create;
+      try
+        sList.Text := GetTVSelItems;
+        sList.SaveToFile(temp+'aviewer.html', TEncoding.UTF8);
+        ShellExecute(Handle, 'open', PWideChar(temp+'aviewer.html'), nil, nil, SW_SHOW);
+      finally
+        sList.Free;
+      end;
+    end;
+  end;
+
+end;
+
+procedure TwndMSAAV.mnuTVSSelClick(Sender: TObject);
+var
+  sList: TStringList;
+begin
+		//Save Treeview contents
+    if (TreeView1.SelectionCount > 0) and (TreeView1.Items.Count > 0) then
+    begin
+      sList := TStringList.Create;
+      try
+
+      	sList.Text := GetTVSelItems;
         if SaveDLG.Execute then
         begin
         	sList.SaveToFile(SaveDLG.FileName, TEncoding.UTF8);
@@ -7583,26 +6871,6 @@ begin
     P4H := Panel4.Height;
 end;
 
-function TwndMSAAV.GetIDsOfNames(const IID: TGUID; Names: Pointer;
-  NameCount, LocaleID: Integer; DispIDs: Pointer): HResult;
-begin
-  Result := E_NOTIMPL;
-end;
-
-
-function TwndMSAAV.GetTypeInfo(Index, LocaleID: Integer;
-  out TypeInfo): HResult;
-begin
-  Result := E_NOTIMPL;
-  pointer(TypeInfo) := nil;
-end;
-
-function TwndMSAAV.GetTypeInfoCount(out Count: Integer): HResult;
-begin
-  Result := E_NOTIMPL;
-  Count := 0;
-end;
-
 procedure BuildPositionalDispIds(pDispIds: PDispIdList; const dps: TDispParams);
 var
   i: integer;
@@ -7625,185 +6893,29 @@ begin
     end;
 end;
 
-function TwndMSAAV.Invoke(DispID: Integer; const IID: TGUID; LocaleID: Integer;
-  Flags: Word; var Params; VarResult, ExcepInfo, ArgErr: Pointer): HResult;
-type
-  POleVariant = ^OleVariant;
-var
-  dps: TDispParams absolute Params;
-  bHasParams: boolean;
-  pDispIds: PDispIdList;
-  iDispIdsSize: integer;
-  i: Integer;
-    TCP: PCP;
-    pWB: IWebBrowser2;
-    iDis: IDispatch;
-    iDoc: IHTMLDocument2;
-begin
-  pDispIds := nil;
-  iDispIdsSize := 0;
-  bHasParams := (dps.cArgs > 0);
-  if (bHasParams) then
-  begin
-    iDispIdsSize := dps.cArgs * SizeOf(TDispId);
-    GetMem(pDispIds, iDispIdsSize);
-  end;
-  try
-    if (bHasParams) then BuildPositionalDispIds(pDispIds, dps);
-    Result := S_OK;
-    case DispId of
-      {DISPID_STATUSTEXTCHANGE: DoStatusTextChange(dps.rgvarg^[pDispIds^[0]].bstrval);
-      DISPID_PROGRESSCHANGE: DoProgressChange(dps.rgvarg^[pDispIds^[0]].lval, dps.rgvarg^[pDispIds^[1]].lval);
-      DISPID_COMMANDSTATECHANGE: DoCommandStateChange(dps.rgvarg^[pDispIds^[0]].lval, dps.rgvarg^[pDispIds^[1]].vbool);
-      DISPID_DOWNLOADBEGIN: DoDownloadBegin();
-      DISPID_DOWNLOADCOMPLETE: DoDownloadComplete();
-      DISPID_TITLECHANGE: DoTitleChange(dps.rgvarg^[pDispIds^[0]].bstrval);
-      DISPID_PROPERTYCHANGE: DoPropertyChange(dps.rgvarg^[pDispIds^[0]].bstrval);}
-      DISPID_BEFORENAVIGATE2:
-      begin
-        pWB := IDispatch(dps.rgvarg^[6].bstrVal) as IWebBrowser2;
-
-        if IsTopLevel(pWB) then
-        begin
-            for i := 0 to FCPList.Count - 1 do
-            begin
-                if Assigned(FCPList.Items[i]) then
-                begin
-                    PCP(FCPList.Items[i])^.CP.Unadvise(PCP(FCPList.Items[i])^.Cookie);
-                    Dispose(FCPList.Items[i]);
-                end;
-            end;
-            FCPList.Clear;
-
-        end;
-    end;
-      //DISPID_NEWWINDOW2: DoNewWindow2(IDispatch(dps.rgvarg^[pDispIds^[0]].pdispval^), dps.rgvarg^[pDispIds^[1]].pbool^);
-     // DISPID_NAVIGATECOMPLETE2: DoNavigateComplete2(IDispatch(dps.rgvarg^[pDispIds^[0]].dispval), POleVariant(dps.rgvarg^[pDispIds^[1]].pvarval)^);
-      DISPID_DOCUMENTCOMPLETE:
-      begin
-        pWB := IDispatch(dps.rgvarg^[1].bstrVal) as IWebBrowser2;
-        if (POleVariant(dps.rgvarg^[pDispIds^[1]].pvarval)^ <> '') then
-        begin
-            if SUCCEEDED(pWB.Document.QueryInterface(IID_IHTMLDocument, iDis)) then
-            begin
-                if SUCCEEDED(iDis.QueryInterface(IID_IHTMLDocument2, iDoc)) then
-                begin
-                    if SUCCEEDED(iDis.QueryInterface(IID_IConnectionPointContainer, CPC)) then
-                    begin
-                        New(TCP);
-                        if SUCCEEDED(CPC.FindConnectionPoint(DIID_HTMLDocumentEvents, TCP^.CP)) then
-                        begin
-
-
-                            TCP^.CP.Advise(Self, TCP^.Cookie);
-                            FCPList.Add(TCP);
-                        end
-                        else
-                            Dispose(TCP);
-
-                    end;
-                end;
-            end;
-        end;
-
-      end;
-      {DISPID_ONVISIBLE: DoOnVisible(dps.rgvarg^[pDispIds^[0]].vbool);
-      DISPID_ONTOOLBAR: DoOnToolBar(dps.rgvarg^[pDispIds^[0]].vbool);
-      DISPID_ONMENUBAR: DoOnMenuBar(dps.rgvarg^[pDispIds^[0]].vbool);
-      DISPID_ONSTATUSBAR: DoOnStatusBar(dps.rgvarg^[pDispIds^[0]].vbool);
-      DISPID_ONFULLSCREEN: DoOnFullScreen(dps.rgvarg^[pDispIds^[0]].vbool);
-      DISPID_ONTHEATERMODE: DoOnTheaterMode(dps.rgvarg^[pDispIds^[0]].vbool);
-      DISPID_WINDOWSETRESIZABLE: DoWindowSetResizable(dps.rgvarg^[pDispIds^[0]].vbool);
-      DISPID_WINDOWCLOSING: DoWindowClosing(dps.rgvarg^[pDispIds^[0]].vbool, dps.rgvarg^[pDispIds^[1]].pbool^);
-      DISPID_WINDOWSETLEFT: DoWindowSetLeft(dps.rgvarg^[pDispIds^[0]].lval);
-      DISPID_WINDOWSETTOP: DoWindowSetTop(dps.rgvarg^[pDispIds^[0]].lval);
-      DISPID_WINDOWSETWIDTH: DoWindowSetWidth(dps.rgvarg^[pDispIds^[0]].lval);
-      DISPID_WINDOWSETHEIGHT: DoWindowSetHeight(dps.rgvarg^[pDispIds^[0]].lval);
-      DISPID_CLIENTTOHOSTWINDOW: DoClientToHostWindow(dps.rgvarg^[pDispIds^[0]].plval^, dps.rgvarg^[pDispIds^[1]].plval^);
-      DISPID_SETSECURELOCKICON: DoSetSecureLockIcon(dps.rgvarg^[pDispIds^[0]].lval);
-      DISPID_FILEDOWNLOAD: DoFileDownload(dps.rgvarg^[pDispIds^[0]].pbool^); }
-      DISPID_ONQUIT:
-        begin
-            //DoOnQuit();
-            for i := 0 to FCPList.Count - 1 do
-                begin
-                    if Assigned(FCPList.Items[i]) then
-                    begin
-                        PCP(FCPList.Items[i])^.CP.Unadvise(PCP(FCPList.Items[i])^.Cookie);
-                        Dispose(FCPList.Items[i]);
-                    end;
-                end;
-                FCPList.Clear;
-                CP.Unadvise(Cookie);
-        end;
-      {DISPID_HTMLELEMENTEVENTS2_ONFOCUSIN:
-      begin
-        OnElementFocus(self);
-      end;
-      //DISPID_HTMLELEMENTEVENTS_ONBLUR:
-      DISPID_HTMLELEMENTEVENTS2_ONFOCUSOUT:
-        OnElementBlur(self);  }
-      //DISPID_HTMLELEMENTEVENTS2_ONMOUSEENTER:
-      DISPID_HTMLELEMENTEVENTS2_ONMOUSEOVER:
-      begin
-        OnMouseEnter(self);
-      end;
-      //DISPID_HTMLELEMENTEVENTS2_ONMOUSELEAVE:
-      DISPID_HTMLELEMENTEVENTS2_ONMOUSEOUT:
-      begin
-        OnMouseLeave(self);
-      end;
-    else
-      Result := DISP_E_MEMBERNOTFOUND;
-    end;
-  finally
-    if (bHasParams) then FreeMem(pDispIds, iDispIdsSize);
-  end;
-end;
-
-procedure TwndMSAAV.OnMouseEnter(Sender: TObject);
-var
-    iWnd: IHTMLWindow2;
-    iEvObj: IHTMLEventObj;
-    iDoc: IHTMLDocument2;
-begin
-    //Beep;
-    if not SUCCEEDED(IE.Document.QueryInterface(IID_IHTMLDocument2, iDoc)) then
-        Exit;
-    iWnd := IDoc.parentWindow;
-    if iWnd = nil then
-        Exit;
-    if iWnd.event <> nil then
-    begin
-        iEvObj := iWnd.event;
-    end;
-    if iEvObj <> nil then
-    begin
-        iEVSrcEle := iEvObj.srcElement;
-        //IE.StatusText := iEvObj.srcElement.tagName;
-    end;
-end;
-
-procedure TwndMSAAV.OnMouseLeave(Sender: TObject);
-begin
-    iEVSrcEle := nil;
-end;
 
 procedure TwndMSAAV.PopupMenu2Popup(Sender: TObject);
 begin
 
   if TreeView1.Items.Count = 0 then
   begin
-  	mnuSAll.Enabled := false;
-    mnuSSel.Enabled := false
+  	mnuSave.Enabled := false;
+    mnuOpenB.Enabled := false;
   end
   else
   begin
-    mnuSAll.Enabled := True;
+    mnuSave.Enabled := True;
+    mnuOpenB.Enabled := True;
     if TreeView1.SelectionCount = 0 then
-  		mnuSSel.Enabled := false
+    begin
+  		mnuSSel.Enabled := false;
+      mnuOSel.Enabled := false;
+    end
   	else
+    begin
     	mnuSSel.Enabled := True;
+      mnuOSel.Enabled := True;
+    end;
   end;
 end;
 

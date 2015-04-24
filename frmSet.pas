@@ -356,14 +356,16 @@ end;
 procedure TWndSet.Load_Str(Path: string);
 var
     d: string;
+    ini: TMemIniFile;
 begin
     Transpath := Path;
     if FileExists(Transpath) then
     begin
+      ini := TMemIniFile.Create(Transpath, TEncoding.UTF8);
         try
-            Font.Name := LoadTranslation('General', 'FontName', 'Arial');
-            Font.Size := LoadTransInt('General', 'FontSize', 9);
-            d := LoadTranslation('General', 'Charset', 'ASCII_CHARSET');
+            Font.Name := ini.ReadString('General', 'FontName', 'Arial');
+            Font.Size := ini.ReadInteger('General', 'FontSize', 9);
+            d := ini.ReadString('General', 'Charset', 'ASCII_CHARSET');
             d := UpperCase(d);
             if d = 'ANSI_CHARSET' then Font.Charset := 0
             else if d = 'DEFAULT_CHARSET' then Font.Charset := 1
@@ -387,16 +389,16 @@ begin
             else Font.Charset := 0;
 
 
-            Caption := LoadTranslation('SetDLG', 'DlgCaption', 'Settings');
-            gbSelprop.Caption := LoadTranslation('SetDLG', 'gbSelProp', 'Use of properties');
-            gbFont.Caption := LoadTranslation('SetDLG', 'gbFont', 'Font');
-            gbRegDll.Caption := LoadTranslation('SetDLG', 'gbRegDll', 'IAccessible2Proxy.dll');
-            btnFont.Caption := LoadTranslation('SetDLG', 'btnFont', '&Font...');
-            btnReg.Caption := LoadTranslation('SetDLG', 'btnReg', '&Register');
-            btnUnreg.Caption := LoadTranslation('SetDLG', 'btnUnreg', '&Unregister');
-            btnOK.Caption := LoadTranslation('SetDLG', 'btnOK', '&OK');
-            btnCancel.Caption := LoadTranslation('SetDLG', 'btnCancel', '&Cancel');
-            cbExTip.Caption := LoadTranslation('General', 'ExTooltip', 'Expansion tooltip');
+            Caption := ini.ReadString('SetDLG', 'DlgCaption', 'Settings');
+            gbSelprop.Caption := ini.ReadString('SetDLG', 'gbSelProp', 'Use of properties');
+            gbFont.Caption := ini.ReadString('SetDLG', 'gbFont', 'Font');
+            gbRegDll.Caption := ini.ReadString('SetDLG', 'gbRegDll', 'IAccessible2Proxy.dll');
+            btnFont.Caption := ini.ReadString('SetDLG', 'btnFont', '&Font...');
+            btnReg.Caption := ini.ReadString('SetDLG', 'btnReg', '&Register');
+            btnUnreg.Caption := ini.ReadString('SetDLG', 'btnUnreg', '&Unregister');
+            btnOK.Caption := ini.ReadString('SetDLG', 'btnOK', '&OK');
+            btnCancel.Caption := ini.ReadString('SetDLG', 'btnCancel', '&Cancel');
+            cbExTip.Caption := ini.ReadString('General', 'ExTooltip', 'Expansion tooltip');
             SizeChange;
 
         finally
