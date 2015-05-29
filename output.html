@@ -1,0 +1,58 @@
+﻿<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>%title% accessibility tree</title>
+<style>
+body{font-size:.9em; font-family:Tahoma, Geneva, sans-serif}
+ul {font-family:"Courier New", Courier, monospace}
+input[type="checkbox"]:checked ~ section[id^="x-details"] {
+    display: block;
+}
+input[type="checkbox"] ~ section[id^="x-details"] {
+    display: none;
+}
+input[type="checkbox"]:checked ~ label:before {
+    transform: rotate(90deg);
+}
+input[type="checkbox"] ~ label:before {
+    content: "►";
+    font-size: 0.8em;
+    margin-right: 5px;
+    position: relative;
+    transition: all 0.5s linear 0s;
+}
+input[type="checkbox"]:checked ~ label:before {
+    color: blue;
+    content: "▼";
+    position: relative;
+    transition: all 0.5s linear 0s;
+}
+
+input[type="checkbox"]:focus + label {
+    background: #CFCFCF;
+}
+
+label {
+    background: none repeat scroll 0 0 white;
+    cursor: pointer;
+    display: inline-block;
+    margin-left: -24px;
+    padding-left: 5px;
+    padding-top: 0.5em;
+label {
+    background: none repeat scroll 0 0 white;
+    cursor: pointer;
+    display: inline-block;
+    margin-left: -24px;
+    padding-left: 5px;
+    padding-top: 0.5em;
+    padding-right: 5px;
+}
+.element strong {font-size:larger}
+</style>
+</head>
+<body>
+%contents%
+</body>
+</html>
