@@ -25,9 +25,10 @@ uses
   Dialogs, ImgList, ComCtrls, ToolWin,  StdCtrls, ShellAPI,
   IniFiles, ActnList, CommCtrl, FocusRectWnd, ClipBrd,
   ActiveX, MSHTML_tlb, ExtCtrls, Shlobj, oleacc,
-  iAccessible2Lib_tlb, ISimpleDOM, Actions, TreeList,
+  iAccessible2Lib_tlb, ISimpleDOM, Actions,
   Menus, Thread, TipWnd, UIAutomationClient_TLB, AccCTRLs,
-  frmSet, Math, IntList, StrUtils, PermonitorApi, Funcs, Multimon, JColorSelect2, VirtualTrees;
+  frmSet, Math, IntList, StrUtils, PermonitorApi, Multimon, VirtualTrees,
+  System.ImageList;
 
 const
     IID_IServiceProvider: TGUID = '{6D5140C1-7436-11CE-8034-00AA006009FA}';
