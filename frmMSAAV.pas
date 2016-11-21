@@ -7228,13 +7228,16 @@ begin
     flgUIA := 50332680;
     flgUIA2 := 0;
     iDefIndex := -1;
-    sList := TStringList.Create;
-    try
-      sList.LoadFromFile(sPath);
-      if sList.Encoding <> TEncoding.Unicode then
-        sList.SaveToFile(sPath, TEncoding.Unicode);
-    finally
-      sList.Free;
+    if fileexists(sPath) then
+    begin
+      sList := TStringList.Create;
+      try
+        sList.LoadFromFile(sPath);
+        if sList.Encoding <> TEncoding.Unicode then
+          sList.SaveToFile(sPath, TEncoding.Unicode);
+      finally
+        sList.Free;
+      end;
     end;
 
     //iAccS := nil;
