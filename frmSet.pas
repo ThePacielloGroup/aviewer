@@ -148,7 +148,6 @@ var
 
     end;
 begin
-    caption := inttostr(deffont);
     Font.Size := DoubleToInt(DefFont * ScaleX);
     M1 := Font.Name + ',' + IntToStr(DefFont);
 
@@ -176,7 +175,6 @@ begin
     memo1.Height := SZ4.Height * 3;
     memo1.Width := SZ4.width *2;
     iMax := Max(Memo1.Width, SZ3.Width);
-    //caption := inttostr(SZ4.Width);
     if SZ2.Width> iMax then
     begin
         gbFont.Width := sz2.Width + 32;
