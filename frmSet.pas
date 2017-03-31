@@ -23,22 +23,22 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics,
   Controls, Forms, Dialogs, StdCtrls,
-  CheckLst, {AccCTRLs,} commctrl, iniFiles, ComObj, ShlObj, ShellAPI, Math, StrUtils;
+  CheckLst, AccCTRLs, commctrl, iniFiles, ComObj, ShlObj, ShellAPI, Math, StrUtils;
 
 type
   TWndSet = class(TForm)
-    gbSelProp: TGroupBox;
-    chkList: TCheckListBox;
-    gbFont: TGroupBox;
-    btnFont: TButton;
-    gbRegDll: TGroupBox;
-    btnReg: TButton;
-    btnUnreg: TButton;
-    btnOK: TButton;
-    btnCancel: TButton;
-    cbExTip: TCheckBox;
+    gbSelProp: TAccGroupBox;
+    chkList: TAccCheckList;
+    gbFont: TAccGroupBox;
+    btnFont: TAccButton;
+    gbRegDll: TAccGroupBox;
+    btnReg: TAccButton;
+    btnUnreg: TAccButton;
+    btnOK: TAccButton;
+    btnCancel: TAccButton;
+    cbExTip: TTransCheckBox;
     FontDialog1: TFontDialog;
-    Memo1: TMemo;
+    Memo1: TAccMemo;
     procedure FormCreate(Sender: TObject);
     procedure btnRegClick(Sender: TObject);
     procedure btnUnregClick(Sender: TObject);

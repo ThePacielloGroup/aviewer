@@ -48,7 +48,7 @@ object WndSet: TWndSet
   OnCreate = FormCreate
   PixelsPerInch = 96
   TextHeight = 13
-  object gbSelProp: TGroupBox
+  object gbSelProp: TAccGroupBox
     Left = 8
     Top = 8
     Width = 297
@@ -56,7 +56,8 @@ object WndSet: TWndSet
     Caption = 'Use of properties'
     TabOrder = 0
     TabStop = True
-    object chkList: TCheckListBox
+    CtrlFirstChild = chkList
+    object chkList: TAccCheckList
       Left = 16
       Top = 16
       Width = 265
@@ -65,9 +66,10 @@ object WndSet: TWndSet
       HeaderBackgroundColor = clWindowText
       ItemHeight = 13
       TabOrder = 0
+      CtrlRight = btnFont
     end
   end
-  object gbFont: TGroupBox
+  object gbFont: TAccGroupBox
     Left = 311
     Top = 8
     Width = 214
@@ -75,7 +77,8 @@ object WndSet: TWndSet
     Caption = 'Font'
     TabOrder = 1
     TabStop = True
-    object btnFont: TButton
+    CtrlFirstChild = btnFont
+    object btnFont: TAccButton
       Left = 16
       Top = 16
       Width = 89
@@ -83,8 +86,12 @@ object WndSet: TWndSet
       Caption = '&Font...'
       TabOrder = 0
       OnClick = btnFontClick
+      CtrlNext = Memo1
+      CtrlPrev = chkList
+      CtrlLeft = chkList
+      CtrlDown = Memo1
     end
-    object Memo1: TMemo
+    object Memo1: TAccMemo
       Left = 16
       Top = 55
       Width = 185
@@ -92,9 +99,12 @@ object WndSet: TWndSet
       Alignment = taCenter
       ReadOnly = True
       TabOrder = 1
+      CtrlNext = btnReg
+      CtrlPrev = btnFont
+      CtrlUp = btnFont
     end
   end
-  object gbRegDll: TGroupBox
+  object gbRegDll: TAccGroupBox
     Left = 311
     Top = 167
     Width = 122
@@ -102,7 +112,7 @@ object WndSet: TWndSet
     Caption = 'IAccessible2Proxy.dll'
     TabOrder = 2
     TabStop = True
-    object btnReg: TButton
+    object btnReg: TAccButton
       Left = 16
       Top = 24
       Width = 89
@@ -111,8 +121,12 @@ object WndSet: TWndSet
       ElevationRequired = True
       TabOrder = 0
       OnClick = btnRegClick
+      CtrlNext = btnUnreg
+      CtrlPrev = Memo1
+      CtrlLeft = chkList
+      CtrlUp = Memo1
     end
-    object btnUnreg: TButton
+    object btnUnreg: TAccButton
       Left = 15
       Top = 55
       Width = 89
@@ -121,9 +135,14 @@ object WndSet: TWndSet
       ElevationRequired = True
       TabOrder = 1
       OnClick = btnUnregClick
+      CtrlNext = btnOK
+      CtrlPrev = gbRegDll
+      CtrlLeft = chkList
+      CtrlUp = btnReg
+      CtrlDown = btnOK
     end
   end
-  object btnOK: TButton
+  object btnOK: TAccButton
     Left = 450
     Top = 302
     Width = 75
@@ -131,9 +150,11 @@ object WndSet: TWndSet
     Caption = '&OK'
     ModalResult = 1
     TabOrder = 3
+    CtrlNext = btnCancel
+    CtrlDown = btnCancel
   end
-  object btnCancel: TButton
-    Left = 450
+  object btnCancel: TAccButton
+    Left = 451
     Top = 333
     Width = 75
     Height = 25
@@ -141,8 +162,10 @@ object WndSet: TWndSet
     Default = True
     ModalResult = 2
     TabOrder = 4
+    CtrlPrev = btnOK
+    CtrlUp = btnOK
   end
-  object cbExTip: TCheckBox
+  object cbExTip: TTransCheckBox
     Left = 311
     Top = 271
     Width = 210
