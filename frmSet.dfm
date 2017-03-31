@@ -7,12 +7,12 @@ object WndSet: TWndSet
   ClientHeight = 366
   ClientWidth = 534
   Color = clBtnFace
+  DoubleBuffered = True
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  FormStyle = fsStayOnTop
   Icon.Data = {
     0000010001001010000000000000680300001600000028000000100000002000
     0000010018000000000000000000480000004800000000000000000000002DDD
@@ -43,6 +43,7 @@ object WndSet: TWndSet
     0000000000000000000000000000000000000000000000000000000000000000
     000000000000000000000000000000000000000000000000000000000000}
   OldCreateOrder = False
+  Position = poMainFormCenter
   ShowHint = True
   OnCreate = FormCreate
   PixelsPerInch = 96
@@ -55,21 +56,17 @@ object WndSet: TWndSet
     Caption = 'Use of properties'
     TabOrder = 0
     TabStop = True
-    CtrlNext = gbFont
-    CtrlRight = gbFont
     CtrlFirstChild = chkList
-    CtrlLastChicl = chkList
     object chkList: TAccCheckList
       Left = 16
-      Top = 24
+      Top = 16
       Width = 265
       Height = 313
       HeaderColor = clWindow
       HeaderBackgroundColor = clWindowText
       ItemHeight = 13
       TabOrder = 0
-      AccName = 'Property List'
-      CtrlPrev = gbSelProp
+      CtrlRight = btnFont
     end
   end
   object gbFont: TAccGroupBox
@@ -80,11 +77,7 @@ object WndSet: TWndSet
     Caption = 'Font'
     TabOrder = 1
     TabStop = True
-    CtrlNext = gbRegDll
-    CtrlPrev = gbSelProp
-    CtrlLeft = gbSelProp
     CtrlFirstChild = btnFont
-    CtrlLastChicl = Memo1
     object btnFont: TAccButton
       Left = 16
       Top = 16
@@ -93,9 +86,9 @@ object WndSet: TWndSet
       Caption = '&Font...'
       TabOrder = 0
       OnClick = btnFontClick
-      AccName = 'Font Button'
-      AccShortCut = 'Alt + F'
       CtrlNext = Memo1
+      CtrlPrev = chkList
+      CtrlLeft = chkList
       CtrlDown = Memo1
     end
     object Memo1: TAccMemo
@@ -104,13 +97,9 @@ object WndSet: TWndSet
       Width = 185
       Height = 82
       Alignment = taCenter
-      Color = clBtnFace
-      Lines.Strings = (
-        'Font,9'
-        'AaBbYyZz')
       ReadOnly = True
       TabOrder = 1
-      AccName = 'Font Sample'
+      CtrlNext = btnReg
       CtrlPrev = btnFont
       CtrlUp = btnFont
     end
@@ -123,24 +112,19 @@ object WndSet: TWndSet
     Caption = 'IAccessible2Proxy.dll'
     TabOrder = 2
     TabStop = True
-    CtrlNext = btnOK
-    CtrlPrev = gbFont
-    CtrlLeft = gbSelProp
-    CtrlUp = gbFont
-    CtrlFirstChild = btnReg
-    CtrlLastChicl = btnUnreg
     object btnReg: TAccButton
       Left = 16
       Top = 24
       Width = 89
       Height = 25
       Caption = '&Register'
+      ElevationRequired = True
       TabOrder = 0
       OnClick = btnRegClick
-      AccName = 'Dll Register Button'
-      AccShortCut = 'Alt + R'
       CtrlNext = btnUnreg
-      CtrlDown = btnUnreg
+      CtrlPrev = Memo1
+      CtrlLeft = chkList
+      CtrlUp = Memo1
     end
     object btnUnreg: TAccButton
       Left = 15
@@ -148,12 +132,14 @@ object WndSet: TWndSet
       Width = 89
       Height = 25
       Caption = '&Unregister'
+      ElevationRequired = True
       TabOrder = 1
       OnClick = btnUnregClick
-      AccName = 'Dll Unregister Button'
-      AccShortCut = 'Alt + U'
-      CtrlPrev = btnReg
+      CtrlNext = btnOK
+      CtrlPrev = gbRegDll
+      CtrlLeft = chkList
       CtrlUp = btnReg
+      CtrlDown = btnOK
     end
   end
   object btnOK: TAccButton
@@ -164,13 +150,11 @@ object WndSet: TWndSet
     Caption = '&OK'
     ModalResult = 1
     TabOrder = 3
-    AccName = 'OK Button'
-    AccShortCut = 'Alt + O'
     CtrlNext = btnCancel
     CtrlDown = btnCancel
   end
   object btnCancel: TAccButton
-    Left = 450
+    Left = 451
     Top = 333
     Width = 75
     Height = 25
@@ -178,8 +162,6 @@ object WndSet: TWndSet
     Default = True
     ModalResult = 2
     TabOrder = 4
-    AccName = 'Cancel Button'
-    AccShortCut = 'Alt + C'
     CtrlPrev = btnOK
     CtrlUp = btnOK
   end

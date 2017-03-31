@@ -21,9 +21,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 interface
 
 uses
-  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, TransCheckBox,
-  Vcl.CheckLst, AccCTRLs, commctrl, iniFiles, ComObj, ShlObj, ShellAPI, Math, StrUtils;
+  Windows, Messages, SysUtils, Variants, Classes, Graphics,
+  Controls, Forms, Dialogs, StdCtrls,
+  CheckLst, AccCTRLs, commctrl, iniFiles, ComObj, ShlObj, ShellAPI, Math, StrUtils;
 
 type
   TWndSet = class(TForm)
@@ -31,28 +31,30 @@ type
     chkList: TAccCheckList;
     gbFont: TAccGroupBox;
     btnFont: TAccButton;
-    Memo1: TAccMemo;
     gbRegDll: TAccGroupBox;
     btnReg: TAccButton;
     btnUnreg: TAccButton;
     btnOK: TAccButton;
     btnCancel: TAccButton;
-    FontDialog1: TFontDialog;
     cbExTip: TTransCheckBox;
+    FontDialog1: TFontDialog;
+    Memo1: TAccMemo;
     procedure FormCreate(Sender: TObject);
     procedure btnRegClick(Sender: TObject);
     procedure btnUnregClick(Sender: TObject);
     procedure btnFontClick(Sender: TObject);
   private
-    { Private 宣言 }
-    Transpath, APPDir, SPath, DllPath, M1: string;
-    procedure SizeChange;
+    { Private declare }
 
-    function LoadTranslation(Sec, Ident, Def: string):string;
-    function LoadTransInt(Sec, Ident:string; Def: integer):integer;
+    Transpath, APPDir, SPath, DllPath, M1: string;
+
+    procedure WMDPIChanged(var Message: TMessage); message WM_DPICHANGED;
   public
-    { Public 宣言 }
+    { Public declare }
+    DefFont: integer;
+    ScaleX, ScaleY, DefX, DefY: double;
     procedure Load_Str(Path: string);
+    procedure SizeChange;
   end;
 
 var
@@ -61,6 +63,13 @@ var
 implementation
 
 {$R *.dfm}
+
+function DoubleToInt(d: double): integer;
+begin
+  SetRoundMode(rmUP);
+  Result := Trunc(SimpleRoundTo(d));
+end;
+
 function IsWinVista: boolean;
 var
     VI: TOSVersionInfo;
@@ -90,7 +99,7 @@ begin
     hProcess := GetCurrentProcess();
     if OpenProcessToken(hProcess, TOKEN_QUERY {or TOKEN_QUERY_SOURCE}, hToken) then
     begin
-        if GetTokenInformation(hToken, Winapi.Windows.TTokenInformationClass(TokenElevationType), @pt, sizeOf(@pt), dwLength) then
+        if GetTokenInformation(hToken, Windows.TTokenInformationClass(TokenElevationType), @pt, sizeOf(@pt), dwLength) then
         begin
             if pt <> TokenElevationTypeLimited then
                 Result := False;
@@ -121,7 +130,7 @@ begin
     CSIDL_PERSONAL, IIDList));
   if not SHGetPathFromIDList(IIDList, buffer) then
   begin
-    raise Exception.Create('仮想フォルダのため取得できません');
+    raise Exception.Create('A virtual diractory cannot be acquired.');
   end;
   Result := StrPas(Buffer);
 end;
@@ -130,12 +139,24 @@ procedure TWndSet.SizeChange;
 var
     SZ, SZ2, SZ3, SZ4: TSize;
     iMax, iMax2: integer;
-begin
 
-    GetTextExtentPoint32W(Canvas.Handle, PWideChar(gbSelProp.Caption), Length(PwideChar(gbSelProp.Caption)), SZ);
-    GetTextExtentPoint32W(Canvas.Handle, PWideChar(gbFont.Caption), Length(PwideChar(gbFont.Caption)), SZ2);
-    GetTextExtentPoint32W(Canvas.Handle, PWideChar(btnFont.Caption), Length(PwideChar(btnFont.Caption)), SZ3);
-    GetTextExtentPoint32W(Canvas.Handle, PWideChar(M1), Length(PwideChar(M1)), SZ4);
+    procedure GetStrSize(Cap: string; var FSZ: TSize);
+    begin
+
+      FSZ.cx := DoubleToInt(Canvas.TextWidth(Cap));
+      FSZ.cy := DoubleToInt(Canvas.TextHeight(Cap));
+
+    end;
+begin
+    Font.Size := DoubleToInt(DefFont * ScaleX);
+    M1 := Font.Name + ',' + IntToStr(DefFont);
+
+    Memo1.Lines[0] := '';
+    Memo1.Lines[0] := M1;
+    GetStrSize(gbSelProp.Caption, SZ);
+    GetStrSize(gbFont.Caption, SZ2);
+    GetStrSize(btnFont.Caption, SZ3);
+    GetStrSize(M1, SZ4);
         //ChkList.Top := sz.Height + 5;
 
     if SZ.Width> ChkList.Width then
@@ -154,7 +175,6 @@ begin
     memo1.Height := SZ4.Height * 3;
     memo1.Width := SZ4.width *2;
     iMax := Max(Memo1.Width, SZ3.Width);
-    //caption := inttostr(SZ4.Width);
     if SZ2.Width> iMax then
     begin
         gbFont.Width := sz2.Width + 32;
@@ -166,9 +186,9 @@ begin
     gbFont.Height := 50 + btnFont.Height + Memo1.Height + (sz.Height div 2);
     gbRegDll.Left := gbSelProp.Left + gbSelProp.Width + 6;
     gbRegDll.Top := gbFont.Top + gbFont.Height + 6;
-    GetTextExtentPoint32W(Canvas.Handle, PWideChar(gbRegDll.Caption), Length(PwideChar(gbRegDll.Caption)), SZ);
-    GetTextExtentPoint32W(Canvas.Handle, PWideChar(btnReg.Caption), Length(PwideChar(btnReg.Caption)), SZ2);
-    GetTextExtentPoint32W(Canvas.Handle, PWideChar(btnunReg.Caption), Length(PwideChar(btnunReg.Caption)), SZ3);
+    GetStrSize(gbRegDll.Caption, SZ);
+    GetStrSize(btnReg.Caption, SZ2);
+    GetStrSize(btnunReg.Caption, SZ3);
 
     iMax := Max(SZ2.Width, SZ3.Width);
 
@@ -186,9 +206,9 @@ begin
     btnunReg.Width := iMax + 16 + 5;
     gbRegDll.Height := 50 + btnUnReg.Height + btnReg.Height;
 
-    GetTextExtentPoint32W(Canvas.Handle, PWideChar(cbExTip.Caption), Length(PwideChar(cbExTip.Caption)), SZ);
+    GetStrSize(cbExTip.Caption, SZ);
 
-    
+
     iMax := Max(gbRegDll.Width, gbFont.Width);
     iMax := Max(iMax, cbExtip.Width);
     iMax2 := Max(gbSelProp.Height, gbFont.Height + gbRegDll.Height {+ btnReg.Height + btnUnreg.Height}{ + cbExtip.Height});
@@ -196,8 +216,8 @@ begin
     Height := iMax2 + 50;
 
 
-    GetTextExtentPoint32W(Canvas.Handle, PWideChar(btnOK.Caption), Length(PwideChar(btnOK.Caption)), SZ);
-    GetTextExtentPoint32W(Canvas.Handle, PWideChar(btnCancel.Caption), Length(PwideChar(btnCancel.Caption)), SZ2);
+    GetStrSize(btnOK.Caption, SZ);
+    GetStrSize(btnCancel.Caption, SZ2);
     iMax := Max(SZ2.Width, SZ.Width);
 
     btnOK.Height := SZ.Height + 5;
@@ -210,17 +230,20 @@ begin
     btnCancel.Left := width - 20 - iMax;
     btnOK.Top := ClientHeight - (btnOK.Height + btnCancel.Height + 10);
     btnCancel.Top := btnOK.Top + btnOK.Height + 5;
+
 end;
 
 procedure TWndSet.btnFontClick(Sender: TObject);
 
 begin
 
-    FontDialog1.Font := Font;
+    FontDialog1.Font.Name := Font.Name;
+    FontDialog1.Font.Charset := Font.Charset;
+    FontDialog1.Font.Size := DefFont;
     if FontDialog1.Execute then
     begin
         Font := FontDialog1.Font;
-
+        DefFont := Font.Size;
         SizeChange;
     end;
 
@@ -293,66 +316,6 @@ begin
 
 end;
 
-function TWndSet.LoadTransInt(Sec, Ident:string; Def: integer):integer;
-var
-	ini: TMemIniFile;
-    s: string;
-begin
-    Result := Def;
-    ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
-	try
-        if ini.SectionExists(Sec) then
-            Result := Ini.Readinteger(Sec, Ident, Def)
-        else
-        begin
-            if LowerCase(RightStr(Sec, 1)) = 's' then
-            begin
-                s := LeftStr(Sec, Length(Sec)-1);
-                if ini.SectionExists(s) then
-                    Result := Ini.Readinteger(S, Ident, Def);
-            end
-            else
-            begin
-                s := Sec + 's';
-                if ini.SectionExists(s) then
-                    Result := Ini.Readinteger(S, Ident, Def);
-            end;
-        end;
-    finally
-        ini.Free;
-    end;
-end;
-
-function TWndSet.LoadTranslation(Sec, Ident, Def: string):string;
-var
-	ini: TMemIniFile;
-    s: string;
-begin
-    Result := Def;
-    ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
-	try
-        if ini.SectionExists(Sec) then
-            Result := Ini.ReadString(Sec, Ident, Def)
-        else
-        begin
-            if LowerCase(RightStr(Sec, 1)) = 's' then
-            begin
-                s := LeftStr(Sec, Length(Sec)-1);
-                if ini.SectionExists(s) then
-                    Result := Ini.ReadString(S, Ident, Def);
-            end
-            else
-            begin
-                s := Sec + 's';
-                if ini.SectionExists(s) then
-                    Result := Ini.ReadString(S, Ident, Def);
-            end;
-        end;
-    finally
-        ini.Free;
-    end;
-end;
-
 procedure TWndSet.Load_Str(Path: string);
 var
     d: string;
@@ -402,10 +365,12 @@ begin
             SizeChange;
 
         finally
-            //ini.Free;
+            ini.Free;
         end;
     end;
 end;
+
+
 
 procedure TWndSet.FormCreate(Sender: TObject);
 var
@@ -414,10 +379,6 @@ begin
     APPDir :=  IncludeTrailingPathDelimiter(ExtractFileDir(Application.ExeName));
     DllPath := APPDir + 'IAccessible2Proxy.dll';
     SPath := IncludeTrailingPathDelimiter(GetMyDocPath) + 'MSAAV.ini';
-
-    Button_SetElevationRequiredState(btnReg.Handle, True);
-    Button_SetElevationRequiredState(btnUnReg.Handle, True);
-    //ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
 
     ini := TMemIniFile.Create(SPath, TEncoding.Unicode);
     try
@@ -430,9 +391,19 @@ begin
     finally
         ini.Free;
     end;
-    M1 := Font.Name + ',' + IntToStr(Font.Size);
+    M1 := Font.Name + ',' + IntToStr(DefFont);
     Memo1.Lines[0] := M1;
 
+end;
+
+procedure TWndSet.WMDPIChanged(var Message: TMessage);
+begin
+  if (DefX > 0) and (DefY > 0) then
+  begin
+    scaleX := Message.WParamLo / DefX;
+    scaleY := Message.WParamHi / DefY;
+    SizeChange;
+  end;
 end;
 
 end.
