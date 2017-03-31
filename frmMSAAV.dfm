@@ -229,22 +229,22 @@ object wndMSAAV: TwndMSAAV
     Constraints.MinWidth = 12
     TabOrder = 1
     TabStop = True
-    object PB1: TPanelButton
+    object PB1: TAccClrBtn
       Left = 327
       Top = 0
       Width = 10
       Height = 660
       Align = alRight
-      ButtonStyle = bsSpBtnLike
       Caption = 'Collapse TreeView'
-      FocusStyle = bfsStdButton
+      TabOrder = 1
+      TabStop = True
+      OnClick = acTVcolExecute
+      Picture.Data = {07544269746D617000000000}
       InColor = clBtnFace
       CaptionLeft = -100
       CaptionTop = -100
       Stretch = False
-      TabOrder = 1
-      TabStop = True
-      OnClick = acTVcolExecute
+      PickerColor = clBtnFace
       AccName = 'Collapse Button'
       CtrlNext = PB2
       CtrlPrev = TreeView1
@@ -310,25 +310,24 @@ object wndMSAAV: TwndMSAAV
       BevelOuter = bvNone
       TabOrder = 1
       TabStop = True
-      object PB3: TPanelButton
+      object PB3: TAccClrBtn
         Left = 0
         Top = 0
         Width = 582
         Height = 10
         Align = alTop
-        ButtonStyle = bsSpBtnLike
         Caption = 'Collapse CodeEdit'
-        FocusStyle = bfsStdButton
-        CaptionLeft = -100
-        CaptionTop = -100
-        Stretch = False
         TabOrder = 0
         TabStop = True
         OnClick = acMMColExecute
+        Picture.Data = {07544269746D617000000000}
+        InColor = clBtnFace
+        CaptionLeft = -100
+        CaptionTop = -100
+        Stretch = False
+        PickerColor = clBtnFace
         AccName = 'Collapse Button'
         CtrlNext = Memo1
-        CtrlPrev = TreeList1
-        CtrlUp = TreeList1
         CtrlDown = Memo1
       end
       object Memo1: TAccMemo
@@ -354,80 +353,59 @@ object wndMSAAV: TwndMSAAV
       BevelOuter = bvNone
       TabOrder = 0
       TabStop = True
-      object PB2: TPanelButton
+      object PB2: TAccClrBtn
         Left = 0
         Top = 0
         Width = 582
         Height = 10
         Align = alTop
-        ButtonStyle = bsSpBtnLike
         Caption = 'Collapse TreeList'
-        FocusStyle = bfsStdButton
-        CaptionLeft = -100
-        CaptionTop = -100
-        Stretch = False
         TabOrder = 0
         TabStop = True
         OnClick = acTLColExecute
+        Picture.Data = {07544269746D617000000000}
+        InColor = clBtnFace
+        CaptionLeft = -100
+        CaptionTop = -100
+        Stretch = False
+        PickerColor = clBtnFace
         AccName = 'Collapse Button'
-        CtrlNext = TreeList1
         CtrlPrev = PB1
         CtrlUp = Toolbar1
-        CtrlDown = TreeList1
       end
-      object TreeList1: TAccTreeList
+      object TreeList1: TVirtualStringTree
         Left = 0
-        Top = 26
+        Top = 10
         Width = 582
-        Height = 364
+        Height = 380
         Align = alClient
-        DoubleBuffered = True
-        HideSelection = False
-        Indent = 19
-        MultiSelectStyle = [msControlSelect, msShiftSelect]
-        ParentDoubleBuffered = False
-        ReadOnly = True
-        RowSelect = True
+        Header.AutoSizeIndex = 0
+        Header.Font.Charset = DEFAULT_CHARSET
+        Header.Font.Color = clWindowText
+        Header.Font.Height = -11
+        Header.Font.Name = 'Tahoma'
+        Header.Font.Style = []
+        Header.Height = 27
+        Header.Options = [hoColumnResize, hoDrag, hoShowSortGlyphs, hoVisible]
         TabOrder = 1
-        Visible = True
-        OnChange = TreeList1Change
+        TreeOptions.PaintOptions = [toShowButtons, toShowDropmark, toShowRoot, toShowTreeLines, toThemeAware, toUseBlendedImages, toUseExplorerTheme]
+        TreeOptions.SelectionOptions = [toFullRowSelect, toAlwaysSelectNode]
         OnClick = TreeList1Click
-        OnDeletion = TreeList1Deletion
+        OnGetText = TreeList1GetText
         OnKeyDown = TreeList1KeyDown
         Columns = <
           item
-            Font.Charset = DEFAULT_CHARSET
-            Font.Color = clWindowText
-            Font.Height = -12
-            Font.Name = 'Tahoma'
-            Font.Style = []
-            Image = True
-            Width = 50
+            MinWidth = 100
+            Position = 0
+            Width = 280
+            WideText = 'Interface'
           end
           item
-            Font.Charset = DEFAULT_CHARSET
-            Font.Color = clWindowText
-            Font.Height = -12
-            Font.Name = 'Tahoma'
-            Font.Style = []
-            Width = 50
+            MinWidth = 100
+            Position = 1
+            Width = 294
+            WideText = 'Value'
           end>
-        Separator = ';'
-        ItemHeight = 16
-        HeaderSettings.AllowResize = True
-        HeaderSettings.Color = clBtnFace
-        HeaderSettings.Flat = True
-        HeaderSettings.Font.Charset = DEFAULT_CHARSET
-        HeaderSettings.Font.Color = clWindowText
-        HeaderSettings.Font.Height = -11
-        HeaderSettings.Font.Name = 'Tahoma'
-        HeaderSettings.Font.Style = []
-        HeaderSettings.Height = 18
-        Version = '1.1.1.2'
-        CtrlNext = PB3
-        CtrlPrev = PB2
-        CtrlLeft = PB1
-        CtrlUp = PB2
       end
     end
   end
@@ -435,7 +413,7 @@ object wndMSAAV: TwndMSAAV
     Left = 176
     Top = 400
     Bitmap = {
-      494C01010E008C01B00710001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010E008C01A40810001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000004000000001002000000000000040
       0000000000000000000000000000000000000000000000000000BDBDBD007A7A
       7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A
@@ -1048,6 +1026,26 @@ object wndMSAAV: TwndMSAAV
       Caption = 'Settings'
       OnExecute = acSettingExecute
     end
+    object acTreeFocus: TAction
+      Caption = 'acTreeFocus'
+      ShortCut = 8304
+      OnExecute = acTreeFocusExecute
+    end
+    object acListFocus: TAction
+      Caption = 'acListFocus'
+      ShortCut = 8305
+      OnExecute = acListFocusExecute
+    end
+    object acMemoFocus: TAction
+      Caption = 'acMemoFocus'
+      ShortCut = 8306
+      OnExecute = acMemoFocusExecute
+    end
+    object acTriFocus: TAction
+      Caption = 'acTriFocus'
+      ShortCut = 8307
+      OnExecute = acTriFocusExecute
+    end
   end
   object Timer1: TTimer
     Interval = 500
@@ -1212,7 +1210,7 @@ object wndMSAAV: TwndMSAAV
     Left = 256
     Top = 200
     Bitmap = {
-      494C01013E005000C0010F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01013E005000B4020F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       00000000000036000000280000003C000000F0000000010020000000000000E1
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000

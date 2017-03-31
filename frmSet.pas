@@ -23,22 +23,22 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics,
   Controls, Forms, Dialogs, StdCtrls,
-  CheckLst, AccCTRLs, commctrl, iniFiles, ComObj, ShlObj, ShellAPI, Math, StrUtils;
+  CheckLst, {AccCTRLs,} commctrl, iniFiles, ComObj, ShlObj, ShellAPI, Math, StrUtils;
 
 type
   TWndSet = class(TForm)
-    gbSelProp: TAccGroupBox;
-    chkList: TAccCheckList;
-    gbFont: TAccGroupBox;
-    btnFont: TAccButton;
-    Memo1: TAccMemo;
-    gbRegDll: TAccGroupBox;
-    btnReg: TAccButton;
-    btnUnreg: TAccButton;
-    btnOK: TAccButton;
-    btnCancel: TAccButton;
+    gbSelProp: TGroupBox;
+    chkList: TCheckListBox;
+    gbFont: TGroupBox;
+    btnFont: TButton;
+    gbRegDll: TGroupBox;
+    btnReg: TButton;
+    btnUnreg: TButton;
+    btnOK: TButton;
+    btnCancel: TButton;
+    cbExTip: TCheckBox;
     FontDialog1: TFontDialog;
-    cbExTip: TTransCheckBox;
+    Memo1: TMemo;
     procedure FormCreate(Sender: TObject);
     procedure btnRegClick(Sender: TObject);
     procedure btnUnregClick(Sender: TObject);
@@ -365,7 +365,7 @@ begin
             SizeChange;
 
         finally
-            //ini.Free;
+            ini.Free;
         end;
     end;
 end;
@@ -379,10 +379,6 @@ begin
     APPDir :=  IncludeTrailingPathDelimiter(ExtractFileDir(Application.ExeName));
     DllPath := APPDir + 'IAccessible2Proxy.dll';
     SPath := IncludeTrailingPathDelimiter(GetMyDocPath) + 'MSAAV.ini';
-
-    Button_SetElevationRequiredState(btnReg.Handle, True);
-    Button_SetElevationRequiredState(btnUnReg.Handle, True);
-    //ini := TMemIniFile.Create(TransPath, TEncoding.Unicode);
 
     ini := TMemIniFile.Create(SPath, TEncoding.Unicode);
     try

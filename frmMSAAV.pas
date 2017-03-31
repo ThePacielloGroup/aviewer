@@ -1635,12 +1635,11 @@ Example:
                     iRes := iAcc.QueryInterface(IID_IServiceProvider, iSP);
                     if SUCCEEDED(iRes) and Assigned(iSP) then
                     begin
-                      //caption := 'ISP';
+
                       GetNaviState(True);
                       iRes := iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, isEle);
 										  if SUCCEEDED(iRes) and Assigned(isEle) then
                       begin
-                        //caption := 'SimpleDOM';
                         SDom := isEle;
                         // GetNaviState;
                         if mnuARIA.Checked then ARIAText;
@@ -1650,7 +1649,6 @@ Example:
                           iRes := iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, isEle);
 												  if SUCCEEDED(iRes) and Assigned(isEle) then
                       	  begin
-                            //caption := 'SimpleDOM2';
                       		  isEle.get_nodeInfo(PC, SI, PC2, PU, PU2, WD);
                         	  TempEle := isEle;
                         	  i := 0;
@@ -3786,7 +3784,7 @@ begin
 
                   Result := True;
                   TreeView1.OnChange := nil;
-                  TreeView1.SetFocus;
+                  //TreeView1.SetFocus;
                   TreeView1.TopItem := rNode;
                   rNode.Expanded := True;
                   rNode.Selected := True;
@@ -4685,22 +4683,17 @@ begin
                             end;
                             if Assigned(UIArray) and SUCCEEDED(ires) then
                             begin
-                                //caption := '1';
                                 if SUCCEEDED(UIArray.Get_Length(iLen)) then
                                 begin
-                                    //caption := '2-a / ' + inttostr(ilen);
                                     for t := 0 to iLen - 1 do
                                     begin
                                         //cNode := nodes.AddChild(Node, inttostr(t));
                                         cNode := SetNodeData(Node, inttostr(t), '', nil, 0);
-                                        //caption := '2-b';
                                         ResEle := nil;
                                         if SUCCEEDED(UIArray.GetElement(t, ResEle)) then
                                         begin
-                                            //caption := '3';
                                             if Assigned(ResEle) then
                                             begin
-                                                //caption := '4';
                                                 ws := none;
                                                 if not UIAMode then
                                                 begin
@@ -5411,7 +5404,6 @@ begin
                                 begin
                                   UIEle.Get_CurrentBoundingRectangle(RC);
                                   ShowRectWnd2(clRed, Rect(rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top));
-                                  //caption := inttostr(RC.Left) + ' - ' + inttostr(RC.Top) + ' - ' + inttostr(RC.Right) + ' - ' + inttostr(RC.Bottom);
                                 end;
                                 ShowText4UIA;
                                 oldPT := arPT[0];
@@ -6412,6 +6404,8 @@ var
 
     ini: TMemINiFile;
 begin
+  FormStyle := fsNormal;
+  timer1.Enabled := false;
     WndSet := TWndSet.Create(self);
     try
         WndSet.Load_Str(TransPath);
@@ -6422,7 +6416,7 @@ begin
         WndSet.ScaleX := ScaleX;
         WndSet.ScaleY := ScaleY;
         WndSet.SizeChange;
-        FormStyle := fsNormal;
+
         WndSet.cbExTip.Checked := Extip;
         WndSet.ChkList.Items.Add(lMSAA[0]);
         WndSet.ChkList.Header[WndSet.ChkList.Items.Count - 1] := True;
@@ -6547,6 +6541,7 @@ begin
     finally
         WndSet.Free;
         FormStyle := fsStayOnTop;
+        timer1.Enabled := true;
     end;
 end;
 
@@ -6606,24 +6601,6 @@ begin
         Splitter2.Enabled := True;
         acMMCol.Enabled := True;
     end;
-    //caption := inttostr(P4H) + '/' + inttostr(Panel4.Height - 12);
-end;
-
-procedure TwndMSAAV.acTreeFocusExecute(Sender: TObject);
-begin
-  TreeView1.SetFocus;
-end;
-
-procedure TwndMSAAV.acTriFocusExecute(Sender: TObject);
-begin
-  if TreeView1.Focused then
-    TreeList1.SetFocus
-  else if TreeList1.Focused then
-    Memo1.SetFocus
-  else if Memo1.Focused then
-    TreeView1.SetFocus
-  else
-    TreeView1.SetFocus;
 end;
 
 procedure TwndMSAAV.acTVcolExecute(Sender: TObject);
@@ -6643,6 +6620,25 @@ begin
         Splitter1.Enabled := True;
     end;
 end;
+
+procedure TwndMSAAV.acTreeFocusExecute(Sender: TObject);
+begin
+  TreeView1.SetFocus;
+end;
+
+procedure TwndMSAAV.acTriFocusExecute(Sender: TObject);
+begin
+  if TreeView1.Focused then
+    TreeList1.SetFocus
+  else if TreeList1.Focused then
+    Memo1.SetFocus
+  else if Memo1.Focused then
+    TreeView1.SetFocus
+  else
+    TreeView1.SetFocus;
+end;
+
+
 
 procedure TwndMSAAV.GetNaviState(AllFalse: boolean = false);
 var
@@ -6834,6 +6830,35 @@ begin
     end;
 end;
 
+function GetFileVersionString(FileName: string): String;
+var
+  dwHandle  : Cardinal;
+  pInfo     : Pointer;
+  InfoSize  : DWORD;
+  pFileInfo : PVSFixedFileInfo;
+  iVer      : array[0..3] of Cardinal;
+begin
+  Result := '';
+
+  InfoSize := GetFileVersionInfoSize(PChar(FileName), dwHandle);
+  if InfoSize = 0 then exit;
+
+  GetMem(pInfo, InfoSize);
+  try
+    GetFileVersionInfo(PChar(FileName), 0, InfoSize, pInfo);
+    VerQueryValue(pInfo, PathDelim, Pointer(pFileInfo), InfoSize);
+
+    iVer[0] := pFileInfo.dwFileVersionMS shr 16;
+    iVer[1] := pFileInfo.dwFileVersionMS and $FFFF;
+    iVer[2] := pFileInfo.dwFileVersionLS shr 16;
+    iVer[3] := pFileInfo.dwFileVersionLS and $FFFF;
+    Result := Format('%d.%d.%d.%d', [iVer[0], iVer[1], iVer[2], iVer[3]]);
+  finally
+    FreeMem(pInfo, InfoSize);
+  end;
+end;
+
+
 function TwndMSAAV.LoadLang: string;
 var
 	  ini: TMemIniFile;
@@ -6961,6 +6986,7 @@ begin
 
             HelpURL := ini.ReadString('General', 'Help_URL', 'http://www.google.com/');
             Caption := ini.ReadString('General', 'MSAA_Caption', 'Accessibility Viewer');
+            Caption := Caption + ' - ' + GetFileVersionString(application.ExeName);
             Font.Name := ini.ReadString('General', 'FontName', 'Arial');
             Font.Size := ini.ReadInteger('General', 'FontSize', 9);
             d := ini.ReadString('General', 'Charset', 'ASCII_CHARSET');
