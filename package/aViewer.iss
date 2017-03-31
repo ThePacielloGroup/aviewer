@@ -1,6 +1,7 @@
 #define MyAppName "Accessibility Viewer"
 #define MyAppShortName "aViewer"
-#define MyAppVersion "2.0"
+#define MyAppVersion GetFileProductVersion('./aViewer64bit.exe')
+;defined in ISPPBuiltins.iss
 #define MyAppPublisher "The Paciello Group"
 #define MyAppURL "https://www.paciellogroup.com/"
 #define MyAppExeName "aViewer.exe"
