@@ -24,7 +24,7 @@ uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms, System.UITypes, System.Types,
   Dialogs, ImgList, ComCtrls, ToolWin,  StdCtrls, ShellAPI,
   IniFiles, ActnList, CommCtrl, FocusRectWnd, ClipBrd,
-  ActiveX, MSHTML_tlb, ExtCtrls, Shlobj, oleacc,
+  ActiveX, MSHTML_tlb, ExtCtrls, Shlobj, WinAPI.oleacc,
   iAccessible2Lib_tlb, ISimpleDOM, Actions,
   Menus, Thread, TipWnd, UIAutomationClient_TLB, AccCTRLs,
   frmSet, Math, IntList, StrUtils, PermonitorApi, Multimon, VirtualTrees,
@@ -6836,7 +6836,7 @@ var
   pInfo     : Pointer;
   InfoSize  : DWORD;
   pFileInfo : PVSFixedFileInfo;
-  iVer      : array[0..3] of Cardinal;
+  iVer      : array[0..2] of Cardinal;
 begin
   Result := '';
 
@@ -6851,8 +6851,7 @@ begin
     iVer[0] := pFileInfo.dwFileVersionMS shr 16;
     iVer[1] := pFileInfo.dwFileVersionMS and $FFFF;
     iVer[2] := pFileInfo.dwFileVersionLS shr 16;
-    iVer[3] := pFileInfo.dwFileVersionLS and $FFFF;
-    Result := Format('%d.%d.%d.%d', [iVer[0], iVer[1], iVer[2], iVer[3]]);
+    Result := Format('%d.%d.%d', [iVer[0], iVer[1], iVer[2]]);
   finally
     FreeMem(pInfo, InfoSize);
   end;

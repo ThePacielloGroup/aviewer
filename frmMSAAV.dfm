@@ -3,7 +3,7 @@ object wndMSAAV: TwndMSAAV
   Top = 0
   ActiveControl = Toolbar1
   Caption = 'Accessibility Viewer'
-  ClientHeight = 682
+  ClientHeight = 619
   ClientWidth = 924
   Color = clBtnFace
   Constraints.MinHeight = 500
@@ -57,7 +57,7 @@ object wndMSAAV: TwndMSAAV
     Left = 337
     Top = 22
     Width = 5
-    Height = 660
+    Height = 597
     AutoSnap = False
     MinSize = 12
     OnMoved = Splitter1Moved
@@ -223,7 +223,7 @@ object wndMSAAV: TwndMSAAV
     Left = 0
     Top = 22
     Width = 337
-    Height = 660
+    Height = 597
     Align = alLeft
     BevelOuter = bvNone
     Constraints.MinWidth = 12
@@ -233,7 +233,7 @@ object wndMSAAV: TwndMSAAV
       Left = 327
       Top = 0
       Width = 10
-      Height = 660
+      Height = 597
       Align = alRight
       Caption = 'Collapse TreeView'
       TabOrder = 1
@@ -255,7 +255,7 @@ object wndMSAAV: TwndMSAAV
       Left = 0
       Top = 0
       Width = 327
-      Height = 660
+      Height = 597
       Align = alClient
       DoubleBuffered = True
       HideSelection = False
@@ -283,14 +283,14 @@ object wndMSAAV: TwndMSAAV
     Left = 342
     Top = 22
     Width = 582
-    Height = 660
+    Height = 597
     Align = alClient
     BevelOuter = bvNone
     TabOrder = 2
     TabStop = True
     object Splitter2: TSplitter
       Left = 0
-      Top = 390
+      Top = 327
       Width = 582
       Height = 5
       Cursor = crVSplit
@@ -303,7 +303,7 @@ object wndMSAAV: TwndMSAAV
     end
     object Panel4: TPanel
       Left = 0
-      Top = 395
+      Top = 332
       Width = 582
       Height = 265
       Align = alBottom
@@ -348,7 +348,7 @@ object wndMSAAV: TwndMSAAV
       Left = 0
       Top = 0
       Width = 582
-      Height = 390
+      Height = 327
       Align = alClient
       BevelOuter = bvNone
       TabOrder = 0
@@ -377,7 +377,7 @@ object wndMSAAV: TwndMSAAV
         Left = 0
         Top = 10
         Width = 582
-        Height = 380
+        Height = 317
         Align = alClient
         Header.AutoSizeIndex = 0
         Header.Font.Charset = DEFAULT_CHARSET
@@ -413,7 +413,7 @@ object wndMSAAV: TwndMSAAV
     Left = 176
     Top = 400
     Bitmap = {
-      494C01010E008C01A40810001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010E008C01B00810001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000004000000001002000000000000040
       0000000000000000000000000000000000000000000000000000BDBDBD007A7A
       7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A
@@ -1210,7 +1210,7 @@ object wndMSAAV: TwndMSAAV
     Left = 256
     Top = 200
     Bitmap = {
-      494C01013E005000B4020F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01013E005000C0020F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       00000000000036000000280000003C000000F0000000010020000000000000E1
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000
