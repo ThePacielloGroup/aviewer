@@ -3,7 +3,7 @@ unit Thread;
 interface
 
 uses
-  Classes, windows, SysUtils, Forms, ActiveX, Variants, ComCtrls, dialogs, Oleacc, iAccessible2Lib_tlb, MSHTML_tlb,
+  Classes, windows, SysUtils, Forms, ActiveX, Variants, ComCtrls, dialogs, WinAPI.Oleacc, iAccessible2Lib_tlb, MSHTML_tlb,
   UIAutomationClient_TLB, ISimpleDOM, IntList;
 
 type
@@ -17,7 +17,6 @@ type
     UIEle: IUIAutomationElement;
     iID: integer;
     procedure ReflexACC(ParentNode: TTreeNode; ParentAcc: iAccessible; iID: integer);
-    function Get_RoleText(Acc: IAccessible; Child: integer): string;
   protected
     iAcc, pac, getcAcc, tAcc: IAccessible;
     pNode, rNode, sNode, RootNode: TTreeNode;
@@ -80,36 +79,37 @@ var
 begin
 	GetAcc := procedure
   begin
-  	UIAuto.ElementFromIAccessible(iAcc, iID, UIEle);
+    UIAuto.ElementFromIAccessible(iAcc, iID, UIEle);
   end;
-    try
-        frmMSAAV.bTer := false;
-        hr := CoCreateInstance(CLASS_CUIAutomation, nil, CLSCTX_INPROC_SERVER, IID_IUIAutomation, UIAuto);
+  try
+    CoInitializeEx(nil, COINIT_APARTMENTTHREADED);
+    frmMSAAV.bTer := false;
+    hr := CoCreateInstance(CLASS_CUIAutomation, nil, CLSCTX_INPROC_SERVER,
+      IID_IUIAutomation, UIAuto);
 
-    		if (UIAuto = nil) or (hr <> S_OK) then
-    		begin
-        	Exit;
+    if (UIAuto = nil) or (hr <> S_OK) then
+    begin
+      Exit;
 
-    		end;
-
-        CoInitializeEx(nil, COINIT_APARTMENTTHREADED);
-        try
-        sNode := nil;
-        Synchronize(GetAcc);
-        ReflexACC(RootNode, pac, 0);
-
-        except
-        end;
-
-        if Terminated then
-        begin
-            frmMSAAV.bTer := True;
-            snode := nil;
-        end;
-
-    finally
-        CoUninitialize;
     end;
+
+    try
+      sNode := nil;
+      Synchronize(GetAcc);
+      ReflexACC(RootNode, pac, 0);
+
+    except
+    end;
+
+    if Terminated then
+    begin
+      frmMSAAV.bTer := True;
+      sNode := nil;
+    end;
+
+  finally
+    CoUninitialize;
+  end;
 end;
 
 
@@ -122,141 +122,99 @@ begin
 
 end;
 
-function TreeThread.Get_RoleText(Acc: IAccessible; Child: integer): string;
-var
-    PC:PChar;
-    ovValue, ovChild: OleVariant;
-begin
-    ovChild := Child;
-    Acc.Get_accRole(ovChild, ovValue);
-    try
-
-        if not VarHaveValue(ovValue) then
-        begin
-            Result := None;
-        end
-        else
-        begin
-            if VarIsNumeric(ovValue) then
-            begin
-                PC := StrAlloc(255);
-                try
-                  GetRoleTextW(ovValue, PC, StrBufSize(PC));
-                  Result := PC;
-                finally
-                  StrDispose(PC);
-                end;
-            end
-            else if VarIsStr(ovValue) then
-            begin
-                Result := VarToStr(ovValue);
-            end;
-        end;
-    except
-        Result := None;
-    end;
-end;
-
 
 
 procedure TreeThread.ReflexACC(ParentNode: TTreeNode; ParentAcc: iAccessible; iID: integer);
 var
     cAcc, tAcc: iAccessible;
     iChild, i, iCH, iSame: integer;
+    iObtain: plongint;
     cNode: TTreeNode;
     oc: OleVariant;
     iDis: iDispatch;
-    Role: string;
     TD: PTreeData;
-    Sync, {SName, }SCnt, SCld: TThreadProcedure;
-    bOK: boolean;
+    AddTreeItem, {SName, }SCnt, SCld: TThreadProcedure;
     Comp1: IUIAutomationElement;
+    hr: HResult;
+    aChildren   : array of TVariantArg;
 begin
-    if Terminated then Exit;
-    Sync := procedure
-    begin
-        New(TD);
-        TD^.Acc := cAcc;
-        TD^.uiEle := nil;
-        TD^.iID := iCH;
-        pNode := cNode;
-        rNode := wndMSAAV.TreeView1.Items.AddChildObject(pNode, '', Pointer(TD));
-
-        TBList.Add(Integer(rNode.ItemId));
-        if sNode = nil then
+  if Terminated then
+    Exit;
+  AddTreeItem := procedure
+  begin
+      New(TD);
+      TD^.Acc := cAcc;
+      TD^.UIEle := nil;
+      TD^.iID := iCH;
+      pNode := cNode;
+      rNode := wndMSAAV.TreeView1.Items.AddChildObject(pNode, '', Pointer(TD));
+      TBList.Add(integer(rNode.ItemId));
+      if sNode = nil then
+      begin
+        if SUCCEEDED(UIAuto.ElementFromIAccessible(cAcc, iCH, Comp1)) then
         begin
-        	if SUCCEEDED(UIAuto.ElementFromIAccessible(cAcc, iCH, Comp1)) then
+          UIAuto.CompareElements(UIEle, Comp1, iSame);
+          if iSame <> 0 then
           begin
-          	UIAuto.CompareElements(UIEle, Comp1, iSame);
-            if iSame <> 0 then
-            begin
-            	sNode := rnode;
-              sNode.Expanded := true;
-              wndMSAAV.TreeView1.SetFocus;
-              wndMSAAV.TreeView1.TopItem := sNode;
+            sNode := rNode;
+            sNode.Expanded := True;
+            // wndMSAAV.TreeView1.SetFocus;
+            wndMSAAV.TreeView1.TopItem := sNode;
 
-              sNode.Selected := True;
-            end;
+            sNode.Selected := True;
           end;
         end;
-    end;
+      end;
+  end;
 
-    {SName := procedure
-    begin
-        cAcc.Get_accName(ovChild, ws);
-        if ws = '' then ws := None;
-        Role := Get_ROLETExt(cAcc, ovChild);
-    end;   }
+  SCnt := procedure
+  begin
+    cAcc.Get_accChildCount(iChild);
+  end;
 
-    SCnt := procedure
-    begin
-        cAcc.Get_accChildCount(iChild);
-    end;
-
-
-
-    SCld := procedure
-        begin
-            cAcc.Get_accChild(oc, iDis);
-            tAcc := iDis as IACCESSIBLE;
-            if tAcc <> nil then
-                bOK := True;
-        end;
-
-    cNode := ParentNode;
-    cAcc := ParentAcc;
-    iCH := iID;
-    oc := iID;
-    Synchronize(Sync);
-
-
-    cNode := rNode;
-
-    Synchronize(SCnt);
-
+  SCld := procedure
+  var
+  	i: integer;
+  begin
+  	cAcc.Get_accChildCount(iChild);
+    SetLength(aChildren, iChild);
     for i := 0 to iChild - 1 do
     begin
-        bOK := False;
-        if Terminated then Break;
-        sleep(1);
-        iDis := nil;
-        oc := i+1;
-
-        tAcc := nil;
-        Synchronize(SCld);
-        if bOK then
-        begin
-            ReflexACC(cNode, tAcc, 0);
-        end
-        else
-        begin
-
-            iCH := i + 1;
-            Synchronize(Sync);
-
-
-        end;
+      VariantInit(OleVariant(aChildren[i]));
     end;
+  	if AccessibleChildren(cAcc, 0, iChild, @aChildren[0], iObtain) = S_OK then
+    begin
+    	for i := 0 to integer(iobtain) - 1 do
+      begin
+      	if Terminated then
+      		Break;
+      	tAcc := nil;
+      	if aChildren[i].vt = VT_DISPATCH then
+        begin
+        	hr := IDispatch(aChildren[i].pdispVal).QueryInterface(IID_IACCESSIBLE, tAcc);
+          if Assigned(tAcc) and (hr = S_OK) then
+          begin
+          	ReflexACC(cNode, tAcc, 0);
+          end;
+        end
+        else if aChildren[i].vt = VT_I4 then
+        begin
+        	iCH := aChildren[i].lVal;
+          Synchronize(AddTreeItem);
+        end;
+      end;
+    end;
+
+  end;
+
+  cNode := ParentNode;
+  cAcc := ParentAcc;
+  iCH := iID;
+
+  Synchronize(AddTreeItem);
+
+  cNode := rNode;
+  Synchronize(SCld);
 end;
 
 constructor TreeThread4UIA.Create(UIA: IUIAutomation; iEle, pEle: IUIAutomationElement; NoneText: string; CreateSuspended: boolean = True; Reflex: boolean = True; pNode: TTreenode = nil);
