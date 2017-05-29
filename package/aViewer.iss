@@ -24,7 +24,6 @@ OutputDir=release
 OutputBaseFilename={#MyAppShortName}{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
-ShowUndisplayableLanguages=yes
 ShowLanguageDialog=yes
 ArchitecturesInstallIn64BitMode=x64
 
