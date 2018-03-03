@@ -28,17 +28,28 @@ uses
   iAccessible2Lib_tlb, ISimpleDOM, Actions,
   Menus, Thread, TipWnd, UIAutomationClient_TLB, AccCTRLs,
   frmSet, Math, IntList, StrUtils, PermonitorApi, Multimon, VirtualTrees,
-  System.ImageList;
+  System.ImageList, UIA_TLB;
 
 const
     IID_IServiceProvider: TGUID = '{6D5140C1-7436-11CE-8034-00AA006009FA}';
-
+   	IID_IStylesProvider: TGUID = '{19b6b649-f5d7-4a6d-bdcb-129252be588a}';
     P2WDEF = 350;
     P4HDEF = 250;
 
 
 
 type
+	IStylesProvider = interface;
+  IStylesProvider = interface(IUnknown)
+  ['{19b6b649-f5d7-4a6d-bdcb-129252be588a}']
+   	function get_StyleId(out retVal: SYSINT): HResult; stdcall;
+		function get_StyleName(out retVal: WideString): HResult; stdcall;
+    function get_FillColor(out retVal: SYSINT): HResult; stdcall;
+    function get_FillPatternStyle(out retVal: WideString): HResult; stdcall;
+    function get_Shape(out retVal: WideString): HResult; stdcall;
+    function get_FillPatternColor(out retVal: SYSINT): HResult; stdcall;
+    function get_ExtendedProperties(out retVal: WideString): HResult; stdcall;
+  end;
    PNodeData = ^TNodeData;
    TNodeData = record
     Value1: String;
@@ -231,16 +242,15 @@ type
     HTMLsFF: array [0..2, 0..1] of string;
     ARIAs: array [0..1, 0..1] of string;
     IA2Sts: array [0..17] of string;
-    sHTML, sTxt, sTypeIE, sTypeFF, sARIA: string;
+    QSFailed: string;
+    sHTML, sTxt, sTypeIE, sTypeFF, sARIA, NodeTxt, Err_Inter: string;
     bSelMode: Boolean;
-    iFocus, iRefCnt, ShowSrcLen: integer;
+    iFocus, iRefCnt, ShowSrcLen, iPID: integer;
     hHook: THandle;
     LangList, ClsNames: TStringList;
     rType, rTarg: string;
     arPT: array [0..2] of TPoint;
-    lMSAA: array[0..11] of string;
-    lIA2: array [0..14] of string;
-    lUIA: array [0..61] of string;
+
     Roles: array [0..42] of string;
     StyleID: array [0..16] of string;
     oldPT: TPoint;
@@ -254,10 +264,11 @@ type
     UIEle: IUIAutomationElement;
     TreeTH: TreeThread;
     UIATH: TreeThread4UIA;
+
     Treemode: boolean;
     //UIA: IUIAutomation;
     P2W, P4H: integer;
-    flgMSAA, flgIA2, flgUIA, flgUIA2: integer;
+
 
     TipText, TipTextIA2: string;
     sNode: TTreeNode;
@@ -270,12 +281,11 @@ type
     UIAuto       : IUIAutomation;
     iAcc, accRoot, DocAcc: IAccessible;
     VarParent: variant;
-    iMode: integer;
-    ExTip: boolean;
-    UIAMode: boolean;
+    ExTip, nSelected: boolean;
     DefFont, DefW, DefH: integer;
     ScaleX, ScaleY, DefX, DefY: double;
     sMSAAtxt: string;
+    dEventTime: dword;
     procedure ExecOnlyFocus;
     function MSAAText(pAcc: IAccessible = nil; TextOnly: boolean = false): string;
     function MSAAText4UIA(TextOnly: boolean = false): string;
@@ -293,18 +303,17 @@ type
     procedure ExecMSAAMode(sender: TObject);
     //Thread terminate
     procedure ThDone(Sender: TObject);
-    procedure ReflexID(sID: string; isEle: ISimpleDOMNODE; Labelled: boolean = true);
+    procedure RecursiveID(sID: string; isEle: ISimpleDOMNODE; Labelled: boolean = true);
     procedure ShowBalloonTip(Control: TWinControl; Icon: integer; Title: string; Text: string; RC: TRect; X, Y:integer; Track:boolean = false);
     procedure SetBalloonPos(X, Y:integer);
-    procedure ReflexACC(ParentNode: TTreeNode; ParentAcc: IAccessible);
-    procedure ReflexIA2Rel(pNode: pVirtualNode; ia2: IAccessible2);
+    procedure RecursiveACC(ParentNode: TTreeNode; ParentAcc: IAccessible);
+    procedure RecursiveIA2Rel(pNode: pVirtualNode; ia2: IAccessible2);
     function GetSameAcc: boolean;
-    function IsSameUIElement(ia1, ia2: IAccessible): boolean;
+    function IsSameUIElement(ia1, ia2: IAccessible; iID1, iID2: integer): boolean;
     procedure SetTreeMode(pNode: TTreeNode);
-    function AccIsNull(tAcc: IAccessible): boolean;
     function UIAEIsNull(tEle: IUIAutomationelement): boolean;
     procedure mnuLangChildClick(Sender: TObject);
-    procedure ReflexTV(cNode: TTreeNode; var HTML: string; var iCnt: integer; ForSel: boolean = false);
+    procedure RecursiveTV(cNode: TTreeNode; var HTML: string; var iCnt: integer; ForSel: boolean = false);
     function Get_RoleText(Acc: IAccessible; Child: integer): string;
     function GetIA2Role(iRole: integer): string;
     function GetIA2State(iRole: integer): string;
@@ -320,7 +329,6 @@ type
 
     procedure GetNaviState(AllFalse: boolean = false);
     procedure Load;
-    function GetOpeMode(CName: string): integer;
     function LoadLang: string;
     procedure ShowRectWnd(bkClr: TColor);
     procedure ShowRectWnd2(bkClr: TColor; RC:TRect);
@@ -342,10 +350,13 @@ var
   ac: IAccessible;
   DMode: boolean;
   bTer: boolean;
-  refNode: TTreeNode;
+  refNode, LoopNode, sNode: TTreeNode;
   refVNode: PVirtualNode;
   TBList: TIntegerList;
-
+  lMSAA: array[0..11] of string;
+  lIA2: array [0..15] of string;
+  lUIA: array [0..61] of string;
+  flgMSAA, flgIA2, flgUIA, flgUIA2: integer;
 
 implementation
 
@@ -478,161 +489,116 @@ begin
   end;
 end;
 
-procedure WinEventProc(hWinEventHook: THandle; event: DWORD; hwnd: HWND;
-idObject, idChild: Longint; idEventThread, dwmsEventTime: DWORD); stdcall;
+procedure WinEventProc(hWinEventHook: THandle; event: DWORD; HWND: HWND;
+	idObject, idChild: Longint; idEventThread, dwmsEventTime: DWORD); stdcall;
 var
 
-    vChild: variant;
-    i:cardinal;
-    pAcc: IAccessible;
-    s: string;
-    iDis: iDispatch;
-    function SetiAcc: HResult;
-    begin
-        result := AccessibleObjectFromEvent(hwnd, idObject, idChild, @pAcc, vChild);
-        wndMSAAV.UIAuto.GetFocusedElement(wndMSAAV.UIEle);
-    end;
+	vChild: variant;
+	i: cardinal;
+	pAcc: IAccessible;
+	s: string;
+	iDis: iDispatch;
+  hr: HResult;
+  icPID: integer;
+	function SetiAcc: boolean;
+	begin
+  	result := False;
+		hr := AccessibleObjectFromEvent(HWND, idObject, idChild, @pAcc, vChild);
+    if (hr = 0) and (Assigned(pAcc)) then
+    	Result := True;
+		wndMSAAV.UIAuto.GetFocusedElement(wndMSAAV.uiEle);
+	end;
+
 begin
-    case event of
+	hr := AccessibleObjectFromEvent(HWND, idObject, idChild, @pAcc, vChild);
+  if (hr = 0) and (Assigned(pAcc)) and (event = EVENT_OBJECT_FOCUS) and (wndMSAAV.dEventTime < dwmsEventTime) then
+  begin
+  	try
+			wndMSAAV.dEventTime := dwmsEventTime;
 
+			if (wndMSAAV.acOnlyFocus.Checked) then
+			begin
+				wndMSAAV.VarParent := vChild;
+				wndMSAAV.iAcc := pAcc;
+				pAcc.Get_accParent(iDis);
+				wndMSAAV.accRoot := iDis as IAccessible;
+				wndMSAAV.ShowRectWnd(clYellow);
+			end
+			else if (wndMSAAV.acFocus.Checked) then
+			begin
+				wndMSAAV.VarParent := vChild;
+				wndMSAAV.iAcc := pAcc;
+				pAcc.Get_accParent(iDis);
+				wndMSAAV.accRoot := iDis as IAccessible;
+				wndMSAAV.Timer2.Enabled := false;
+				wndMSAAV.Timer2.Enabled := True;
+			end;
+		except
+			on E: Exception do
+				ShowErr(E.Message);
+		end;
+  end;
 
-        EVENT_OBJECT_FOCUS:
-        begin
-
-          try
-            i := GetWindowLong(hwnd, GWL_HINSTANCE);
-            if i = hInstance then
-            begin
-
-                exit;
-            end;
-              s := wndMSAAV.GetWindowNameLC(hwnd);
-                wndMSAAV.iMode := wndMSAAV.GetOpeMode(s);
-
-                if (not wndMSAAV.acMSAAMode.Checked) then
-                begin
-                    if (wndMSAAV.acOnlyFOcus.Checked) then
-                    begin
-                        if SUCCEEDED(SetiAcc) then
-                        begin
-                            wndMSAAV.UIAMode := False;
-                            wndMSAAV.varParent := vChild;
-                            wndMSAAV.iAcc := pAcc;
-                            //iDis := pAcc.accParent;
-                            pAcc.Get_accParent(iDis);
-                            wndMSAAV.accRoot := iDis as IAccessible;
-                            wndMSAAV.ShowRectWnd(clYellow);
-                        end;
-
-                    end
-                    else
-                    begin
-                        if wndMSAAV.iMode <> 2 then
-                        begin
-                            if (wndMSAAV.acFocus.Checked) then
-                            begin
-                                if SUCCEEDED(SetiAcc) then
-                                begin
-
-                                    wndMSAAV.varParent := vChild;
-                                    wndMSAAV.iAcc := pAcc;
-                                    wndMSAAV.UIAMode := False;
-                                    pAcc.Get_accParent(iDis);
-                                    wndMSAAV.accRoot := iDis as IAccessible;
-                                    if (wndMSAAV.acRect.Checked) then
-                                    begin
-                                        wndMSAAV.ShowRectWnd(clRed);
-                                    end;
-
-                                    wndMSAAV.Timer2.Enabled := false;
-                                    wndMSAAV.Timer2.Enabled := True;
-                                end;
-                            end;
-                        end;
-                    end;
-                end
-                else
-                begin
-                    if (wndMSAAV.acFocus.Checked) then
-                    begin
-                        if SUCCEEDED(SetiAcc) then
-                        begin
-                            wndMSAAV.varParent := vChild;
-                            wndMSAAV.iAcc := pAcc;
-                            wndMSAAV.UIAMode := False;
-                            pAcc.Get_accParent(iDis);
-                            wndMSAAV.accRoot := iDis as IAccessible;
-                            if (wndMSAAV.acRect.Checked) then
-                            begin
-                                wndMSAAV.ShowRectWnd(clRed);
-                            end;
-                            wndMSAAV.Timer2.Enabled := false;
-                            wndMSAAV.Timer2.Enabled := True;
-                        end;
-                    end;
-                end;
-
-          except
-            on E:Exception do
-              ShowErr(E.Message);
-            end;
-      end;
-
-    end;
 end;
-
 
 function TwndMSAAV.HandleFocusChangedEvent(const sender: IUIAutomationElement): HResult;
 var
-    Wnd: hwnd;
-    pInt: Pointer;
     i: cardinal;
+    hr: HResult;
+    icPID: integer;
     rc: UIAutomationClient_tlb.tagRECT;
-    iVW: IUIAutomationTreeWalker;
-    edgeEle: IUIAutomationElement;
+    //iVW: IUIAutomationTreeWalker;
   function IsEdge: boolean;
   var
     FID, CName: widestring;
     pEle, cEle: IUIAutomationElement;
     iCnt: integer;
   begin
-    (*Name = Microsoft Edge  //Top window
-      ┗ClassName=Internet Explorer_Server   FID=InternetExplorer   //IWebBrowser??
-         ┗FID=InternetExplorer  //Element
-    *)
-    Result := False;
-    edgeEle := nil;
-    cEle := sender;
-    cEle.Get_CurrentFrameWorkID(FID);
-    if not (LowerCase(FID) = 'internetexplorer') then
-      Exit;
 
-    for iCnt := 0 to 30 do
+    Result := False;
+    sender.Get_CurrentFrameWorkID(FID);
+    if (LowerCase(FID) = 'microsoftedge') then
     begin
-      cEle.Get_CurrentName(CName);
-      if LowerCase(CName) = 'microsoft edge' then
-      begin
-        Result := True;
-        edgeEle := cEle;
-        Break;
-      end
-      else
-      begin
-        iVW.GetParentElement(cEle, pEle);
-        cEle := pEle;
-        if cEle = nil then
-          Break;
-      end;
+      result := True;
     end;
   end;
 begin
   Result := S_OK;
-  UIAuto.Get_ControlViewWalker(iVW);
 
-  if IsEdge and Assigned(edgeEle) then
+  UIEle := sender;
+  if (hr = 0) and (Assigned(uiEle)) then
+  begin
+  	hr := uiEle.Get_CurrentProcessId(icPID);
+    if icPID = wndMSAAV.iPID then
+    	exit;
+  end;
+
+  if (acMSAAMode.Checked) then
+  begin
+  	if (wndMSAAV.acOnlyFocus.Checked) then
+		begin
+			uiEle.Get_CurrentBoundingRectangle(RC);
+			ShowRectWnd2(clYellow, Rect(RC.left, RC.top, RC.right - RC.left,
+				RC.bottom - RC.top));
+		end
+		else if (wndMSAAV.acFocus.Checked) then
+		begin
+      if wndMSAAV.acRect.Checked then
+      begin
+				uiEle.Get_CurrentBoundingRectangle(RC);
+				ShowRectWnd2(clRed, Rect(RC.left, RC.top, RC.right - RC.left,
+					RC.bottom - RC.top));
+      end;
+			Timer2.Enabled := false;
+			Timer2.Enabled := True;
+		end;
+  end;
+  //UIAuto.Get_ControlViewWalker(iVW);
+
+  {if IsEdge then
   begin
     UIEle := sender;
-    EdgeEle.Get_CurrentNativeWindowHandle(pInt);
+    UIEle.Get_CurrentNativeWindowHandle(pInt);
     Wnd := HWND(pInt);
     i := GetWindowLong(Wnd, GWL_HINSTANCE);
     if i = hInstance then exit;
@@ -671,7 +637,103 @@ begin
       end;
     end;
 
-  end;
+  end; }
+end;
+
+
+procedure TwndMSAAV.Timer1Timer(Sender: TObject);
+var
+	Wnd: HWND;
+	i: cardinal;
+	pAcc: IAccessible;
+	v: variant;
+	iDis: iDispatch;
+	tagPT: UIAutomationClient_TLB.tagPoint;
+	RC: UIAutomationClient_TLB.tagRECT;
+	iVW: IUIAutomationTreeWalker;
+	oEle, edgeEle: IUIAUTOMATIONELEMENT;
+	wName: WideString;
+	hr: HResult;
+  icPID: integer;
+
+begin
+	if not acCursor.Checked then
+		Exit;
+  {if not acMSAAMode.Checked then
+  	Exit; }
+
+	arPT[2] := arPT[1];
+	arPT[1] := arPT[0];
+	getcursorpos(arPT[0]);
+
+	if (arPT[0].X = oldPT.X) and (arPT[0].Y = oldPT.Y) then
+		Exit;
+	try
+		if (arPT[0].X = arPT[1].X) and (arPT[0].X = arPT[2].X) and
+			(arPT[2].X = arPT[1].X) and (arPT[0].Y = arPT[1].Y) and
+			(arPT[0].Y = arPT[2].Y) and (arPT[2].Y = arPT[1].Y) then
+		begin
+      hr := AccessibleObjectFrompoint(arPT[0], @pAcc, v);
+			if (hr = 0) and (Assigned(pAcc)) then
+			begin
+				if ((not acOnlyFocus.Checked) and (acCursor.Checked)) then
+				begin
+					if SUCCEEDED(WindowFromAccessibleObject(pAcc, Wnd)) then
+					begin
+
+
+            tagPT.X := arPT[0].X;
+						tagPT.Y := arPT[0].Y;
+						hr := UIAuto.ElementFromPoint(tagPT, uiEle);
+            if (hr = 0) and (Assigned(uiEle)) then
+            begin
+              hr := uiEle.Get_CurrentProcessId(icPID);
+              if icPID = iPID then
+              	exit;
+            end;
+						Treemode := false;
+						iAcc := pAcc;
+						VarParent := v;
+
+						if iAcc <> nil then
+						begin
+							oldPT := arPT[0];
+							arPT[0] := Point(0, 0);
+							arPT[1] := Point(0, 0);
+							arPT[2] := Point(0, 0);
+						end;
+
+						hr := pAcc.Get_accParent(iDis);
+						if (hr = 0) and (Assigned(iDis)) then
+						begin
+							hr := iDis.QueryInterface(IID_IACCESSIBLE, accRoot);
+							if (hr = 0) and (Assigned(accRoot)) then
+								accRoot := iDis as IAccessible;
+						end;
+
+						ShowMSAAText;
+          end
+          else
+          	iAcc := nil;
+				end;
+			end;
+		end;
+	except
+
+	end;
+
+end;
+
+
+procedure TwndMSAAV.Timer2Timer(Sender: TObject);
+begin
+	Timer2.Enabled := false;
+	Treemode := false;
+
+	if (not acOnlyFocus.Checked) and (acFocus.Checked) then
+	begin
+    ShowMSAAText;
+	end;
 end;
 
 
@@ -1165,7 +1227,7 @@ begin
 
 end;
 
-procedure TwndMSAAV.ReflexACC(ParentNode: TTreeNode; ParentAcc: IAccessible);
+procedure TwndMSAAV.RecursiveACC(ParentNode: TTreeNode; ParentAcc: IAccessible);
 var
     cAcc, tAcc: IAccessible;
     iChild, i, iCH: integer;
@@ -1250,7 +1312,7 @@ begin
             cAcc.Get_accChild(oc, iDis);
             if iDis <> nil then
             begin
-                ReflexACC(cNode, iDis as IAccessible);
+                RecursiveACC(cNode, iDis as IAccessible);
             end
             else
             begin
@@ -1282,12 +1344,32 @@ end;
 
 procedure TwndMSAAV.ShowText4UIA;
 var
-  paEle, cEle, pEle: IUIAutomationElement;
+  paEle, pEle: IUIAutomationElement;
   iVW: IUIAutomationTreeWalker;
   iCnt: integer;
   Cls: widestring;
   bSame: boolean;
+  uiCondi  : IUIAutomationCondition;
+  ov: OleVariant;
+  hr: hresult;
+  iLegacy: ILegacyIAccessibleProvider;
+	iLeg: IUIAutomationLegacyIAccessiblePattern;
+	iInt: IInterface;
+	iSP: IServiceProvider;
+  tAcc: IAccessible;
+  iEle: IHTMLElement;
+  iDom: IHTMLDomNode;
+  iSEle: ISimpleDOMNode;
+	function GetiLegacy: HResult;
+	begin
+  	result := S_FALSE;
+  	hr := uiEle.GetCurrentPattern(UIA_LegacyIAccessiblePatternId, iInt);
+		if (hr = 0) and (Assigned(iInt)) then
+		begin
+    	result := iInt.QueryInterface(IID_IUIAutomationLegacyIAccessiblePattern, iLeg);
+		end;
 
+	end;
   procedure GetSameUIEle;
   var
     i, iSame: integer;
@@ -1299,30 +1381,6 @@ var
   begin
     bSame := false;
     try
-      if SUCCEEDED(uiEle.GetRuntimeId(pArray)) then
-      begin
-        SafeArrayLock(pArray);
-        SafeArrayGetUBound(pArray, 1, ubHigh);
-        for i := 0 to ubHigh do
-        begin
-          TVariantArg(varValue).vt := VT_VARIANT;
-          SafeArrayGetElement(pArray, i, arRID[0, i]);
-        end;
-        SafeArrayUnlock(pArray);
-      end;
-      if SUCCEEDED(TTreeData(TreeView1.Items[0].Data^).uiEle.GetRuntimeId(pArray)) then
-      begin
-        SafeArrayLock(pArray);
-        SafeArrayGetUBound(pArray, 1, ubHigh);
-        for i := 0 to ubHigh do
-        begin
-          TVariantArg(varValue).vt := VT_VARIANT;
-          SafeArrayGetElement(pArray, i, arRID[1, i]);
-        end;
-        SafeArrayUnlock(pArray);
-      end;
-      if (arRID[0, 0] = arRID[1, 0]) and (arRID[0, 1] = arRID[1, 1]) then
-      begin
         if TBList.Count > 0 then
         begin
           for i := 0 to TBList.Count - 1 do
@@ -1349,7 +1407,6 @@ var
             Application.ProcessMessages;
           end;
         end;
-      end;
     finally
       TreeView1.OnChange := TreeView1Change;
     end;
@@ -1366,7 +1423,7 @@ begin
   Memo1.Lines.Clear;
   bSame := False;
   try
-    if UIAMode then
+    if acMSAAMode.Checked then
     begin
 
       if Assigned(UIATH) then
@@ -1377,43 +1434,73 @@ begin
         UIATH.Free;
         UIATH := nil;
       end;
+      UIAText;
+      hr := GetiLegacy;
+      if (hr = 0) and (Assigned(iLeg)) then
+      begin
+      	hr := iLeg.GetIAccessible(tAcc);
+        if (hr = 0) and (Assigned(tAcc))then
+        begin
+        	iAcc := tAcc;
+          if mnuMSAA.Checked then
+          	sMSAATxt := MSAAText(tAcc);
+          hr := iAcc.QueryInterface(IID_IServiceProvider, iSP);
+					if SUCCEEDED(hr) and Assigned(iSP) then
+					begin
+						hr := iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement, iEle);
+						if SUCCEEDED(hr) and Assigned(iEle) then
+						begin
+							hr := iEle.QueryInterface(IID_IHTMLDOMNode, iDom);
+							if SUCCEEDED(hr) and Assigned(iDom) then
+							begin
+								CEle := iEle;
+								if mnuARIA.Checked then
+								begin
+									ARIAText;
+								end;
+								if mnuHTML.Checked then
+								begin
 
-      if mnuMSAA.Checked then
-        sMSAATxt := MSAAText4UIA;
-      if mnuUIA.Checked then
-        UIAText;
+									HTMLText;
+								end;
+              end;
+            end
+            else
+						begin
+							hr := iSP.QueryService(IID_ISIMPLEDOMNODE,
+								IID_ISIMPLEDOMNODE, isEle);
+							if SUCCEEDED(hr) and Assigned(isEle) then
+							begin
+								SDom := isEle;
+								// GetNaviState;
+								if mnuARIA.Checked then
+									ARIAText;
+								if mnuHTML.Checked then
+									HTMLText4FF;
+							end;
+
+						end;
+          end;
+          if mnuIA2.Checked then
+						SetIA2Text;
+        end
+        else
+        begin
+        	if mnuMSAA.Checked then
+        		sMSAATxt := MSAAText4UIA;
+        end;
+      end;
+      CEle := nil;
+      iAcc := nil;
+      SDom := nil;
+      //if mnuMSAA.Checked then
+      //sMSAATxt := MSAAText4UIA;
+      //if mnuUIA.Checked then
+
       pEle := nil;
       if (not Treemode) and (Splitter1.Enabled = True) then
       begin
-        if mnuAll.Checked then
-        begin
-
-          UIAuto.Get_ControlViewWalker(iVW);
-          if not Assigned(iVW) then
-            paEle := uiEle
-          else
-          begin
-            paEle := uiEle;
-            CEle := uiEle;
-            for iCnt := 0 to 30 do
-            begin
-
-              paEle.Get_CurrentClassName(Cls);
-              if LowerCase(Cls) = 'tabwindowclass' then
-              begin
-                pEle := CEle;
-                Break;
-              end
-              else
-              begin
-                CEle := paEle;
-                iVW.GetParentElement(CEle, paEle);
-              end;
-            end;
-          end;
-
-        end;
-        if mnuAll.Checked and (TreeView1.Items.Count > 0) then
+        if (TreeView1.Items.Count > 0) then
         begin
           Timer1.Enabled := false;
           try
@@ -1429,7 +1516,8 @@ begin
           TreeView1.Items.Clear;
           if not Assigned(pEle) then
             pEle := uiEle;
-          UIATH := TreeThread4UIA.Create(UIAuto, uiEle, pEle, None, True, mnuAll.Checked);
+
+          UIATH := TreeThread4UIA.Create(UIAuto, uiEle, uiEle, None, True, False, nil);
           UIATH.OnTerminate := ThDone;
           UIATH.Start;
         end;
@@ -1440,8 +1528,9 @@ begin
         TreeList1.OffsetX := 0;
         TreeList1.OffsetY := 0;
         TreeList1.Selected[TreeList1.RootNode] := True;
-        GetNaviState;
+
       end;
+      GetNaviState;
     end;
   except
     on E: Exception do
@@ -1455,22 +1544,36 @@ var
     s: string;
     Wnd: hwnd;
     iSP: IServiceProvider;
-    iEle: IHTMLElement;
+    iEle, paEle: IHTMLElement;
     iDom: IHTMLDOMNode;
-    Path: string;
+    Path, cAccRole: string;
+    ws: widestring;
     RC: TRect;
     iSEle: ISimpleDOMNode;
     SI: Smallint;
     PU, PU2: PUINT;
     WD: Word;
     PC, PC2:PChar;
-    pAcc: IAccessible;
+    pAcc, accParent: IAccessible;
     iRes: integer;
     iDoc: IHTMLDocument2;
     pEle, TempEle: ISimpleDOMNode;
     i: integer;
     AWnd: HWND;
     bSame: boolean;
+    iDis: iDispatch;
+    procedure GetAccTxt;
+		begin
+			iAcc.Get_accName(VarParent, ws);
+      NodeTxt := String(ws);
+			if NodeTxt = '' then
+				NodeTxt := None;
+			NodeTxt := StringReplace(NodeTxt, #13, ' ', [rfReplaceAll]);
+			NodeTxt := StringReplace(NodeTxt, #10, ' ', [rfReplaceAll]);
+			cAccRole := Get_RoleText(iAcc, VarParent);
+			NodeTxt := NodeTxt + ' - ' + cAccRole;
+
+		end;
 const
     Class_ISimpleDOMNode : TGUID = '{0D68D6D0-D93D-4D08-A30D-F00DD1F45B24}';
 begin
@@ -1493,268 +1596,262 @@ DOM tree (code) of selected element(s)
 Example:
 <p><strong>element</strong> under cursor</p>
 *)
-    Result := False;
-    if AccIsNull(iAcc) then Exit;
+    Result := false;
+	if not Assigned(iAcc) then
+		Exit;
+  nSelected := False;
+	TreeList1.BeginUpdate;
+	TreeList1.Clear;
+	TreeList1.EndUpdate;
+	mnuTVSAll.Enabled := false;
+	mnuTVOAll.Enabled := false;
+	mnuTVSSel.Enabled := false;
+	mnuTVOSel.Enabled := false;
+	iDefIndex := -1;
+	LoopNode := nil;
+	Memo1.Lines.Clear;
+	if SUCCEEDED(WindowFromAccessibleObject(iAcc, Wnd)) then
+	begin
 
-    {if OnTree then
-    begin
-        Terminated := True;
-        while Ontree do
-            Application.ProcessMessages;
-    end;  }
+		GetNaviState(True);
+		s := GetWindowNameLC(Wnd);
+		CEle := nil;
+		SDom := nil;
+		Path := IncludeTrailingPathDelimiter(ExtractFileDir(Application.ExeName));
+		iAcc.accLocation(RC.left, RC.top, RC.right, RC.bottom, vChild);
+		if acOnlyFocus.Checked then
+			ShowRectWnd(clYellow)
+		else if (acRect.Checked) then
+		begin
+			ShowRectWnd(clRed);
+		end;
+		if Assigned(TreeTH) then
+		begin
+			TreeTH.Terminate;
+			TreeTH.WaitFor;
+			TreeTH.Free;
+			TreeTH := nil;
+		end;
 
-    TreeList1.BeginUpdate;
-    TreeList1.Clear;
-    TreeList1.EndUpdate;
-    mnuTVSAll.Enabled := False;
-    mnuTVOAll.Enabled := False;
-		mnuTVSSel.Enabled := False;
-    mnuTVOSel.Enabled := False;
-    iDefIndex := -1;
-    //if not Treemode then
-    //begin
-        //TreeView1.Items.Clear;
-        //NotifyWinEvent(EVENT_OBJECT_DESTROY{EVENT_OBJECT_STATECHANGE}, TreeView1.Handle, OBJID_CLIENT, 0);
-    //end;
-    Memo1.Lines.Clear;
-    try
-        if SUCCEEDED(WindowFromAccessibleObject(iAcc, Wnd)) then
-        begin
+		if not acMSAAMode.Checked then
+		begin
+			if mnuMSAA.Checked then
+				sMSAAtxt := MSAAText;
 
-            GetNaviState(true);
-            s := GetWindowNameLC(Wnd);
+			iRes := iAcc.QueryInterface(IID_IServiceProvider, iSP);
+			if SUCCEEDED(iRes) and Assigned(iSP) then
+			begin
+				iRes := iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement, iEle);
+				if SUCCEEDED(iRes) and Assigned(iEle) then
+				begin
+					iRes := iEle.QueryInterface(IID_IHTMLDOMNode, iDom);
+					if SUCCEEDED(iRes) and Assigned(iDom) then
+					begin
+						CEle := iEle;
+						if mnuARIA.Checked then
+						begin
+							ARIAText;
+						end;
+						if mnuHTML.Checked then
+						begin
+							HTMLText;
+						end;
+						if (not Treemode) and (Splitter1.Enabled = True) then
+						begin
+							iDoc := iEle.Document as IHTMLDocument2;
 
-            CEle := nil;
-            Path := IncludeTrailingPathDelimiter(ExtractFileDir(Application.ExeName));
-            iAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, vChild);
-            if (not acMSAAMode.Checked) then
-            begin
+							paEle := iEle;
+							if mnuAll.Checked then
+							begin
+								paEle := iDoc.body;
 
-                if ((iMode = 0) or (iMode = 1)) then
-                begin
-                    //if not Treemode then
-                    //begin
-                        if Assigned(TreeTH) then
-                        begin
-                            TreeTH.Terminate;
-                            TreeTH.WaitFor;
-                            TreeTH.Free;
-                            TreeTH := nil;
-                        end;
-
-
-                    //end;
-                end;
-								if (iMode = 0) then//IE
+							end;
+							if Assigned(paEle) then
+							begin
+								iRes := paEle.QueryInterface(IID_IServiceProvider, iSP);
+								if SUCCEEDED(iRes) and Assigned(iSP) then
 								begin
-									iRes := iAcc.QueryInterface(IID_IServiceProvider, iSP);
-                  if SUCCEEDED(iRes) and Assigned(iSP) then
-                  begin
-                    iRes := iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement, iEle);
-                    if SUCCEEDED(iRes) and Assigned(iEle) then
-                    begin
-                      if mnuMSAA.Checked then
-                        sMSAAtxt := MSAAText; // MSAA text start
-                      // iSP := iAcc as IServiceProvider;
-                      // if (SUCCEEDED(iSP.QueryService(IID_IHTMLELEMENT, IID_IHTMLELEMENT, iEle))) then
-                      // begin
-                      // if (LowerCase(iEle.tagName) = 'body') and (varParent > 0) then iEle := iEVSrcEle;
-                      iDom := iEle as IHTMLDOMNode;
-                      CEle := iEle;
+									iRes := iSP.QueryService(IID_IACCESSIBLE,
+										IID_IACCESSIBLE, pAcc);
+									if SUCCEEDED(iRes) and Assigned(pAcc) then
+									begin
 
-                      if mnuARIA.Checked then
-                      begin
-                        ARIAText;
-                      end;
-                      if mnuHTML.Checked then
-                      begin
-                        HTMLText;
-                      end;
-                      // end;
-                      if mnuUIA.Checked then
-                        UIAText;
-                      if (not Treemode) and (Splitter1.Enabled = True) then
-                      begin
-                        iDoc := iEle.Document as IHTMLDocument2;
-                        if mnuAll.Checked then
-                          iEle := iDoc.body;
-                        if iEle <> nil then
-                        begin
-                          iRes := iEle.QueryInterface(IID_IServiceProvider, iSP);
-                          if SUCCEEDED(iRes) and Assigned(iSP) then
-                          begin
-                            iRes := iSP.QueryService(IID_IACCESSIBLE, IID_IACCESSIBLE, pAcc);
-                            if SUCCEEDED(iRes) and Assigned(pAcc) then
-                            begin
-                              bSame := false;
-                              if (mnuAll.Checked) and (IsSameUIElement(DocAcc, pAcc)) then
-                              begin
-                                if TreeView1.Items.Count > 0 then
-                                begin
-                                  Timer1.Enabled := false;
-                                  try
-                                    bSame := GetSameAcc;
-                                  finally
-                                    Timer1.Enabled := True;
-                                  end;
-                                end;
-                              end;
-                              if not bSame then
-                              begin
+										bSame := false;
+										if (mnuAll.Checked) and (IsSameUIElement(DocAcc, pAcc, 0, 0))
+										then
+										begin
+											if TreeView1.Items.Count > 0 then
+											begin
+												Timer1.Enabled := false;
+												try
+													bSame := GetSameAcc;
+												finally
+													Timer1.Enabled := True;
+												end;
+											end;
+										end;
 
-                                DocAcc := pAcc;
-                                iAcc.accLocation(sRC.Left, sRC.Top, sRC.Right, sRC.Bottom, 0);
-                                WindowFromAccessibleObject(iAcc, AWnd);
-                                TBList.Clear;
-                                TreeView1.Items.Clear;
-                                TreeTH := TreeThread.Create(iAcc, pAcc, AWnd, iMode, None, True, mnuAll.Checked, nil, varparent);
-                                TreeTH.OnTerminate := ThDone;
-                                TreeTH.Start;
-                              end;
-                            end;
-                          end;
+										if not bSame then
+										begin
 
-                        end;
-                      end;
+											DocAcc := pAcc;
+											iAcc.accLocation(sRC.left, sRC.top, sRC.right,
+												sRC.bottom, 0);
+                      GetAccTxt;
+											WindowFromAccessibleObject(iAcc, AWnd);
+											TBList.Clear;
+											TreeView1.Items.Clear;
+											TreeTH := TreeThread.Create(iAcc, pAcc, AWnd, 0, None,
+												True, mnuAll.Checked, nil, VarParent);
+											TreeTH.OnTerminate := ThDone;
+											TreeTH.Start;
 
-                    end;//IEle
+										end;
+									end;
+								end;
 
-                  end;//ISP
-                end
-                else if iMode = 1 then//FF
-                begin
-                  if mnuMSAA.Checked then // MSAA text start
-                  begin
-                    sMSAAtxt := MSAAText;
-                  end;
-                  if mnuIA2.Checked then
-                    SetIA2Text;
-                  // iSP := iAcc as IServiceProvider;
-									//if SUCCEEDED(iAcc.QueryInterface(IID_IServiceProvider, iSP)) then
-                  //begin
-                    iRes := iAcc.QueryInterface(IID_IServiceProvider, iSP);
-                    if SUCCEEDED(iRes) and Assigned(iSP) then
-                    begin
+							end;
+						end;
+					end;
+				end
+				else
+				begin
+					iRes := iSP.QueryService(IID_ISIMPLEDOMNODE,
+						IID_ISIMPLEDOMNODE, isEle);
+					if SUCCEEDED(iRes) and Assigned(isEle) then
+					begin
+						SDom := isEle;
+						// GetNaviState;
+						if mnuARIA.Checked then
+							ARIAText;
+						if mnuHTML.Checked then
+							HTMLText4FF;
+						if (not Treemode) and (Splitter1.Enabled = True) then
+						begin
+							iRes := iSP.QueryService(IID_ISIMPLEDOMNODE,
+								IID_ISIMPLEDOMNODE, isEle);
+							if SUCCEEDED(iRes) and Assigned(isEle) then
+							begin
+								isEle.get_nodeInfo(PC, SI, PC2, PU, PU2, WD);
+								TempEle := isEle;
+								i := 0;
+								if mnuAll.Checked then
+								begin
+									// while (WD <> NODETYPE_DOCUMENT) do
+									while (LowerCase(String(PC)) <> '#document') do
+									begin
+										Application.ProcessMessages;
+										TempEle.get_parentNode(pEle);
+										pEle.get_nodeInfo(PC, SI, PC2, PU, PU2, WD);
+										TempEle := pEle;
+										if String(PC) = '#document' then
+										begin
+											isEle := pEle;
+										end;
+										inc(i);
+										if i > 500 then
+										begin
+											isEle := nil;
+											break;
+										end;
+										// ROLE_SYSTEM_DOCUMENT
+									end; // end while
+								end;
+								if Assigned(isEle) then
+								begin
+									iRes := isEle.QueryInterface(IID_IServiceProvider, iSP);
+									if SUCCEEDED(iRes) and Assigned(iSP) then
+									begin
+										iRes := iSP.QueryService(IID_IACCESSIBLE,
+											IID_IACCESSIBLE, pAcc);
+										if SUCCEEDED(iRes) and Assigned(pAcc) then
+										begin
+											// pAcc := iAcc;
+											bSame := false;
+											if (mnuAll.Checked) and
+												(IsSameUIElement(DocAcc, pAcc, 0, 0)) then
+											begin
+												Timer1.Enabled := false;
+												try
+													bSame := GetSameAcc;
+												finally
+													Timer1.Enabled := True;
+												end;
+											end;
 
-                      GetNaviState(True);
-                      iRes := iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, isEle);
-										  if SUCCEEDED(iRes) and Assigned(isEle) then
-                      begin
-                        SDom := isEle;
-                        // GetNaviState;
-                        if mnuARIA.Checked then ARIAText;
-                        if mnuHTML.Checked then HTMLText4FF;
-											  if (not Treemode) and (Splitter1.Enabled = True) then
-                        begin
-                          iRes := iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, isEle);
-												  if SUCCEEDED(iRes) and Assigned(isEle) then
-                      	  begin
-                      		  isEle.get_nodeInfo(PC, SI, PC2, PU, PU2, WD);
-                        	  TempEle := isEle;
-                        	  i := 0;
-													  if mnuAll.Checked then
-                        	  begin
-                              // while (WD <> NODETYPE_DOCUMENT) do
-														  while (LowerCase(String(PC)) <> '#document') do
-                              begin
-                            	  Application.ProcessMessages;
-                            	  TempEle.get_parentNode(pEle);
-                            	  pEle.get_nodeInfo(PC, SI, PC2, PU, PU2, WD);
-                            	  TempEle := pEle;
-                            	  if String(PC) = '#document' then
-                            	  begin
-                            		  isEle := pEle;
-                            		  break;
-                            	  end;
-                            	  inc(i);
-                            	  if i > 500 then
-                            	  begin
-                            		  isEle := nil;
-                            		  break;
-                            	  end;
-                              // ROLE_SYSTEM_DOCUMENT
-                              end; //end while
-                            end;
-													  if isEle <> nil then
-                            begin
-                          	  iRes := isEle.QueryInterface(IID_IServiceProvider, iSP);
-                              if SUCCEEDED(iRes) and Assigned(iSP) then
-                              begin
-                                iRes := iSP.QueryService(IID_IACCESSIBLE, IID_IACCESSIBLE, pAcc);
-														    if SUCCEEDED(iRes) and Assigned(pAcc) then
-                                begin
-                            	  //pAcc := iAcc;
-                                  bSame := false;
-                                  if (mnuAll.Checked) and (IsSameUIElement(DocAcc, pAcc)) then
-                                  begin
-                                    Timer1.Enabled := false;
-                                    try
-                                	    bSame := GetSameAcc;
-                                    finally
-                                	    Timer1.Enabled := True;
-                                    end;
-                                  end;
+											if not bSame then
+											begin
+												DocAcc := pAcc;
+												iAcc.accLocation(sRC.left, sRC.top, sRC.right,
+													sRC.bottom, 0);
+                        GetAccTxt;
+												WindowFromAccessibleObject(iAcc, AWnd);
+												TreeView1.Items.Clear;
+												TreeTH := TreeThread.Create(iAcc, pAcc, AWnd, 0,
+													None, True, mnuAll.Checked, nil, 0);
+												TreeTH.OnTerminate := ThDone;
+												TreeTH.Start;
+											end;
+										end;
+									end;
+								end; // isEle <> nil End
+							end; // if SUCCEEDED(iRes) and Assigned(isEle) then End
 
-                                  if not bSame then
-                                  begin
-                              	    DocAcc := pAcc;
-                              	    iAcc.accLocation(sRC.Left, sRC.Top, sRC.Right, sRC.Bottom, 0);
-                              	    WindowFromAccessibleObject(iAcc, AWnd);
-                              	    TreeView1.Items.Clear;
-                              	    TreeTH := TreeThread.Create(iAcc, pAcc, AWnd, iMode, None, True, mnuAll.Checked);
-                              	    TreeTH.OnTerminate := ThDone;
-                              	    TreeTH.Start;
-                                  end;
-                                end;
-                              end;
-                            end; //isEle <> nil End
-                          end;//if SUCCEEDED(iRes) and Assigned(isEle) then End
+						end; // IaEle
+					end
+					else
+					begin
+						bSame := false;
+						Timer1.Enabled := false;
+						try
+							bSame := GetSameAcc;
+						finally
+							Timer1.Enabled := True;
+						end;
+						if not bSame then
+						begin
+							iAcc.accLocation(sRC.left, sRC.top, sRC.right, sRC.bottom, 0);
+							WindowFromAccessibleObject(iAcc, AWnd);
+              GetAccTxt;
+							TBList.Clear;
+							TreeView1.Items.Clear;
+							TreeTH := TreeThread.Create(iAcc, iAcc, AWnd, 0, None, True,
+								false, nil, VarParent);
+							TreeTH.OnTerminate := ThDone;
+							TreeTH.Start;
+						end;
+					end;
+				end;
+			end;
+			if mnuIA2.Checked then
+				SetIA2Text;
+			if mnuUIA.Checked then
+				UIAText;
+			if Treemode then
+				GetNaviState;
+		end
+		else
+		begin
+			ShowText4UIA;
+			if Treemode then
+				GetNaviState;
 
-                      end;//IaEle
-
-                    end
-                    else // Flash
-                    begin
-                      SDom := nil;
-                      ShowErr(GetLastErrorStr(iRes) + '(' + intToHex(iRes,
-                          2) + ')');
-                    end;
-                    if mnuUIA.Checked then UIAText;
-                  end;//ISP
-
-                end; // FF mode end
-              end
-              else
-              begin
-                if (mnuMSAA.Checked) and (acMSAAMode.Checked) then //MSAA text start
-                begin
-
-                    sMSAAtxt := MSAAText;
-                    SetIA2Text;
-                    GetNaviState;
-                    //if cbUIA.Checked then UIAText;
-                end;
-                if mnuUIA.Checked then UIAText;
-            end;
-            if TreeList1.ChildCount[TreeList1.RootNode] > 0 then
-            begin
-              TreeList1.Expanded[TreeList1.RootNode];
-              TreeList1.OffsetX := 0;
-              TreeList1.OffsetY := 0;
-              TreeList1.Selected[TreeList1.RootNode] := True;
-              GetNaviState;
-            end;
-            Result := True;
-        end;
-    except
-        on E:Exception do
-            ShowErr(E.Message);
-    end;
+		end;
+		if TreeList1.ChildCount[TreeList1.RootNode] > 0 then
+		begin
+			TreeList1.Expanded[TreeList1.RootNode];
+			TreeList1.OffsetX := 0;
+			TreeList1.OffsetY := 0;
+			TreeList1.Selected[TreeList1.RootNode] := True;
+			// GetNaviState;
+		end;
+		Result := True;
+	end;
 end;
 
 
 
-procedure TwndMSAAV.ReflexIA2Rel(pNode: PVirtualnode; ia2: IAccessible2);
+procedure TwndMSAAV.RecursiveIA2Rel(pNode: PVirtualnode; ia2: IAccessible2);
 var
     isp: iserviceprovider;
     iInter: IInterface;
@@ -1842,7 +1939,7 @@ begin
                                     begin
                                         if iRel > 0 then
                                         begin
-                                        ReflexIA2Rel(ccNode, ia2Targ);
+                                        RecursiveIA2Rel(ccNode, ia2Targ);
                                         end;
                                     end;
                                 end;
@@ -1870,8 +1967,8 @@ var
     ia2, ia2Targ: iaccessible2;
     iAV: IAccessibleValue;
     iaTarg: IAccessible;
-    hr, i, iRole, t, p, iTarg: integer;
-    MSAAs: array [0..12] of widestring;
+    hr, i, iRole, t, p, iTarg, iUID: integer;
+    MSAAs: array [0..13] of widestring;
     Node: TTreeNode;
     ovChild, ovValue: OleVariant;
     iAL: IAccessibleRelation;
@@ -1883,15 +1980,15 @@ var
 
 begin
     result := '';
-    if AccIsNull(iAcc) then Exit;
+    if not Assigned(iAcc) then Exit;
     if pAcc = nil then pAcc := iAcc;
-    if (iMode <> 1) then Exit;
+    //if (iMode <> 1) then Exit;
     if (not mnuMSAA.Checked) then Exit;
     oList := TStringList.Create;
     try
 
         hr := pAcc.QueryInterface(IID_ISERVICEPROVIDER, isp);
-        if SUCCEEDED(hr) then
+        if SUCCEEDED(hr) and ASsigned(iSP) then
         begin
             try
             	hr := isp.QueryService(IID_IAccessible, iid_iaccessible2, ia2);
@@ -1903,9 +2000,9 @@ begin
             except
                 hr := E_FAIL;
             end;
-            if SUCCEEDED(hr) then
+            if SUCCEEDED(hr) and ASsigned(ia2) then
             begin
-                for i := 0 to 12 do
+                for i := 0 to 13 do
                 begin
                     MSAAs[i] := none;
                 end;
@@ -2070,8 +2167,23 @@ begin
                             MSAAs[12] := E.Message;
                     end;
                 end;
+                if (flgIA2 and TruncPow(2, 11)) <> 0 then
+                begin
+                    try
+                        if SUCCEEDED(ia2.Get_uniqueID(iUID)) then
+                        begin
+
+                            ia2Txt.Get_attributes(1 , iSOffset, iEOffset, ws);
+                            MSAAs[13] := IntToStr(iUID);
+
+                        end;
+                    except
+                        on E: Exception do
+                            MSAAs[13] := E.Message;
+                    end;
+                end;
                 Result := Result + #13#10#9 + tab + '<strong>' + lIA2[0] + '</strong>' + #13#10#9 + '<ul>';
-                for i := 0 to 10 do
+                for i := 0 to 11 do
                 begin
                     if (flgIA2 and TruncPow(2, i)) <> 0 then
                     begin
@@ -2161,6 +2273,11 @@ begin
 
                             Result := Result + #13#10#9#9 + tab + '<li>' + lIA2[14] + ': ' + MSAAs[12] + '</li>';
                         end
+                        else if i = 11 then
+                        begin
+
+                            Result := Result + #13#10#9#9 + tab + '<li>' + lIA2[15] + ': ' + MSAAs[13] + '</li>';
+                        end
                         else
                         begin
 
@@ -2194,417 +2311,439 @@ end;
 
 function TwndMSAAV.SetIA2Text(pAcc: IAccessible = nil; SetTL: boolean = True): string;
 var
-    isp: iserviceprovider;
-    iInter: IInterface;
-    ia2, ia2Targ: iaccessible2;
-    iAV: IAccessibleValue;
-    iaTarg: IAccessible;
+	iSP: IServiceProvider;
+	iInter: IInterface;
+	ia2, ia2Targ: IAccessible2;
+	iAV: IAccessibleValue;
+	iaTarg: IAccessible;
 
-    hr, i, iRole, t, p, iTarg, iPos: integer;
-    MSAAs: array [0..12] of widestring;
-    rNode, Node, cNode, ccNode, cccNode: PVirtualNode;
-    ovChild, ovValue: OleVariant;
-    iAL: IAccessibleRelation;
-    s, ws: widestring;
-    oList, cList: TStringList;
-    iSOffset, IEOffset: integer;
-    ia2Txt: IAccessibleText;
+	hr, i, iRole, t, p, iTarg, iPos, iUID: integer;
+	MSAAs: array [0 .. 13] of WideString;
+	rNode, Node, cNode, ccNode, cccNode: PVirtualNode;
+	ovChild, ovValue: OleVariant;
+	iAL: IAccessibleRelation;
+	s, ws: WideString;
+	oList, cList: TStringList;
+	iSOffset, IEOffset: integer;
+	ia2Txt: IAccessibleText;
 begin
-    result := '';
-    if AccIsNull(iAcc) then Exit;
-    if pAcc = nil then pAcc := iAcc;
-    if (iMode <> 1) then Exit;
-    if (not mnuMSAA.Checked) then Exit;
+	Result := '';
+	if not Assigned(iAcc) then
+		Exit;
+	if pAcc = nil then
+		pAcc := iAcc;
+	if (not mnuMSAA.Checked) then
+		Exit;
 
-    //if flgIA2 = 0 then Exit;
-    rNode := nil;
-    oList := TStringList.Create;
-    try
+	// if flgIA2 = 0 then Exit;
+	rNode := nil;
+	oList := TStringList.Create;
+	try
 
-        hr := pAcc.QueryInterface(IID_ISERVICEPROVIDER, isp);
-        if SUCCEEDED(hr) then
-        begin
-            try
-            	hr := isp.QueryService(IID_IAccessible, iid_iaccessible2, ia2);
-                {if not SUCCEEDED(isp.QueryService(IID_IAccessible, iid_iaccessible2, ia2)) then
-                begin
-                    hr := E_NOINTERFACE;
-                    ia2 := nil;
-                end; }
-            except
-                hr := E_FAIL;
-            end;
-            if SUCCEEDED(hr) then
-            begin
-                for i := 0 to 8 do
-                begin
-                    MSAAs[i] := none;
-                end;
+		hr := pAcc.QueryInterface(IID_IServiceProvider, iSP);
+		if SUCCEEDED(hr) and (Assigned(iSP)) then
+		begin
+			try
+				hr := iSP.QueryService(IID_IACCESSIBLE, IID_IACCESSIBLE2, ia2);
 
-                ovChild := varParent;
-                if (flgIA2 and TruncPow(2, 0)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.Get_accName(ovChild, ws)) then
-                        begin
-                            MSAAs[0] := ws;
-                        end;
-                    except
-                        on E: Exception do
-                        begin
-                            MSAAs[0] := E.Message;
+			except
+				hr := E_FAIL;
+			end;
+			if SUCCEEDED(hr) and Assigned(ia2) then
+			begin
+				for i := 0 to 8 do
+				begin
+					MSAAs[i] := None;
+				end;
 
-                        end;
-                    end;
-                end;
+				ovChild := VarParent;
+				if (flgIA2 and TruncPow(2, 0)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Get_accName(ovChild, ws)) then
+						begin
+							MSAAs[0] := ws;
+						end;
+					except
+						on E: Exception do
+						begin
+							MSAAs[0] := E.Message;
 
-                if (flgIA2 and TruncPow(2, 1)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.role(iRole)) then
-                        begin
-                            MSAAs[1] := GetIA2Role(iRole);;
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[1] := E.Message;
-                    end;
-                end;
-                if (flgIA2 and TruncPow(2, 2)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.Get_states(iRole)) then
-                        begin
-                            MSAAs[2] := GetIA2State(iRole);
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[2] := E.Message;
-                    end;
-                end;
-                if (flgIA2 and TruncPow(2, 3)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.Get_accDescription(ovChild, ws)) then
-                        begin
-                            MSAAs[3] := ws;
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[3] := E.Message;
-                    end;
-                end;
+						end;
+					end;
+				end;
 
+				if (flgIA2 and TruncPow(2, 1)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Role(iRole)) then
+						begin
+							MSAAs[1] := GetIA2Role(iRole);;
+						end;
+					except
+						on E: Exception do
+							MSAAs[1] := E.Message;
+					end;
+				end;
+				if (flgIA2 and TruncPow(2, 2)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Get_states(iRole)) then
+						begin
+							MSAAs[2] := GetIA2State(iRole);
+						end;
+					except
+						on E: Exception do
+							MSAAs[2] := E.Message;
+					end;
+				end;
+				if (flgIA2 and TruncPow(2, 3)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Get_accDescription(ovChild, ws)) then
+						begin
+							MSAAs[3] := ws;
+						end;
+					except
+						on E: Exception do
+							MSAAs[3] := E.Message;
+					end;
+				end;
 
+				if (flgIA2 and TruncPow(2, 5)) <> 0 then
+				begin
 
-                if (flgIA2 and TruncPow(2, 5)) <> 0 then
-                begin
+					cList := TStringList.Create;
+					try
 
-                    cList := TStringList.Create;
-                    try
+						try
+							if SUCCEEDED(ia2.Get_attributes(s)) then
+							begin
+								cList.Delimiter := ';';
+								cList.DelimitedText := s;
+								for i := 0 to cList.Count - 1 do
+								begin
+									if cList[i] = '' then
+										continue;
 
-                    try
-                        if SUCCEEDED(ia2.Get_attributes(s)) then
-                        begin
-                            cList.Delimiter := ';';
-  													cList.DelimitedText := s;
-                            for i := 0 to cList.Count - 1 do
-                            begin
-                            		if cList[i] = '' then continue;
+									if i = 0 then
+										MSAAs[5] := cList[i]
+									else
+										MSAAs[5] := MSAAs[5] + ', ' + cList[i];
+									oList.Add(cList[i]);
 
-                                if i = 0 then
-                                    MSAAs[5] := cList[i]
-                                else
-                                    MSAAs[5] := MSAAs[5] + ', ' + cList[i];
-                                oList.Add(cList[i]);
+								end;
+							end;
+						except
+							on E: Exception do
+							begin
+								MSAAs[5] := MSAAs[5] + E.Message;
+								oList.Add(E.Message);
+							end;
+						end;
+					finally
+						cList.Free;
+					end;
 
-                            end;
-                        end;
-                    except
-                        on E: Exception do
-                        begin
-                            MSAAs[5] := MSAAs[5] + E.Message;
-                            oList.Add(E.Message);
-                        end;
-                    end;
-                    finally
-                    	cList.Free;
-                    end;
+				end;
 
-                end;
+				if (flgIA2 and TruncPow(2, 6)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Get_accValue(ovChild, ws)) then
+						begin
+							MSAAs[6] := ws;
+						end;
+					except
+						on E: Exception do
+							MSAAs[6] := E.Message;
+					end;
+				end;
 
-                if (flgIA2 and TruncPow(2, 6)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.Get_accValue(ovChild, ws)) then
-                        begin
-                            MSAAs[6] := ws;
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[6] := E.Message;
-                    end;
-                end;
+				if (flgIA2 and TruncPow(2, 7)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Get_localizedExtendedRole(ws)) then
+						begin
+							MSAAs[7] := ws;
+						end;
+					except
+						on E: Exception do
+							MSAAs[7] := E.Message;
+					end;
+				end;
+				if (flgIA2 and TruncPow(2, 8)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Get_localizedExtendedStates(10, PWideString1(ws),
+							iRole)) then
+						begin
+							MSAAs[8] := ws;
+						end;
+					except
+						on E: Exception do
+							MSAAs[8] := E.Message;
+					end;
+				end;
 
+				if (flgIA2 and TruncPow(2, 9)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(iSP.QueryService(iid_iaccessiblevalue,
+							iid_iaccessiblevalue, iAV)) then
+						begin
+							if SUCCEEDED(iAV.Get_currentValue(ovValue)) then
+								MSAAs[9] := ovValue;
+							if SUCCEEDED(iAV.Get_minimumValue(ovValue)) then
+								MSAAs[10] := ovValue;
+							if SUCCEEDED(iAV.Get_maximumValue(ovValue)) then
+								MSAAs[11] := ovValue;
+						end;
+					except
+						on E: Exception do
+							MSAAs[9] := E.Message;
+					end;
+				end;
 
+				if (flgIA2 and TruncPow(2, 10)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.QueryInterface(IID_IAccessibleText, ia2Txt)) then
+						begin
 
-                if (flgIA2 and TruncPow(2, 7)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.Get_localizedExtendedRole(ws)) then
-                        begin
-                            MSAAs[7] := ws;
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[7] := E.Message;
-                    end;
-                end;
-                if (flgIA2 and TruncPow(2, 8)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.Get_localizedExtendedStates(10, PWideString1(ws), iRole)) then
-                        begin
-                            MSAAs[8] := ws;
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[8] := E.Message;
-                    end;
-                end;
+							ia2Txt.Get_attributes(1, iSOffset, IEOffset, ws);
+							MSAAs[12] := SysUtils.StringReplace(ws, '\,', ',',
+								[rfReplaceAll, rfIgnoreCase]);
 
-                if (flgIA2 and TruncPow(2, 9)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(isp.QueryService(iid_iaccessiblevalue, iid_iaccessiblevalue, iAV)) then
-                        begin
-                            if SUCCEEDED(iAV.Get_currentValue(ovValue)) then
-                            	MSAAs[9] := ovValue;
-                            if SUCCEEDED(iAV.Get_minimumValue(ovValue)) then
-                            	MSAAs[10] := ovValue;
-                            if SUCCEEDED(iAV.Get_maximumValue(ovValue)) then
-                            	MSAAs[11] := ovValue;
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[9] := E.Message;
-                    end;
-                end;
+						end;
+					except
+						on E: Exception do
+							MSAAs[12] := E.Message;
+					end;
+				end;
 
-                if (flgIA2 and TruncPow(2, 10)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.QueryInterface(IID_IAccessibleText, ia2Txt)) then
-                        begin
+				if (flgIA2 and TruncPow(2, 11)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Get_uniqueID(iUID)) then
+						begin
+							MSAAs[13] := inttostr(iUID);
 
-                            ia2Txt.Get_attributes(1 , iSOffset, iEOffset, ws);
-                            MSAAs[12] := SysUtils.StringReplace(ws, '\,', ',', [rfReplaceAll, rfIgnoreCase]);
+						end;
+					except
+						on E: Exception do
+							MSAAs[13] := E.Message;
+					end;
+				end;
+				Result := lIA2[0] + #13#10;
+				// nodes := TreeList1.Items;
+				if SetTL then
+				begin
+					// rNode := nodes.AddChild(nil, lIA2[0]);
+					rNode := SetNodeData(nil, lIA2[0], '', nil, 0);
+				end;
+				for i := 0 to 11 do
+				begin
+					if (flgIA2 and TruncPow(2, i)) <> 0 then
+					begin
+						if i = 5 then
+						begin
+							Result := Result + lIA2[i + 1] + ':' + #9 + MSAAs[i] + '(';
+							// + #13#10;
+							if SetTL then
+							begin
+								// node := nodes.AddChild(rNode, lIA2[i+1]);
+								Node := SetNodeData(rNode, lIA2[i + 1], '', nil, 0);
+								for p := 0 to oList.Count - 1 do
+								begin
+									t := pos(':', oList[p]);
+									SetNodeData(Node, copy(oList[p], 0, t - 1),
+										copy(oList[p], t + 1, Length(oList[p])), nil, 0);
+								end;
+							end
+							else
+							begin
+								for p := 0 to oList.Count - 1 do
+								begin
+									Result := Result + oList[p];
+								end;
+								Result := Result + ')' + #13#10;
+							end;
+						end
+						else if (i = 4) { and ((flgIA2 and 16) <> 0) } then
+						begin
+							try
+								if SUCCEEDED(ia2.Get_nRelations(iRole)) then
+								begin
+									for p := 0 to iRole - 1 do
+									begin
+										Result := Result + #13#10 + #9 + rType + ':';
+										ia2.Get_relation(p, iAL);
+										iAL.Get_RelationType(s);
 
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[12] := E.Message;
-                    end;
-                end;
-                Result := lIA2[0] + #13#10;
-                //nodes := TreeList1.Items;
-                if SetTL then
-                begin
-                    //rNode := nodes.AddChild(nil, lIA2[0]);
-                    rNode := SetNodeData(nil, lIA2[0], '', nil, 0);
-                end;
-                for i := 0 to 10 do
-                begin
-                    if (flgIA2 and TruncPow(2, i)) <> 0 then
-                    begin
-                        if i = 5 then
-                        begin
-                            Result := Result + lIA2[i+1] + ':' + #9 + MSAAs[i] + '(';// + #13#10;
-                            if SetTL then
-                            begin
-                                //node := nodes.AddChild(rNode, lIA2[i+1]);
-                                node := SetNodeData(rNode, lIA2[i+1], '', nil, 0);
-                                for p := 0 to oList.Count - 1 do
-                                begin
-                                    t := pos(':', oList[p]);
-                                    //cnode := nodes.AddChild(Node, copy(oList[p], 0, t-1));
-                                    //TreeList1.SetNodeColumn(cnode, 1, copy(oList[p], t+1, Length(oList[p])));
-                                    SetNodeData(Node, copy(oList[p], 0, t-1), copy(oList[p], t+1, Length(oList[p])), nil, 0);
-                                end;
-                            end
-                            else
-                            begin
-                            	for p := 0 to oList.Count - 1 do
-                              begin
-                                Result := Result + oList[p];
-                              end;
-                              Result := Result + ')' + #13#10;
-                            end;
-                        end
-                        else if (i = 4) {and ((flgIA2 and 16) <> 0)} then
-                        begin
-                            try
-                                if SUCCEEDED(ia2.Get_nRelations(iRole)) then
-                                begin
-                                    for p := 0 to iRole - 1 do
-                                    begin
-                                        Result := Result + #13#10 + #9 + rType + ':';
-                                        ia2.Get_relation(p, iAL);
-                                        iAL.Get_RelationType(s);
+										ccNode := nil;
 
+										if SetTL then
+										begin
+											Node := SetNodeData(rNode, lIA2[i + 1], '', nil, 0);
+											cNode := SetNodeData(Node, inttostr(p), '', nil, 0);
+											SetNodeData(cNode, rType, s, nil, 0);
+											ccNode := SetNodeData(cNode, rTarg, '', nil, 0);
+										end;
+										Result := Result + s;
+										Result := Result + #13#10 + #9 + rTarg + ':';
 
-                                        ccNode := nil;
+										iAL.Get_nTargets(iTarg);
+										for t := 0 to iTarg do
+										begin
+											iInter := nil;
+											hr := iAL.Get_target(t, iInter);
+											if SUCCEEDED(hr) then
+											begin
+												hr := iInter.QueryInterface(IID_IACCESSIBLE2, ia2Targ);
+												if SUCCEEDED(hr) then
+												begin
+													hr := ia2Targ.QueryInterface
+														(IID_IServiceProvider, iSP);
+													if SUCCEEDED(hr) then
+													begin
+														hr := iSP.QueryService(IID_IACCESSIBLE,
+															IID_IACCESSIBLE, iaTarg);
+														if SUCCEEDED(hr) then
+														begin
 
-                                        if SetTL then
-                                        begin
-                                          node := SetNodeData(rNode, lIA2[i+1], '', nil, 0);
-                                          cnode := SetNodeData(Node, inttostr(p), '', nil, 0);
-                                          SetNodeData(cNode, rType, s, nil, 0);
-                                          ccnode := SetNodeData(cNode, rTarg, '', nil, 0);
-                                            {node := nodes.AddChild(rNode, lIA2[i+1]);
-                                            cnode := nodes.AddChild(Node, inttostr(p));
-                                            ccNode := nodes.AddChild(cNode, rType);
-                                            TreeList1.SetNodeColumn(ccnode, 1, s);
-                                            ccNode := nodes.AddChild(cNode, rTarg); }
-                                        end;
-                                        Result := Result + s;
-                                        Result := Result + #13#10 + #9 + rTarg + ':';
+															// s := iaTarg.accName[0];
+															iaTarg.Get_accName(0, s);
+															if s = '' then
+																s := None;
+															// iaTarg.Get_accValue(0, s);
+															ia2Targ.Role(iRole);
+															ws := GetIA2Role(iRole);
+															if ws = '' then
+																ws := None;
+															// iaTarg.Get_accValue(0, ws);
+															Result := Result + s + ' - ' + ws + #13#10 + #9;
+															if SetTL then
+															begin
+																cccNode := SetNodeData(ccNode, inttostr(t),
+																	s + ' - ' + ws, iaTarg, 0);
+															end;
+														end;
+													end;
+												end;
+											end;
+										end;
 
+									end;
+								end;
+							except
+								on E: Exception do
+									ShowErr(E.Message);
+							end;
+						end
+						else if i = 9 then
+						begin
+							Node := nil;
+							if SetTL then
+							begin
+								// node := nodes.AddChild(rNode, lIA2[10]);
+								Node := SetNodeData(rNode, lIA2[10], '', nil, 0);
+							end;
+							for t := 0 to 2 do
+							begin
+								if SetTL then
+								begin
+									// cnode := nodes.AddChild(Node, lIA2[11+t]);
+									// TreeList1.SetNodeColumn(cnode, 1, MSAAs[t+9]);
+									SetNodeData(Node, lIA2[11 + t], MSAAs[t + 9], nil, 0);
+								end;
+								Result := Result + lIA2[11 + t] + ':' + #9 +
+									MSAAs[t + 9] + #13#10;
+							end;
 
-                                        iAL.Get_nTargets(iTarg);
-                                        for t := 0 to iTarg do
-                                        begin
-                                            iInter := nil;
-                                            hr := iAL.Get_target(t, iInter);
-                                            if SUCCEEDED(hr) then
-                                            begin
-                                                hr := iInter.QueryInterface(IID_IACCESSIBLE2, ia2Targ);
-                                                if SUCCEEDED(hr) then
-                                                begin
-                                                    hr := ia2Targ.QueryInterface(IID_ISERVICEPROVIDER, isp);
-                                                    if SUCCEEDED(hr) then
-                                                    begin
-                                                        hr := isp.QueryService(IID_IAccessible, iid_iaccessible, iaTarg);
-                                                        if SUCCEEDED(hr) then
-                                                        begin
+						end
+						else if i = 10 then
+						begin
 
-                                                            //s := iaTarg.accName[0];
-                                                            iaTarg.Get_accName(0, s);
-                                                            if s = '' then
-                                                                s := none;
-                                                            //iaTarg.Get_accValue(0, s);
-                                                            ia2Targ.role(iRole);
-                                                            ws := GetIA2Role(iRole);
-                                                            if ws = '' then
-                                                                ws := none;
-                                                            //iaTarg.Get_accValue(0, ws);
-                                                            Result := Result + s + ' - ' + ws + #13#10 + #9;
-                                                            if SetTL then
-                                                            begin
-                                                              cccnode := SetNodeData(ccNode, inttostr(t), s + ' - ' + ws, iaTarg, 0);
-                                                                {cccNode := nodes.AddChild(ccNode, inttostr(t));
-                                                                TreeList1.SetNodeColumn(cccnode, 1, s + ' - ' + ws);
-                                                                New(TD);
-                                                                TD^.Acc := iaTarg;
-                                                                TD^.iID := 0;
-                                                                cccNode.Data := Pointer(TD);  }
-                                                            end;
-                                                        end;
-                                                    end;
-                                                end;
-                                            end;
-                                        end;
+							if SetTL then
+							begin
+								// Node := nodes.AddChild(rNode, lIA2[14]);
 
-                                    end;
-                                end;
-                            except
-                                on E:Exception do
-                                    ShowErr(E.Message);
-                            end;
-                        end
-                        else if i = 9 then
-                        begin
-                          Node := nil;
-                        	if SetTL then
-                          begin
-                        		//node := nodes.AddChild(rNode, lIA2[10]);
-                            node := SetNodeData(rNode, lIA2[10], '', nil, 0);
-                          end;
-                          for t := 0 to 2 do
-                          begin
-                          	if SetTL then
-                            begin
-                          		//cnode := nodes.AddChild(Node, lIA2[11+t]);
-                          		//TreeList1.SetNodeColumn(cnode, 1, MSAAs[t+9]);
-                              SetNodeData(Node, lIA2[11+t], MSAAs[t+9], nil, 0);
-                            end;
-                            Result := Result + lIA2[11+t] + ':' + #9 + MSAAs[t+9] + #13#10;
-                          end;
+								if MSAAs[12] = '' then
+								begin
+									SetNodeData(rNode, lIA2[14], None, nil, 0);
+									// TreeList1.SetNodeColumn(Node, 1, None);
+								end
+								else
+								begin
+									Node := SetNodeData(rNode, lIA2[14], '', nil, 0);
+									cList := TStringList.Create;
+									try
+										cList.Delimiter := ';';
 
-                        end
-                        else if i = 10 then
-                        begin
+										cList.StrictDelimiter := True;
+										cList.DelimitedText := MSAAs[12];
+										for p := 0 to cList.Count - 1 do
+										begin
+											if cList[p] <> '' then
+											begin
+												iPos := pos(':', cList[p]);
+												SetNodeData(Node, copy(cList[p], 0, iPos - 1),
+													copy(cList[p], iPos + 1, Length(cList[p])), nil, 0);
+												// cNode := nodes.AddChild(Node, copy(cList[p], 0, iPos - 1));
+												// TreeList1.SetNodeColumn(cNode, 1, copy(cList[p], iPos + 1, length(cList[p])));
+											end;
+										end;
 
-                          if SetTL then
-                          begin
-                            //Node := nodes.AddChild(rNode, lIA2[14]);
+									finally
+										cList.Free;
+									end;
+								end;
+							end;
+							Result := Result + lIA2[14] + ':' + #9 + MSAAs[12] + #13#10;
+						end
+						else if i = 11 then
+						begin
+							if SetTL then
+							begin
+								// node := nodes.AddChild(rNode, lIA2[i+1]);
+								// TreeList1.SetNodeColumn(node, 1, MSAAs[i]);
+								SetNodeData(rNode, lIA2[15], MSAAs[13], nil, 0);
+							end;
+							Result := Result + lIA2[15] + ':' + #9 + MSAAs[13] + #13#10;
+						end
+						else
+						begin
+							if SetTL then
+							begin
+								// node := nodes.AddChild(rNode, lIA2[i+1]);
+								// TreeList1.SetNodeColumn(node, 1, MSAAs[i]);
+								SetNodeData(rNode, lIA2[i + 1], MSAAs[i], nil, 0);
+							end;
+							Result := Result + lIA2[i + 1] + ':' + #9 + MSAAs[i] + #13#10;
+						end;
+					end;
+				end;
 
-                            if MSAAs[12] = '' then
-                            begin
-                              SetNodeData(rNode, lIA2[14], None, nil, 0);
-                              //TreeList1.SetNodeColumn(Node, 1, None);
-                            end
-                            else
-                            begin
-                              node := SetNodeData(rNode, lIA2[14], '', nil, 0);
-                              cList := TStringList.Create;
-                              try
-                                cList.Delimiter := ';';
-
-                                cList.StrictDelimiter := True;
-                                cList.DelimitedText := MSAAs[12];
-                                for p := 0 to cList.Count - 1 do
-                                begin
-                                  if cList[p] <> '' then
-                                  begin
-                                    iPos := pos(':', cList[p]);
-                                    SetNodeData(Node, copy(cList[p], 0, iPos - 1), copy(cList[p], iPos + 1, length(cList[p])), nil, 0);
-                                    //cNode := nodes.AddChild(Node, copy(cList[p], 0, iPos - 1));
-                                    //TreeList1.SetNodeColumn(cNode, 1, copy(cList[p], iPos + 1, length(cList[p])));
-                                  end;
-                                end;
-
-                              finally
-                                cList.Free;
-                              end;
-                            end;
-                          end;
-                          Result := Result + lIA2[14] + ':' + #9 + MSAAs[12] + #13#10;
-                        end
-                        else
-                        begin
-                            if SetTL then
-                            begin
-                                //node := nodes.AddChild(rNode, lIA2[i+1]);
-                                //TreeList1.SetNodeColumn(node, 1, MSAAs[i]);
-                                SetNodeData(rNode, lIA2[i+1], MSAAs[i], nil, 0);
-                            end;
-                            Result := Result + lIA2[i+1] + ':' + #9 + MSAAs[i] + #13#10;
-                        end;
-                    end;
-                end;
-
-
-                //Result := Result + lIA2[9] + ':' + #9 + MSAAs[8] + #13#10;
-                if SetTL then
-                  TreeList1.Expanded[TreeList1.RootNode] := True;
-                    //rNode.Expand(True);
-            end;
-        end;
-        TipTextIA2 := Result + #13#10 + #13#10;
-    finally
-        oList.Free;
-    end;
+				// Result := Result + lIA2[9] + ':' + #9 + MSAAs[8] + #13#10;
+				if SetTL then
+					TreeList1.Expanded[TreeList1.RootNode] := True;
+				// rNode.Expand(True);
+			end
+			else // IAccessible2 failed
+			begin
+				if SetTL then
+				begin
+					rNode := SetNodeData(nil, lIA2[0],
+						Err_Inter + '(IAccessible2)', nil, 0);
+				end;
+			end;
+		end;
+		TipTextIA2 := Result + #13#10 + #13#10;
+		TreeList1.Expanded[rNode] := True;
+	finally
+		oList.Free;
+	end;
 
 
 end;
@@ -2619,7 +2758,7 @@ var
     pDis: IDispatch;
     pa: IAccessible;
 begin
-    if AccIsNull(iAcc) then Exit;
+    if not Assigned(iAcc) then Exit;
     if not mnuMSAA.Checked then Exit;
     if pAcc = nil then pAcc := iAcc;
     for i := 0 to 10 do
@@ -2810,7 +2949,7 @@ var
     pDis: IDispatch;
     pa: IAccessible;
 begin
-    if AccIsNull(iAcc) then Exit;
+    if not Assigned(iAcc) then Exit;
     if not mnuMSAA.Checked then Exit;
     if pAcc = nil then pAcc := iAcc;
     for i := 0 to 10 do
@@ -3079,228 +3218,226 @@ end;
 
 function TwndMSAAV.MSAAText4UIA(TextOnly: boolean = false): string;
 var
-    PC:PChar;
-    ovValue, ovProp: OleVariant;
-    MSAAs: array [0..10] of widestring;
-    ws: widestring;
-    node: pVirtualNode;
-    i: integer;
-    pEle: IUIAUtomationElement;
-    arEle: IUIAutomationElementArray;
-    pCond  : IUIAutomationCondition;
-    iVW: IUIAutomationTreeWalker;
-    Scope: TreeScope;
+	PC: PChar;
+	ovValue, ovProp: OleVariant;
+	MSAAs: array [0 .. 10] of WideString;
+	ws: WideString;
+	hr: HResult;
+	Node: PVirtualNode;
+	i: integer;
+	cVal: cardinal;
+	pEle: IUIAUTOMATIONELEMENT;
+	arEle: IUIAutomationElementArray;
+	pCond: IUIAutomationCondition;
+	iVW: IUIAutomationTreeWalker;
+	Scope: TreeScope;
+	iLegacy: ILegacyIAccessibleProvider;
+	iLeg: IUIAutomationLegacyIAccessiblePattern;
+	iInt: IInterface;
+	iSP: IServiceProvider;
+	function GetiLegacy: HResult;
+	begin
+  	result := S_FALSE;
+  	hr := uiEle.GetCurrentPattern(UIA_LegacyIAccessiblePatternId, iInt);
+		if (hr = 0) and (Assigned(iInt)) then
+		begin
+    	result := iInt.QueryInterface(IID_IUIAutomationLegacyIAccessiblePattern, iLeg);
+		end;
+
+	end;
 begin
-  if not mnuMSAA.Checked then Exit;
-  if UIAEIsNull(UIEle) then
+  if not mnuMSAA.Checked then
+		Exit;
+	if not assigned(uiEle) then
+	begin
+		Exit;
+	end;
+
+  hr := GetiLegacy;
+	if (hr = 0) and (Assigned(iLeg)) then
+	begin
+
+		for i := 0 to 10 do
+		begin
+			MSAAs[i] := None;
+		end;
+		if (flgMSAA and 1) <> 0 then
+		begin
+			try
+				iLeg.Get_CurrentName(ws);
+        MSAAs[0] := ws;
+			except
+				on E: Exception do
+					MSAAs[0] := E.Message;
+			end;
+		end;
+		if (flgMSAA and 2) <> 0 then
+		begin
+			try
+				iLeg.Get_CurrentRole(cVal);
+        PC := StrAlloc(255);
+        GetRoleTextW(cVal, PC, StrBufSize(PC));
+        MSAAs[1] := PC;
+        StrDispose(PC);
+			except
+				on E: Exception do
+					MSAAs[1] := E.Message;
+			end;
+		end;
+		if (flgMSAA and 4) <> 0 then
+		begin
+			try
+        iLeg.Get_CurrentState(cVal);
+        MSAAs[2] := GetMultiState(cVal);
+			except
+				on E: Exception do
+					MSAAs[2] := E.Message;
+			end;
+		end;
+		if (flgMSAA and 8) <> 0 then
+		begin
+			try
+      	iLeg.Get_CurrentDescription(ws);
+				MSAAs[3] := ws;
+			except
+				on E: Exception do
+					MSAAs[3] := E.Message;
+			end;
+		end;
+
+		if (flgMSAA and 16) <> 0 then
+		begin
+			try
+      	iLeg.Get_CurrentDefaultAction(ws);
+				MSAAs[4] := ws;
+			except
+				on E: Exception do
+					MSAAs[4] := E.Message;
+			end;
+		end;
+
+		if (flgMSAA and 32) <> 0 then
+		begin
+			try
+      	iLeg.Get_CurrentValue(ws);
+				MSAAs[5] := ws;
+			except
+				on E: Exception do
+					MSAAs[5] := E.Message;
+			end;
+		end;
+
+		if (flgMSAA and 64) <> 0 then
+		begin
+			try
+				if SUCCEEDED(UIAuto.Get_ControlViewWalker(iVW)) then
+				begin
+					if (Assigned(iVW)) and (SUCCEEDED(iVW.GetParentElement(uiEle, pEle)))
+					then
+					begin
+						if Assigned(pEle) and
+							SUCCEEDED(pEle.GetCurrentPropertyValue
+							(UIA_LegacyIAccessibleNamePropertyId, ovValue)) then
+							MSAAs[6] := VarToStr(ovValue);
+					end;
+					iVW := nil;
+				end;
+
+			except
+				on E: Exception do
+					MSAAs[6] := E.Message;
+			end;
+		end;
+
+		if (flgMSAA and 128) <> 0 then
+		begin
+			try
+				i := 0;
+				TVariantArg(ovProp).vt := VT_BOOL;
+				TVariantArg(ovProp).vbool := True;
+				UIAuto.CreatePropertyCondition(UIA_IsControlElementPropertyId,
+					ovProp, pCond);
+				Scope := TreeScope_Children;
+				if SUCCEEDED(uiEle.FindAll(Scope, pCond, arEle)) then
+				begin
+					arEle.Get_Length(i);
+				end;
+				MSAAs[7] := inttostr(i);
+
+			except
+				on E: Exception do
+					MSAAs[7] := E.Message;
+			end;
+		end;
+
+		if (flgMSAA and 256) <> 0 then
+		begin
+			try
+      	iLeg.Get_CurrentHelp(ws);
+				MSAAs[8] := ws;
+			except
+
+				on E: Exception do
+					MSAAs[8] := E.Message;
+			end;
+		end;
+		if (flgMSAA and 512) <> 0 then
+		begin
+
+			MSAAs[9] := '';
+		end;
+		if (flgMSAA and 1024) <> 0 then
+		begin
+			try
+      	iLeg.Get_CurrentKeyboardShortcut(ws);
+				MSAAs[10] := ws;
+			except
+
+				on E: Exception do
+					MSAAs[10] := E.Message;
+			end;
+		end;
+
+		Result := lMSAA[0] + '(UIA_LegacyIAccessible)' + #13#10;
+		if not TextOnly then
+		begin
+			// nodes := TreeList1.Items;
+			// refNode := nodes.AddChild(nil, lMSAA[0]);
+			refVNode := SetNodeData(nil, lMSAA[0] + '(UIA_LegacyIAccessible)',
+				'', nil, 0);
+			for i := 0 to 10 do
+			begin
+				if (flgMSAA and TruncPow(2, i)) <> 0 then
+				begin
+					// node := nodes.AddChild(refNode, lMSAA[i+1]);
+					// TreeList1.SetNodeColumn(node, 1, MSAAs[i]);
+					Node := SetNodeData(refVNode, lMSAA[i + 1], MSAAs[i], nil, 0);
+					Result := Result + lMSAA[i + 1] + ':' + #9 + MSAAs[i] + #13#10;
+					if i = 4 then
+					begin
+						iDefIndex := Node.Index;
+					end;
+				end;
+			end;
+			// refNode.Expand(True);
+			TreeList1.Expanded[refVNode] := True;
+		end
+		else
+		begin
+			for i := 0 to 10 do
+			begin
+				if (flgMSAA and TruncPow(2, i)) <> 0 then
+				begin
+					Result := Result + lMSAA[i + 1] + ':' + #9 + MSAAs[i] + #13#10;
+				end;
+			end;
+		end;
+		TipText := Result + #13#10;
+	end
+  else
   begin
-    Exit;
+  	SetNodeData(nil, lMSAA[0], Err_Inter + '(IUIAutomationLegacyIAccessiblePattern)', nil, 0);
   end;
-
-  for i := 0 to 10 do
-  begin
-    MSAAs[i] := none;
-  end;
-  if (flgMSAA and 1) <> 0 then
-        begin
-            try
-                if SUCCEEDED(UIEle.GetCurrentPropertyValue(UIA_LegacyIAccessibleNamePropertyId	, ovValue)) then
-                    MSAAs[0] := VarToStr(ovValue);
-            except
-                on E: Exception do
-                    MSAAs[0] := E.Message;
-            end;
-        end;
-        if (flgMSAA and 2) <> 0 then
-        begin
-            try
-                if SUCCEEDED(UIEle.GetCurrentPropertyValue(UIA_LegacyIAccessibleRolePropertyId	, ovValue)) then
-                begin
-                    if VarHaveValue(ovValue) then
-                    begin
-                        if VarIsNumeric(ovValue) then
-                        begin
-                            PC := StrAlloc(255);
-                            GetRoleTextW(ovValue, PC, StrBufSize(PC));
-                            MSAAs[1] := PC;
-                            StrDispose(PC);
-                        end
-                        else if VarIsStr(ovValue) then
-                        begin
-                            MSAAs[1] := VarToStr(ovValue);
-                        end;
-                    end;
-                end;
-            except
-                on E: Exception do
-                    MSAAs[1] := E.Message;
-            end;
-        end;
-        if (flgMSAA and 4) <> 0 then
-        begin
-             try
-                if SUCCEEDED(UIEle.GetCurrentPropertyValue(UIA_LegacyIAccessibleStatePropertyId	, ovValue)) then
-                begin
-                    if VarHaveValue(ovValue) then
-                    begin
-                        if VarIsNumeric(ovValue) then
-                        begin
-                            MSAAs[2] := GetMultiState(Cardinal(ovValue));
-                        end
-                        else if VarIsStr(ovValue) then
-                        begin
-                            MSAAs[2] := VarToStr(ovValue);
-                        end;
-                    end;
-                end;
-            except
-                on E: Exception do
-                    MSAAs[2] := E.Message;
-            end;
-        end;
-        if (flgMSAA and 8) <> 0 then
-        begin
-            try
-                if SUCCEEDED(UIEle.GetCurrentPropertyValue(UIA_LegacyIAccessibleDescriptionPropertyId	, ovValue)) then
-                    MSAAs[3] := VarToStr(ovValue);
-            except
-                on E: Exception do
-                    MSAAs[3] := E.Message;
-            end;
-        end;
-
-        if (flgMSAA and 16) <> 0 then
-        begin
-            try
-                if SUCCEEDED(UIEle.GetCurrentPropertyValue(UIA_LegacyIAccessibleDefaultActionPropertyId	, ovValue)) then
-                    MSAAs[4] := VarToStr(ovValue);
-            except
-                on E: Exception do
-                    MSAAs[4] := E.Message;
-            end;
-        end;
-
-        if (flgMSAA and 32) <> 0 then
-        begin
-            try
-                if SUCCEEDED(UIEle.GetCurrentPropertyValue(UIA_LegacyIAccessibleValuePropertyId	, ovValue)) then
-                    MSAAs[5] := VarToStr(ovValue);
-            except
-                on E: Exception do
-                    MSAAs[5] := E.Message;
-            end;
-        end;
-
-        if (flgMSAA and 64) <> 0 then
-        begin
-            try
-                if SUCCEEDED(UIAuto.Get_ControlViewWalker(iVW)) then
-                begin
-                  if (Assigned(iVW)) and (SUCCEEDED(iVW.GetParentElement(UIEle, pEle))) then
-                  begin
-                    if Assigned(pEle) and SUCCEEDED(pEle.GetCurrentPropertyValue(UIA_LegacyIAccessibleNamePropertyId	, ovValue)) then
-                      MSAAs[6] := VarToStr(ovValue);
-                  end;
-                  iVW := nil;
-                end;
-
-            except
-                on E: Exception do
-                    MSAAs[6] := E.Message;
-            end;
-        end;
-
-        if (flgMSAA and 128) <> 0 then
-        begin
-            try
-              i := 0;
-              TVariantArg(ovProp).vt    := VT_BOOL;
-              TVariantArg(ovProp).vbool := True;
-              UIAuto.CreatePropertyCondition(UIA_IsControlElementPropertyId, ovProp, pCond);
-              Scope := TreeScope_Children;
-              if SUCCEEDED(UIEle.FindAll(Scope, pCond, arEle)) then
-              begin
-                arEle.Get_Length(i);
-              end;
-              MSAAs[7] := inttostr(i);
-
-            except
-                on E: Exception do
-                    MSAAs[7] := E.Message;
-            end;
-        end;
-
-        if (flgMSAA and 256) <> 0 then
-        begin
-            try
-                if SUCCEEDED(UIEle.GetCurrentPropertyValue(UIA_LegacyIAccessibleHelpPropertyId	, ovValue)) then
-                    MSAAs[8] := VarToStr(ovValue);
-            except
-
-                on E: Exception do
-                    MSAAs[8] := E.Message;
-            end;
-        end;
-        if (flgMSAA and 512) <> 0 then
-        begin
-          MSAAs[9] := ws + ' , 0';
-            {try
-                if SUCCEEDED(pAcc.Get_accHelpTopic(ws, ovChild, i)) then
-                if ws <> '' then
-                begin
-                    MSAAs[9] := ws + ' , ' + InttoStr(i);
-                end;
-            except
-                on E: Exception do
-                    MSAAs[9] := E.Message;
-            end;    }
-        end;
-        if (flgMSAA and 1024) <> 0 then
-        begin
-            try
-                if SUCCEEDED(UIEle.GetCurrentPropertyValue(UIA_LegacyIAccessibleKeyboardShortcutPropertyId	, ovValue)) then
-                    MSAAs[10] := VarToStr(ovValue);
-            except
-
-                on E: Exception do
-                    MSAAs[10] := E.Message;
-            end;
-        end;
-
-        Result := lMSAA[0] + #13#10;
-        if not TextOnly then
-        begin
-        	//nodes := TreeList1.Items;
-        	//refNode := nodes.AddChild(nil, lMSAA[0]);
-          refVNode := SetNodeData(nil, lMSAA[0], '', nil, 0);
-        	for i := 0 to 10 do
-        	begin
-            	if (flgMSAA and TruncPow(2, i)) <> 0 then
-            	begin
-                	//node := nodes.AddChild(refNode, lMSAA[i+1]);
-                	//TreeList1.SetNodeColumn(node, 1, MSAAs[i]);
-                  Node := SetNodeData(refVNode, lMSAA[i+1], MSAAs[i], nil, 0);
-                	Result := Result + lMSAA[i+1] + ':' + #9 + MSAAs[i] + #13#10;
-                	if i = 4 then
-                	begin
-                    	iDefIndex := Node.Index;
-                	end;
-            	end;
-        	end;
-          //refNode.Expand(True);
-          TreeList1.Expanded[refVNode] := True;
-        end
-        else
-        begin
-         	for i := 0 to 10 do
-        	begin
-            	if (flgMSAA and TruncPow(2, i)) <> 0 then
-            	begin
-                	Result := Result + lMSAA[i+1] + ':' + #9 + MSAAs[i] + #13#10;
-            	end;
-        	end;
-        end;
-        TipText := result + #13#10;
 end;
 
 
@@ -3316,7 +3453,7 @@ var
     pDis: IDispatch;
     pa: IAccessible;
 begin
-    if AccIsNull(iAcc) then Exit;
+    if not Assigned(iAcc) then Exit;
     if not mnuMSAA.Checked then Exit;
     //if flgMSAA = 0 then Exit;
     if pAcc = nil then pAcc := iAcc;
@@ -3526,97 +3663,92 @@ end;
 function TwndMSAAV.HTMLText: string;
 var
 
-    s: string;
-    hAttrs: widestring;
-    i: integer;
-    rNode, Node, sNode: pVirtualNode;
-    iAttrCol: IHTMLATTRIBUTECOLLECTION;
-    iDomAttr: IHTMLDOMATTRIBUTE;
-    ovValue: OleVariant;
+	s: string;
+	hAttrs: WideString;
+	i: integer;
+	rNode, Node, sNode: PVirtualNode;
+	iAttrCol: IHTMLATTRIBUTECOLLECTION;
+	iDomAttr: IHTMLDOMATTRIBUTE;
+	ovValue: OleVariant;
 begin
-    if ((CEle = nil) and (Imode = 0)) or ((SDOM = nil) and (iMode = 1)) then
-    begin
-        GetNaviState(True);
+	if not Assigned(CEle) then
+	begin
+		//GetNaviState(True);
 
-        Exit;
-    end;
-    for i := 0 to 2 do HTMLs[i, 1] := '';
+		Exit;
+	end;
+	for i := 0 to 2 do
+		HTMLs[i, 1] := '';
 
+	HTMLs[0, 1] := CEle.tagName;
+		// rNode := TreeList1.Items.AddChild(nil, sHTML);
+		// Node := TreeList1.Items.AddChild(rNode, HTMLS[0, 0]);
+		// TreeList1.SetNodeColumn(node, 1, HTMLS[0, 1]);
 
+		rNode := SetNodeData(nil, sHTML, '', nil, 0);
+		SetNodeData(rNode, HTMLs[0, 0], HTMLs[0, 1], nil, 0);
 
+		iAttrCol := (CEle as IHTMLDOMNode).attributes as IHTMLATTRIBUTECOLLECTION;
+		sNode := nil;
+		for i := 0 to iAttrCol.Length - 1 do
+		begin
+			ovValue := i;
+			iDomAttr := iAttrCol.item(ovValue) as IHTMLDOMATTRIBUTE;
+			if iDomAttr.specified then
+			begin
+				s := LowerCase(VarToStr(iDomAttr.nodeName));
+				if (s <> 'role') and (copy(s, 1, 4) <> 'aria') then
+				begin
+					try
+						if sNode = nil then
+						begin
+							// Node := TreeList1.Items.AddChild(rNode, HTMLS[1, 0]);
+							Node := SetNodeData(rNode, HTMLs[1, 0], '', nil, 0);
+							sNode := Node;
+						end;
+						// Node := TreeList1.Items.AddChild(sNode, VarToStr(iDOmAttr.nodeName));
 
-    if iMode = 0 then
-    begin
-        HTMLS[0, 1] := CEle.tagName;
-        //rNode := TreeList1.Items.AddChild(nil, sHTML);
-        //Node := TreeList1.Items.AddChild(rNode, HTMLS[0, 0]);
-        //TreeList1.SetNodeColumn(node, 1, HTMLS[0, 1]);
+						if VarHaveValue(iDomAttr.nodeValue) then
+						begin
+							// TreeList1.SetNodeColumn(node, 1, VarToStr(iDomAttr.nodeValue));
+							SetNodeData(sNode, VarToStr(iDomAttr.nodeName),
+								VarToStr(iDomAttr.nodeValue), nil, 0);
+							hAttrs := hAttrs + VarToStr(iDomAttr.nodeName) +
+								VarToStr(iDomAttr.nodeValue) + '"' + #13#10;
+						end
+						else
+						begin
+							SetNodeData(sNode, VarToStr(iDomAttr.nodeName), '', nil, 0);
+						end;
+					except
+						on E: Exception do
+						begin
+							ShowErr(E.Message);
+						end;
+					end;
+				end;
+			end;
+		end;
+		TreeList1.Expanded[sNode] := True;
+	if hAttrs = '' then
+	begin
+		// Node := TreeList1.Items.AddChild(rNode, HTMLs[1, 0]);
+		// TreeList1.SetNodeColumn(node, 1, none)
+		SetNodeData(rNode, HTMLs[1, 0], None, nil, 0);
+	end;
+	if hAttrs = '' then
+		HTMLs[1, 1] := None
+	else
+		HTMLs[1, 1] := hAttrs;
 
-        rNode := SetNodeData(nil, sHTML, '', nil, 0);
-        SetNodeData(rNode, HTMLS[0, 0], HTMLS[0, 1], nil, 0);
+	HTMLs[2, 1] := CEle.outerHTML;
 
-        iAttrCol := (CEle as IHTMLDOMNODE).attributes as IHTMLATTRIBUTECOLLECTION;
-        sNode := nil;
-        for i := 0 to iAttrCol.length - 1 do
-        begin
-            ovValue := i;
-            iDomAttr := iAttrCol.item(ovValue) as IHTMLDomAttribute;
-            if iDomAttr.specified then
-            begin
-                s := lowerCase(VarToStr(iDomAttr.nodeName));
-                if (s <> 'role') and (Copy(s, 1, 4) <> 'aria') then
-                begin
-                    try
-                        if sNode = nil then
-                        begin
-                            //Node := TreeList1.Items.AddChild(rNode, HTMLS[1, 0]);
-                            Node := SetNodeData(rNode, HTMLS[1, 0], '', nil, 0);
-                            sNode := Node;
-                        end;
-                        //Node := TreeList1.Items.AddChild(sNode, VarToStr(iDOmAttr.nodeName));
-
-                        if VarHaveValue(iDomAttr.nodeValue) then
-                        begin
-                            //TreeList1.SetNodeColumn(node, 1, VarToStr(iDomAttr.nodeValue));
-                            SetNodeData(sNode, VarToStr(iDOmAttr.nodeName), VarToStr(iDomAttr.nodeValue), nil, 0);
-                            hattrs := hattrs + VarToStr(iDOmAttr.nodeName)  + VarToStr(iDomAttr.nodeValue) + '"' + #13#10;
-                        end
-                        else
-                        begin
-                          SetNodeData(sNode, VarToStr(iDOmAttr.nodeName), '', nil, 0);
-                        end;
-                    except
-                        on E:Exception do
-                        begin
-                            ShowErr(E.Message);
-                        end;
-                    end;
-                end;
-            end;
-        end;
-        TreeList1.Expanded[sNode] := True;
-    end
-    else
-        Exit;
-    if hattrs = '' then
-    begin
-        //Node := TreeList1.Items.AddChild(rNode, HTMLs[1, 0]);
-        //TreeList1.SetNodeColumn(node, 1, none)
-        SetNodeData(rNode, HTMLs[1, 0], none, nil, 0);
-    end;
-    if hattrs = '' then
-        HTMLS[1, 1] := none
-    else
-        HTMLS[1, 1] := hattrs;
-
-    HTMLs[2, 1] := CEle.outerHTML;
-
-        Result := sHTML + #13#10 + HTMLS[0, 0] + ':' + #9 +  HTMLS[0, 1] +
-                  #13#10 + HTMLS[1, 0] + ':' + #9 +  HTMLS[1, 1] +
-                  #13#10 + HTMLS[2, 0] + ':' + #9 +  HTMLS[2, 1] + #13#10#13#10;
-        Memo1.Text := HTMLS[2, 0] + ':' + #13#10 +  HTMLS[2, 1] + #13#10#13#10;
-        //rNode.Expand(True);
-        TreeList1.Expanded[rNode] := True;
+	Result := sHTML + #13#10 + HTMLs[0, 0] + ':' + #9 + HTMLs[0, 1] + #13#10 +
+		HTMLs[1, 0] + ':' + #9 + HTMLs[1, 1] + #13#10 + HTMLs[2, 0] + ':' + #9 +
+		HTMLs[2, 1] + #13#10#13#10;
+	Memo1.Text := HTMLs[2, 0] + ':' + #13#10 + HTMLs[2, 1] + #13#10#13#10;
+	// rNode.Expand(True);
+	TreeList1.Expanded[rNode] := True;
 end;
 
 function TwndMSAAV.HTMLText4FF: string;
@@ -3634,9 +3766,9 @@ var
     iText: ISimpleDOMText;
     iSP: iServiceProvider;
 begin
-    if SDOM = nil then
+    if not Assigned(SDOM) then
     begin
-        GetNaviState(True);
+        //GetNaviState(True);
         Exit;
     end;
     for i := 0 to 2 do HTMLsFF[i, 1] := '';
@@ -3716,7 +3848,7 @@ begin
     end;
 end;
 
-procedure Reflex(sID: string; iChild: integer; ISEle:ISimpleDOMNODE; var outEle: ISimpleDOMNODE);
+procedure Recursive(sID: string; iChild: integer; ISEle:ISimpleDOMNODE; var outEle: ISimpleDOMNODE);
 var
     aPC, aPC2: array [0..1] of pchar;
     aSI: array [0..1] of Smallint;
@@ -3746,7 +3878,7 @@ begin
                 Break;
             isEle.get_childAt(i, ChildNode);
             ChildNode.get_nodeInfo(PC, SI, PC2, pChild, PU2, WD);
-            Reflex(sID, Integer(pChild), ChildNode, outEle);
+            Recursive(sID, Integer(pChild), ChildNode, outEle);
         end;
     end;
 end;
@@ -3754,55 +3886,45 @@ end;
 function TwndMSAAV.GetSameAcc: boolean;
 var
     i: integer;
-    RC1, RC2: TRect;
     rNode: TTreeNode;
-const
-    IID_IUnknown : TGUID = '{00000000-0000-0000-C000-000000000046}';
+    cAccName: widestring;
+    cAccRole: string;
+    ov: olevariant;
 begin
     Result := false;
     try
-      // if not SUCCEEDED(iAcc.QueryInterface(IID_IUnknown, pUnk1)) then
-      // Exit;
+      ov := varParent;
+      iAcc.Get_accName(ov, cAccName);
+    	if cAccName = '' then
+        cAccName := None;
+    	cAccName := StringReplace(cAccName, #13, ' ', [rfReplaceAll]);
+    	cAccName := StringReplace(cAccName, #10, ' ', [rfReplaceAll]);
+    	cAccRole := Get_RoleText(iAcc, integer(varParent));
+      cAccName := cAccName + ' - ' + cAccRole;
       if TBList.Count > 0 then
       begin
-        iAcc.accLocation(RC1.left, RC1.top, RC1.right, RC1.bottom, VarParent);
-        for i := 0 to TBList.Count - 1 do
+      	for i := 0 to TBList.Count - 1 do
         begin
-          // Application.ProcessMessages;
-          if i > TreeView1.Items.Count - 1 then
-            Break;
-          rNode := TreeView1.Items.GetNode(HTreeItem(TBList.Items[i]));
-          if rNode <> nil then
-          begin
-            if (rNode.Data <> nil) and (TTreeData(rNode.Data^).Acc <> nil) then
-            begin
-
-              (TTreeData(rNode.Data^).Acc.accLocation(RC2.left, RC2.top, RC2.right, RC2.bottom, TTreeData(rNode.Data^).iID));
-              if (RC1.left = RC2.left) and (RC1.top = RC2.top) and (RC1.right = RC2.right) and (RC1.bottom = RC2.bottom) then
-              begin
-                try
-
-                  Result := True;
-                  TreeView1.OnChange := nil;
-                  //TreeView1.SetFocus;
-                  TreeView1.TopItem := rNode;
-                  rNode.Expanded := True;
-                  rNode.Selected := True;
-                  // GetNaviState;
-                  if (acShowTip.Checked) then
-                  begin
-                    ShowTipWnd;
-                  end;
-
-                  Break;
-                except
-
-                end;
-              end;
-              // end;
-            end;
-          end;
+        	Application.ProcessMessages;
+        	rNode := TreeView1.Items.GetNode(HTreeItem(TBList.Items[i]));
+        	if Assigned(rNode) and (rNode.Text = cAccName) then
+    			begin
+    				if IsSameUIElement(iAcc, TTreeData(rNode.Data^).Acc, varParent, TTreeData(rNode.Data^).iID) then
+						begin
+							TreeView1.OnChange := nil;
+							rNode.Expanded := True;
+							rNode.Selected := True;
+							Result := True;
+							if (acShowTip.Checked) then
+							begin
+								ShowTipWnd;
+							end;
+              GetNaviState;
+							break;
+						end;
+    			end;
         end;
+
       end;
 
     finally
@@ -3810,7 +3932,7 @@ begin
     end;
   end;
 
-procedure TwndMSAAV.ReflexID(sID: string; isEle: ISimpleDOMNODE; Labelled: boolean = true);
+procedure TwndMSAAV.RecursiveID(sID: string; isEle: ISimpleDOMNODE; Labelled: boolean = true);
 var
     pEle, TempEle, IDEle: ISimpleDOMNode;
     Serv: IServiceProvider;
@@ -3851,7 +3973,7 @@ begin
         IDEle := nil;
 
         //function get_attributesForNames(numAttribs: WORD; out attribNames: TBSTR; out nameSpaceID: Smallint; out attribValues: TBSTR): HRESULT; stdcall;
-        Reflex(sID, Integer(iChild), ISEle, IDEle);
+        Recursive(sID, Integer(iChild), ISEle, IDEle);
         //showmessage('E');
     end;
     if IDEle <> nil then
@@ -3896,9 +4018,9 @@ var
     RC: TRect;
 begin
 
-    if ((iMode = 0) and (CEle = nil)) or ((iMode =1) and (SDOM = nil)) then
+    if (CEle = nil) or (SDOM = nil) then
     begin
-        GetNaviState(True);
+        //GetNaviState(True);
         Exit;
     end;
     if Assigned(WndLabel) then
@@ -3917,7 +4039,7 @@ begin
         WndTarg := nil;
     end;
 
-        if (iMode = 0) then
+        if (Assigned(CEle)) then
         begin
             iAttrCol := (CEle as IHTMLDOMNODE).attributes as IHTMLATTRIBUTECOLLECTION;
             for i := 0 to iAttrCol.length - 1 do
@@ -4005,7 +4127,7 @@ begin
                 end;
             end;
         end
-        else if (iMode =1) then
+        else if (Assigned(SDOM)) then
         begin
             //function get_attributes(maxAttribs: WORD; out attribNames: TBSTR; out nameSpaceID: Smallint; out attribValues: TBSTR; out numAttribs: WORD): HRESULT; stdcall;
             //function get_attributesForNames(numAttribs: WORD; out attribNames: TBSTR; out nameSpaceID: Smallint; out attribValues: TBSTR): HRESULT; stdcall;
@@ -4026,10 +4148,10 @@ begin
                         if LowerS = 'aria-labelledby' then
                         begin
                             //showmessage(aPC2[i]);
-                            ReflexID(aPC2[i], SDOM, True);
+                            RecursiveID(aPC2[i], SDOM, True);
                         end
                         else if LowerS = 'aria-decirbedby' then
-                            ReflexID(aPC2[i], SDOM, False);
+                            RecursiveID(aPC2[i], SDOM, False);
                     end;
                 end;
             end;
@@ -4087,736 +4209,764 @@ begin
         TreeList1.Expanded[rNode] := True;
 end;
 
-function TwndMSAAV.IsSameUIElement(ia1, ia2: IAccessible): boolean;
+function TwndMSAAV.IsSameUIElement(ia1, ia2: IAccessible; iID1, iID2: integer): boolean;
 var
     UIEle1, UIEle2: IUIAutomationElement;
-    iSame, iRes: integer;
+    iSame: integer;
+    hr: hresult;
+    tagPT: UIAutomationClient_TLB.tagPoint;
+    ov: olevariant;
+    cRC: TRect;
 begin
-    result := False;
-    if Assigned(UIAuto) and Assigned(ia1) and Assigned(ia2) then
-    begin
-        if SUCCEEDED(UIAuto.ElementFromIAccessible(ia1, 0, UIEle1)) then
-        begin
-            if SUCCEEDED(UIAuto.ElementFromIAccessible(ia2, 0, UIEle2)) then
-            begin
-                iRes := UIAuto.CompareElements(UIEle1, UIEle2, iSame);
-                if SUCCEEDED(iRes) and (iSame <> 0) then
-                    Result := True;
-            end;
-        end;
+	Result := false;
+	if Assigned(UIAuto) and Assigned(ia1) and Assigned(ia2) then
+	begin
+  	hr := ia1.accLocation(cRC.Left, cRC.Top, cRC.Right, cRC.Bottom, iID1);
+    tagPT.X := cRC.Location.X;
+		tagPT.Y := cRC.Location.Y;
+		if (hr = 0) and SUCCEEDED(UIAuto.ElementFromPoint(tagPT, UIEle1)) then
+		begin
+      hr := ia2.accLocation(cRC.Left, cRC.Top, cRC.Right, cRC.Bottom, iID2);
+    	tagPT.X := cRC.Location.X;
+			tagPT.Y := cRC.Location.Y;
+			if (hr = 0) and SUCCEEDED(UIAuto.ElementFromPoint(tagPT, UIEle2)) then
+			begin
+				hr := UIAuto.CompareElements(UIEle1, UIEle2, iSame);
+				if SUCCEEDED(hr) and (iSame <> 0) then
+					Result := True;
+			end;
+		end;
 
-    end;
+	end;
 end;
 
 function TwndMSAAV.UIAText: string;
 var
-    iRes, i, t, iLen, iBool, iStyleID: integer;
-    dblRV: Double;
-    rNode, Node, cNode: pVirtualnode;
-    ini: TMemInifile;
-    ResEle: IUIAutomationElement;
-    UIArray: IUIAutomationElementArray;
-    iaTarg: IAccessible;
-    oVal: OleVariant;
-    ws: widestring;
-    RC:  tagRect;
-    p:pointer;
-    OT: OrientationType;
-    iInt: IInterface;
-    UIAs: array [0..59] of string;
-    iLeg: IUIAutomationLegacyIAccessiblePattern;
-    iRV: IUIAutomationRangeValuePattern;
-    iSID: IUIAutomationStylesPattern;
-    iIface: IInterface;
-    hr: hresult;
-    ND: PNodeData;
+	iRes, i, t, iLen, iBool, iStyleID: integer;
+	dblRV: double;
+	rNode, Node, cNode: PVirtualNode;
+	ini: TMemInifile;
+	ResEle: IUIAUTOMATIONELEMENT;
+	UIArray: IUIAutomationElementArray;
+	iaTarg: IAccessible;
+	oVal: OleVariant;
+	ws: WideString;
+	RC: tagRECT;
+	p: Pointer;
+	OT: OrientationType;
+	iInt: IInterface;
+	UIAs: array [0 .. 59] of string;
+	iLeg: IUIAutomationLegacyIAccessiblePattern;
+	iRV: IUIAutomationRangeValuePattern;
+	iSID: IUIAutomationStylesPattern;
+	iSP: IStylesProvider;
+	iIface: IInterface;
+	hr: HResult;
+	ND: PNodeData;
+
+  tagPT: UIAutomationClient_TLB.tagPoint;
+  ov: olevariant;
+  cRC: TRect;
 const
-		IsProps: Array [0..19] of Integer
-	    = (30027, 30028, 30029, 30030, 30031, 30032, 30033, 30034, 30035, 30036, 30037, 30038, 30039, 30040,
-      30041, 30042, 30043, 30044, 30108, 30109);
+	IsProps: Array [0 .. 19] of integer = (30027, 30028, 30029, 30030, 30031,
+		30032, 30033, 30034, 30035, 30036, 30037, 30038, 30039, 30040, 30041, 30042,
+		30043, 30044, 30108, 30109);
 
+	function GetMSAA: IAccessible;
+	var
+		rIacc: IAccessible;
+	begin
+		Result := nil;
+		if SUCCEEDED(ResEle.GetCurrentPattern(10018, iInt)) then
+		begin
+			if SUCCEEDED(iInt.QueryInterface
+				(IID_IUIAutomationLegacyIAccessiblePattern, iLeg)) then
+			begin
+				if SUCCEEDED(iLeg.GetIAccessible(rIacc)) then
+					Result := rIacc;
+			end;
+		end;
 
-    function GetMSAA: IAccessible;
-    var
-        rIacc: IAccessible;
-    begin
-        Result := nil;
-        if SUCCEEDED(ResEle.GetCurrentPattern(10018, iInt)) then
-        begin
-            if SUCCEEDED(iInt.QueryInterface(IID_IUIAutomationLegacyIAccessiblePattern, iLEg)) then
-            begin
-                if SUCCEEDED(iLeg.GetIAccessible(rIacc)) then
-                    Result := rIacc;
-            end;
-        end;
+	end;
+	function PropertyPatternIS(iID: integer): string;
+	begin
 
-    end;
-    function PropertyPatternIS(iID: integer): string;
-    begin
-
-        case iID of
-            30001: Result := 'rect';
-            30002, 30012: Result := 'int';
-            30003: Result := 'controltypeid';
-            30008, 30009, 30010, 30016, 30017, 30019, 30022, 30025, 30103: Result := 'bool';
-            //30018: Result := 'iuiautomationelement';
-            30020: Result := 'int';//'uia_hwnd';
-            //30104, 30105, 30106: Result := 'iuiautomationelementarray';
-            30023: Result := 'orientationtype';
-            else result := 'str';
-        end;
-    end;
-    function GetCID(iid: integer):string;
-    begin
-        ini := TMemIniFile.Create(TransPath, TEncoding.UTF8);
-        try
-            result := ini.ReadString('UIA', inttoStr(iid), none);
-        finally
-            ini.Free;
-        end;
-    end;
-    function GetOT:string;
-    begin
-        ini := TMemIniFile.Create(TransPath, TEncoding.UTF8);
-        try
-            if OT = OrientationType_Horizontal then
-                result := ini.ReadString('UIA', 'OrientationType_Horizontal', 'Horizontal')
-            else if OT = OrientationType_Vertical then
-                result := ini.ReadString('UIA', 'OrientationType_Vertical', 'Vertical')
-            else
-                result := ini.ReadString('UIA', 'OrientationType_None', 'None');
-        finally
-            ini.Free;
-        end;
-    end;
+		case iID of
+			30001:
+				Result := 'rect';
+			30002, 30012:
+				Result := 'int';
+			30003:
+				Result := 'controltypeid';
+			30008, 30009, 30010, 30016, 30017, 30019, 30022, 30025, 30103:
+				Result := 'bool';
+			// 30018: Result := 'iuiautomationelement';
+			30020:
+				Result := 'int'; // 'uia_hwnd';
+			// 30104, 30105, 30106: Result := 'iuiautomationelementarray';
+			30023:
+				Result := 'orientationtype';
+		else
+			Result := 'str';
+		end;
+	end;
+	function GetCID(iID: integer): string;
+	begin
+		ini := TMemInifile.Create(TransPath, TEncoding.UTF8);
+		try
+			Result := ini.ReadString('UIA', inttostr(iID), None);
+		finally
+			ini.Free;
+		end;
+	end;
+	function GetOT: string;
+	begin
+		ini := TMemInifile.Create(TransPath, TEncoding.UTF8);
+		try
+			if OT = OrientationType_Horizontal then
+				Result := ini.ReadString('UIA', 'OrientationType_Horizontal',
+					'Horizontal')
+			else if OT = OrientationType_Vertical then
+				Result := ini.ReadString('UIA', 'OrientationType_Vertical', 'Vertical')
+			else
+				Result := ini.ReadString('UIA', 'OrientationType_None', 'None');
+		finally
+			ini.Free;
+		end;
+	end;
 
 begin
-    if UIAuto = nil then Exit;
-    if not UIAMode then
-    begin
-      if AccIsNull(iAcc) then Exit;
+	if not Assigned(UIAuto) then
+		Exit;
+	if not acMSAAMode.Checked then
+	begin
+		uiEle := nil;
+    iAcc.accLocation(cRC.Left, cRC.Top, cRC.Right, cRC.Bottom, varParent);
+    tagPT.X := cRC.Location.X;
+		tagPT.Y := cRC.Location.Y;
+		UIAuto.ElementFromPoint(tagPT, uiEle);
+	end;
+	if (not Assigned(uiEle)) then
+		Exit;
+
+	try
+		// iRes := UIA.ElementFromIAccessible(iAcc, 0, UIEle);
+		if { (iRes = S_OK) and } (Assigned(uiEle)) then
+		begin
+			for i := 0 to 32 do
+				UIAs[i] := None;
+
+			if (flgUIA and TruncPow(2, 0)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentAcceleratorKey(ws)) then
+					begin
+						UIAs[0] := ws;
+					end;
+				except
+					on E: Exception do
+						UIAs[0] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 1)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentAccessKey(ws)) then
+					begin
+						UIAs[1] := ws;
+					end;
+				except
+					on E: Exception do
+						UIAs[1] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 2)) <> 0 then
+			begin
+				try
+
+					if SUCCEEDED(uiEle.Get_CurrentAriaProperties(ws)) then
+					begin
+						UIAs[2] := ws;
+					end;
+
+				except
+					on E: Exception do
+						UIAs[2] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 3)) <> 0 then
+			begin
+				try
+					VarClear(oVal);
+					TVarData(oVal).VType := varString;
+					uiEle.Get_CurrentAriaRole(ws);
+					if ws <> '' then
+						UIAs[3] := ws;
+				except
+					on E: Exception do
+						UIAs[3] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 4)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentAutomationId(ws)) then
+					begin
+						UIAs[4] := ws;
+					end;
+				except
+					on E: Exception do
+						UIAs[4] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 5)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentBoundingRectangle(RC)) then
+					begin
+						UIAs[5] := inttostr(RC.left) + ',' + inttostr(RC.top) + ',' +
+							inttostr(RC.right) + ',' + inttostr(RC.bottom);
+					end;
+				except
+					on E: Exception do
+						UIAs[5] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 6)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentClassName(ws)) then
+					begin
+						UIAs[6] := ws;
+					end;
+				except
+					on E: Exception do
+						UIAs[6] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 7)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentControlType(i)) then
+					begin
+						UIAs[7] := GetCID(i);
+					end;
+				except
+					on E: Exception do
+						UIAs[7] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 8)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentCulture(i)) then
+					begin
+						UIAs[8] := inttostr(i);
+					end;
+				except
+					on E: Exception do
+						UIAs[8] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 9)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentFrameWorkID(ws)) then
+					begin
+						UIAs[9] := ws;
+					end;
+				except
+					on E: Exception do
+						UIAs[9] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 10)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentHasKeyboardFocus(i)) then
+					begin
+						UIAs[10] := IntToBoolStr(i);
+					end;
+				except
+					on E: Exception do
+						UIAs[10] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 11)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentHelpText(ws)) then
+					begin
+						UIAs[11] := ws;
+					end;
+				except
+					on E: Exception do
+						UIAs[11] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 12)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentIsControlElement(i)) then
+					begin
+						UIAs[12] := IntToBoolStr(i);
+					end;
+				except
+					on E: Exception do
+						UIAs[12] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 13)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentIsContentElement(i)) then
+					begin
+						UIAs[13] := IntToBoolStr(i);
+					end;
+				except
+					on E: Exception do
+						UIAs[13] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 14)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentIsDataValidForForm(i)) then
+					begin
+						UIAs[14] := IntToBoolStr(i);
+					end;
+				except
+					on E: Exception do
+						UIAs[14] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 15)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentIsEnabled(i)) then
+					begin
+						UIAs[15] := IntToBoolStr(i);
+					end;
+				except
+					on E: Exception do
+						UIAs[15] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 16)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentIsKeyboardFocusable(i)) then
+					begin
+						UIAs[16] := IntToBoolStr(i);
+					end;
+				except
+					on E: Exception do
+						UIAs[16] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 17)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentIsOffscreen(i)) then
+					begin
+						UIAs[17] := IntToBoolStr(i);
+					end;
+				except
+					on E: Exception do
+						UIAs[17] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 18)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentIsPassword(i)) then
+					begin
+						UIAs[18] := IntToBoolStr(i);
+					end;
+				except
+					on E: Exception do
+						UIAs[18] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 19)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentIsRequiredForForm(i)) then
+					begin
+						UIAs[19] := IntToBoolStr(i);
+					end;
+				except
+					on E: Exception do
+						UIAs[19] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 20)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentItemStatus(ws)) then
+					begin
+						UIAs[20] := ws;
+					end;
+				except
+					on E: Exception do
+						UIAs[20] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 21)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentItemType(ws)) then
+					begin
+						UIAs[21] := ws;
+					end;
+				except
+					on E: Exception do
+						UIAs[21] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 22)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentLocalizedControlType(ws)) then
+					begin
+						UIAs[22] := ws;
+					end;
+				except
+					on E: Exception do
+						UIAs[22] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 23)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentName(ws)) then
+					begin
+						UIAs[23] := ws;
+					end;
+				except
+					on E: Exception do
+						UIAs[23] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 24)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentNativeWindowHandle(p)) then
+					begin
+						UIAs[24] := inttostr(integer(p));
+					end;
+				except
+					on E: Exception do
+						UIAs[24] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 25)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentOrientation(OT)) then
+					begin
+
+						UIAs[25] := GetOT;
+					end;
+				except
+					on E: Exception do
+						UIAs[25] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 26)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentProcessId(i)) then
+					begin
+						UIAs[26] := inttostr(i);
+					end;
+				except
+					on E: Exception do
+						UIAs[26] := E.Message;
+				end;
+			end;
+			if (flgUIA and TruncPow(2, 27)) <> 0 then
+			begin
+				try
+					if SUCCEEDED(uiEle.Get_CurrentProviderDescription(ws)) then
+					begin
+						UIAs[27] := ws;
+					end;
+				except
+					on E: Exception do
+						UIAs[27] := E.Message;
+				end;
+			end;
 
 
-      UIEle := nil;
-      UIAuto.ElementFromIAccessible(iAcc, 0, UIEle);
-    end;
-    if not Assigned(UIEle) then Exit;
-    //if flgUIA = 0 then Exit;
-    //UIEle := nil;
 
-    try
-        //iRes := UIA.ElementFromIAccessible(iAcc, 0, UIEle);
-        if {(iRes = S_OK) and} (Assigned(UIEle)) then
-        begin
-            for i := 0 to 32 do
-                UIAs[i] := none;
+			if (flgUIA2 and TruncPow(2, 1)) <> 0 then
+			begin
+				try // LiveSetting
+					if SUCCEEDED(uiEle.GetCurrentPropertyValue(30135, oVal)) then
+					begin
+						if VarHaveValue(oVal) then
+						begin
+							if VarIsStr(oVal) or VarIsNumeric(oVal) then
+								UIAs[32] := oVal;
+						end;
+					end;
+				except
+					on E: Exception do
+						UIAs[32] := E.Message;
+				end;
+			end;
 
-            if (flgUIA and TruncPow(2, 0)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentAcceleratorKey(ws)) then
-                    begin
-                        UIAs[0] := ws;
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[0] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 1)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentAccessKey(ws)) then
-                    begin
-                        UIAs[1] := ws;
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[1] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 2)) <> 0 then
-            begin
-                try
+			for i := 0 to 19 do
+			begin
+				if (flgUIA2 and TruncPow(2, i + 2)) <> 0 then
+				begin
+					try // LiveSetting
+						if SUCCEEDED(uiEle.GetCurrentPropertyValue(IsProps[i], oVal)) then
+						begin
+							if VarHaveValue(oVal) then
+							begin
+								if VarIsType(oVal, varBoolean) then
+								begin
+									iBool := oVal;
+									UIAs[33 + i] := IfThen(iBool <> 0, sTrue, sFalse);
+								end;
+							end;
+						end;
+					except
+						on E: Exception do
+							UIAs[33 + i] := E.Message;
+					end;
+				end;
+			end;
+			if (flgUIA2 and TruncPow(2, 22)) <> 0 then
+			begin
+				// #30047~30052
+				// GetCurrentPatternAs http://msdn.microsoft.com/en-us/library/windows/desktop/ee696039(v=vs.85).aspx
+				// UIA_RangeValuePatternId 10003
+				try
+					hr := uiEle.GetCurrentPattern(UIA_RangeValuePatternId, iIface);
+					if hr = S_OK then
+					begin
+						if Assigned(iIface) then
+						begin
+							if SUCCEEDED
+								(iIface.QueryInterface(IID_IUIAutomationRangeValuePattern, iRV))
+							then
+							begin
+								if SUCCEEDED(iRV.Get_currentValue(dblRV)) then
+									UIAs[53] := Floattostr(dblRV);
+								if SUCCEEDED(iRV.Get_CurrentIsReadOnly(iBool)) then
+									UIAs[54] := IfThen(iBool <> 0, sTrue, sFalse);
+								if SUCCEEDED(iRV.Get_CurrentMinimum(dblRV)) then
+									UIAs[55] := Floattostr(dblRV);
+								if SUCCEEDED(iRV.Get_CurrentMaximum(dblRV)) then
+									UIAs[56] := Floattostr(dblRV);
+								if SUCCEEDED(iRV.Get_CurrentLargeChange(dblRV)) then
+									UIAs[57] := Floattostr(dblRV);
+								if SUCCEEDED(iRV.Get_CurrentSmallChange(dblRV)) then
+									UIAs[58] := Floattostr(dblRV);
+							end;
+						end;
+					end;
+				except
+					on E: Exception do
+						UIAs[53] := E.Message;
+				end;
+			end;
+			if (flgUIA2 and TruncPow(2, 23)) <> 0 then
+			begin
+				try
+					hr := uiEle.GetCurrentPattern(UIA_StylesPatternId, iIface);
+					if (hr = S_OK) and Assigned(iIface) then
+					begin
+						hr := iIface.QueryInterface(IID_IUIAutomationStylesPattern, iSID);
+						if (hr = S_OK) and Assigned(iSP) then
+						// hr := iiFace.QueryInterface(IID_IStylesProvider, iSP);
+						// if (hr = S_OK) and Assigned(iSP) then
+						begin
+							hr := iSID.Get_CurrentStyleId(iStyleID);
+							// outputdebugstring(PWideChar('current style id is ' + inttostr(istyleid)));
+							// hr := iSP.get_StyleId(iStyleID);
+							if (hr = S_OK)
+							{ and ((iStyleID >= 70000) and (iStyleID <= 70016)) } then
+							begin
+								// UIAs[59] := StyleID[iStyleID - 70000];
+								UIAs[59] := inttostr(iStyleID);
+							end;
+						end;
+					end;
+				except
+					on E: Exception do
+						UIAs[59] := E.Message;
+				end;
+			end;
+			Result := lUIA[0] + #13#10;
+			// nodes := TreeList1.Items;
 
-                    if SUCCEEDED(UIEle.Get_CurrentAriaProperties(ws)) then
-                    begin
-                        UIAs[2] := ws;
-                    end;
+			// rNode := nodes.AddChild(nil, lUIA[0]);
+			rNode := SetNodeData(nil, lUIA[0], '', nil, 0);
+			for i := 0 to 54 do
+			begin
 
+				if i < 31 then
+				begin
+					if (flgUIA and TruncPow(2, i)) <> 0 then
+					begin
+						if i >= 28 then
+						begin
+							// node := nodes.AddChild(rNode, lUIA[i+1]);
+							Node := SetNodeData(rNode, lUIA[i + 1], '', nil, 0);
+							UIArray := nil;
+							iRes := E_FAIL;
+							if i = 28 then
+							begin
+								iRes := uiEle.Get_CurrentControllerFor(UIArray);
+							end
+							else if i = 29 then
+							begin
+								iRes := uiEle.Get_CurrentDescribedBy(UIArray);
+							end
+							else if i = 30 then
+							begin
+								iRes := uiEle.Get_CurrentFlowsTo(UIArray);
+							end;
+							if Assigned(UIArray) and SUCCEEDED(iRes) then
+							begin
+								if SUCCEEDED(UIArray.Get_Length(iLen)) then
+								begin
+									for t := 0 to iLen - 1 do
+									begin
+										// cNode := nodes.AddChild(Node, inttostr(t));
+										cNode := SetNodeData(Node, inttostr(t), '', nil, 0);
+										ResEle := nil;
+										if SUCCEEDED(UIArray.GetElement(t, ResEle)) then
+										begin
+											if Assigned(ResEle) then
+											begin
+												ws := None;
+												if not acMSAAMode.Checked then
+												begin
+													iaTarg := GetMSAA;
+													if Assigned(iaTarg) then
+													begin
+														iaTarg.Get_accName(0, ws);
+														ND := TreeList1.GetNodeData(cNode);
+														ND.Acc := iaTarg;
+														ND.iID := 0;
 
-                except
-                    on E: Exception do
-                        UIAs[2] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 3)) <> 0 then
-            begin
-                try
-                    VarClear(oVal);
-                    TVarData(oVal).VType := varString;
-                    UIEle.Get_CurrentAriaRole(ws);
-                    if ws <> '' then
-                        UIAs[3] := ws;
-                except
-                    on E: Exception do
-                        UIAs[3] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 4)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentAutomationId(ws)) then
-                    begin
-                        UIAs[4] := ws;
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[4] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 5)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentBoundingRectangle(RC)) then
-                    begin
-                        UIAs[5] := IntToStr(RC.Left) + ',' + IntToStr(RC.Top) + ',' + IntToStr(RC.Right) + ',' + IntToStr(RC.Bottom);
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[5] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 6)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentClassName(ws)) then
-                    begin
-                        UIAs[6] := ws;
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[6] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 7)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentControlType(i)) then
-                    begin
-                        UIAs[7] := GetCID(i);
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[7] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 8)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentCulture(i)) then
-                    begin
-                        UIAs[8] := InttoStr(i);
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[8] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 9)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentFrameworkId(ws)) then
-                    begin
-                        UIAs[9] := ws;
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[9] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 10)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentHasKeyboardFocus(i)) then
-                    begin
-                        UIAs[10] := IntToBoolStr(i);
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[10] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 11)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentHelpText(ws)) then
-                    begin
-                        UIAs[11] := ws;
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[11] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 12)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentIsControlElement(i)) then
-                    begin
-                        UIAs[12] := IntToBoolStr(i);
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[12] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 13)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentIsContentElement(i)) then
-                    begin
-                        UIAs[13] := IntToBoolStr(i);
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[13] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 14)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentIsDataValidForForm(i)) then
-                    begin
-                        UIAs[14] := IntToBoolStr(i);
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[14] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 15)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentIsEnabled(i)) then
-                    begin
-                        UIAs[15] := IntToBoolStr(i);
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[15] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 16)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentIsKeyboardFocusable(i)) then
-                    begin
-                        UIAs[16] := IntToBoolStr(i);
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[16] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 17)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentIsOffscreen(i)) then
-                    begin
-                        UIAs[17] := IntToBoolStr(i);
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[17] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 18)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentIsPassword(i)) then
-                    begin
-                        UIAs[18] := IntToBoolStr(i);
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[18] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 19)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentIsRequiredForForm(i)) then
-                    begin
-                        UIAs[19] := IntToBoolStr(i);
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[19] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 20)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentItemStatus(ws)) then
-                    begin
-                        UIAs[20] := ws;
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[20] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 21)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentItemType(ws)) then
-                    begin
-                        UIAs[21] := ws;
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[21] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 22)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentLocalizedControlType(ws)) then
-                    begin
-                        UIAs[22] := ws;
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[22] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 23)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentName(ws)) then
-                    begin
-                        UIAs[23] := ws;
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[23] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 24)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentNativeWindowHandle(p)) then
-                    begin
-                        UIAs[24] := InttoStr(Integer(p));
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[24] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 25)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentOrientation(OT)) then
-                    begin
+													end;
+												end
+												else
+												begin
+													// UIA_LegacyIAccessibleNamePropertyId = 30092
+													ResEle.GetCurrentPropertyValue(30092, oVal);
+													ws := string(oVal);
+												end;
+												ND := TreeList1.GetNodeData(cNode);
+												ND.Value2 := ws;
+												// TreeList1.SetNodeColumn(cnode, 1, ws);
+												Result := Result + lUIA[i + 1] + ':' + #9 + ws + #13#10;
+											end;
+										end;
+									end;
+									TreeList1.Expanded[Node] := True;
+								end;
+							end
+							else
+							begin
+								// TreeList1.SetNodeColumn(node, 1, none);
+								ND := TreeList1.GetNodeData(Node);
+								ND.Value2 := None;
+							end;
+						end
+						else
+						begin
+							// node := nodes.AddChild(rNode, lUIA[i+1]);
+							// TreeList1.SetNodeColumn(node, 1, UIAs[i]);
+							SetNodeData(rNode, lUIA[i + 1], UIAs[i], nil, 0);
+							Result := Result + lUIA[i + 1] + ':' + #9 + UIAs[i] + #13#10;
+						end;
+					end;
+				end
+				else
+				begin
+					if (flgUIA2 and TruncPow(2, i - 31)) <> 0 then
+					begin
+						if i = 31 then
+						begin
+							// node := nodes.AddChild(rNode, lUIA[i+1]);
+							Node := SetNodeData(rNode, lUIA[i + 1], '', nil, 0);
+							ND := TreeList1.GetNodeData(Node);
+							try
+								iRes := uiEle.Get_CurrentLabeledBy(ResEle);
+								if SUCCEEDED(iRes) then
+								begin
 
-                        UIAs[25] := GetOT;
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[25] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 26)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentProcessId(i)) then
-                    begin
-                        UIAs[26] := InttoStr(i);
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[26] := E.Message;
-                end;
-            end;
-            if (flgUIA and TruncPow(2, 27)) <> 0 then
-            begin
-                try
-                    if SUCCEEDED(UIEle.Get_CurrentProviderDescription(ws)) then
-                    begin
-                        UIAs[27] := ws;
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[27] := E.Message;
-                end;
-            end;
+									if not SUCCEEDED(ResEle.Get_CurrentName(ws)) then
+										ws := None;
+									// node := nodes.AddChild(node, ws);
+									// TreeList1.SetNodeColumn(node, 1, ws);
 
+									ND.Value2 := ws;
 
+									Result := Result + lUIA[i + 1] + ':' + #9 + ws + #13#10;
+									if not acMSAAMode.Checked then
+									begin
+										ND.Acc := GetMSAA;
+										ND.iID := 0;
+									end;
 
-            if (flgUIA2 and TruncPow(2, 1)) <> 0 then
-            begin
-                try //LiveSetting
-                    if SUCCEEDED(UIEle.GetCurrentPropertyValue(30135, oval)) then
-                    begin
-                        if VarHaveValue(oval) then
-                        begin
-                            if VarIsStr(oval) or VarIsNumeric(oval) then
-                                UIAs[32] := oval;
-                        end;
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[32] := E.Message;
-                end;
-            end;
+									// UIAs[31] := ws;
+								end
+								else
+									ND.Value2 := None;
+							except
+								on E: Exception do
+									// UIAs[31] := E.Message;
+							end;
+						end
+						else if i = 53 then
+						begin
+							// node := nodes.AddChild(rNode, lUIA[54]);
+							Node := SetNodeData(rNode, lUIA[54], '', nil, 0);
+							Result := Result + lUIA[54];
+							try
+								for t := 0 to 5 do
+								begin
+									// cNode := nodes.AddChild(Node, lUIA[55+t]);
+									// TreeList1.SetNodeColumn(cnode, 1, UIAs[53+t]);
+									SetNodeData(Node, lUIA[55 + t], UIAs[53 + t], nil, 0);
+									Result := Result + #9 + lUIA[55 + t] + ':' +
+										UIAs[53 + t] + #13#10;
+								end;
+								TreeList1.Expanded[Node] := True;
+							except
+								on E: Exception do
+									// UIAs[31] := E.Message;
+							end;
+						end
+						else if i = 54 then
+						begin
+							SetNodeData(rNode, lUIA[61], UIAs[59], nil, 0);
+							Result := Result + lUIA[61] + ':' + #9 + UIAs[59] + #13#10;
+						end
+						else
+						begin
 
-            for i := 0 to 19 do
-            begin
-            	if (flgUIA2 and TruncPow(2, i + 2)) <> 0 then
-            	begin
-              	try //LiveSetting
-                    if SUCCEEDED(UIEle.GetCurrentPropertyValue(IsProps[i], oval)) then
-                    begin
-                        if VarHaveValue(oval) then
-                        begin
-                            if VarIsType(oval, varBoolean)  then
-                            begin
-                                iBool := oval;
-                                UIAs[33+i] := IfThen(iBool <> 0, sTrue, sFalse);
-                            end;
-                        end;
-                    end;
-                except
-                    on E: Exception do
-                        UIAs[33+i] := E.Message;
-                end;
-              end;
-            end;
-            if (flgUIA2 and TruncPow(2, 22)) <> 0 then
-            begin
-            	//#30047~30052
-              //GetCurrentPatternAs http://msdn.microsoft.com/en-us/library/windows/desktop/ee696039(v=vs.85).aspx
-              //UIA_RangeValuePatternId 10003
-              try
-              hr :=  UIEle.GetCurrentPattern(UIA_RangeValuePatternId, iiFace);
-              if hr = S_OK then
-              begin
-              	if Assigned(iiFace) then
-                begin
-                	if SUCCEEDED(iiFace.QueryInterface(IID_IUIAutomationRangeValuePattern, iRV)) then
-                  begin
-                  	if SUCCEEDED(iRV.Get_CurrentValue(dblRV)) then
-                  		UIAs[53] := Floattostr(dblRV);
-                    if SUCCEEDED(iRV.Get_CurrentIsReadOnly(iBool)) then
-                  		UIAs[54] := IfThen(iBool <> 0, sTrue, sFalse);
-                    if SUCCEEDED(iRV.Get_CurrentMinimum(dblRV)) then
-                  		UIAs[55] := Floattostr(dblRV);
-                    if SUCCEEDED(iRV.Get_CurrentMaximum(dblRV)) then
-                  		UIAs[56] := Floattostr(dblRV);
-                    if SUCCEEDED(iRV.Get_CurrentLargeChange(dblRV)) then
-                  		UIAs[57] := Floattostr(dblRV);
-                    if SUCCEEDED(iRV.Get_CurrentSmallChange(dblRV)) then
-                  		UIAs[58] := Floattostr(dblRV);
-                  end;
-                end;
-              end;
-              except
-              	    on E: Exception do
-                        UIAs[53] := E.Message;
-              end;
-            end;
-            if (flgUIA2 and TruncPow(2, 23)) <> 0 then
-            begin
-              try
-              hr :=  UIEle.GetCurrentPattern(UIA_StylesPatternId, iiFace);
-              if (hr = S_OK) and Assigned(iiFace) then
-              begin
-
-                  hr := iiFace.QueryInterface(IID_IUIAutomationStylesPattern, iSID);
-                	if (hr = S_OK) and Assigned(iSID) then
-                  begin
-
-                    hr := iSID.Get_CurrentStyleId(iStyleID);
-                    outputdebugstring(PWideChar('current style id is ' + inttostr(istyleid)));
-                    if (hr = S_OK) and ((iStyleID >= 70000) and (iStyleID <= 70016)) then
-                    begin
-                      UIAs[59] := StyleID[iStyleID - 70000];
-                    end;
-                  end;
-              end;
-              except
-                on E: Exception do
-                  UIAs[59] := E.Message;
-              end;
-            end;
-            Result := lUIA[0] + #13#10;
-            //nodes := TreeList1.Items;
-
-            //rNode := nodes.AddChild(nil, lUIA[0]);
-            rNode := SetNodeData(nil, lUIA[0], '', nil, 0);
-            for i := 0 to 54 do
-            begin
-
-                if i < 31 then
-                begin
-                    if (flgUIA and TruncPow(2, i)) <> 0 then
-                    begin
-                        if i >= 28 then
-                        begin
-                            //node := nodes.AddChild(rNode, lUIA[i+1]);
-                            Node := SetNodeData(rNode, lUIA[i+1], '', nil, 0);
-                            UIArray := nil;
-                            iRes := E_FAIL;
-                            if i = 28 then
-                            begin
-                                iRes := UIEle.Get_CurrentControllerFor(UIArray);
-                            end
-                            else if i = 29 then
-                            begin
-                                iRes := UIEle.Get_CurrentDescribedBy(UIArray);
-                            end
-                            else if i = 30 then
-                            begin
-                                iRes := UIEle.Get_CurrentFlowsTo(UIArray);
-                            end;
-                            if Assigned(UIArray) and SUCCEEDED(ires) then
-                            begin
-                                if SUCCEEDED(UIArray.Get_Length(iLen)) then
-                                begin
-                                    for t := 0 to iLen - 1 do
-                                    begin
-                                        //cNode := nodes.AddChild(Node, inttostr(t));
-                                        cNode := SetNodeData(Node, inttostr(t), '', nil, 0);
-                                        ResEle := nil;
-                                        if SUCCEEDED(UIArray.GetElement(t, ResEle)) then
-                                        begin
-                                            if Assigned(ResEle) then
-                                            begin
-                                                ws := none;
-                                                if not UIAMode then
-                                                begin
-                                                  iaTarg := GetMSAA;
-                                                  if Assigned(iaTarg) then
-                                                  begin
-                                                      iaTarg.Get_accName(0, ws);
-                                                      ND := TreeList1.GetNodeData(cNode);
-                                                      ND.Acc := iaTarg;
-                                                      ND.iID := 0;
-
-                                                  end;
-                                                end
-                                                else
-                                                begin
-                                                  //UIA_LegacyIAccessibleNamePropertyId = 30092
-                                                  ResEle.GetCurrentPropertyValue(30092, oVal);
-                                                  ws := string(oVal);
-                                                end;
-                                                ND := TreeList1.GetNodeData(cNode);
-                                                ND.Value2 := ws;
-                                                //TreeList1.SetNodeColumn(cnode, 1, ws);
-                                                Result := Result + lUIA[i+1] + ':' + #9 + ws + #13#10;
-                                            end;
-                                        end;
-                                    end;
-                                    TreeList1.Expanded[Node] := True;
-                                end;
-                            end
-                            else
-                            begin
-                                //TreeList1.SetNodeColumn(node, 1, none);
-                                ND := TreeList1.GetNodeData(Node);
-                                ND.Value2 := none;
-                            end;
-                        end
-                        else
-                        begin
-                            //node := nodes.AddChild(rNode, lUIA[i+1]);
-                            //TreeList1.SetNodeColumn(node, 1, UIAs[i]);
-                            SetNodeData(rNode, lUIA[i+1], UIAs[i], nil, 0);
-                            Result := Result + lUIA[i+1] + ':' + #9 + UIAs[i] + #13#10;
-                        end;
-                    end;
-                end
-                else
-                begin
-                  if (flgUIA2 and TruncPow(2, i-31)) <> 0 then
-                  begin
-                      if i = 31 then
-                      begin
-                        //node := nodes.AddChild(rNode, lUIA[i+1]);
-                        Node := SetNodeData(rNode, lUIA[i+1], '', nil, 0);
-                        ND := TreeList1.GetNodeData(Node);
-                        try
-                            iRes := UIEle.Get_CurrentLabeledBy(ResEle);
-                            if SUCCEEDED(iRes) then
-                            begin
-
-
-                                if not SUCCEEDED(ResEle.Get_CurrentName(ws)) then
-                                    ws := none;
-                                //node := nodes.AddChild(node, ws);
-                                //TreeList1.SetNodeColumn(node, 1, ws);
-
-                                ND.Value2 := ws;
-
-                                Result := Result + lUIA[i+1] + ':' + #9 + ws + #13#10;
-                                if not UIAMode then
-                                begin
-                                 ND.Acc := GetMSAA;
-                                 ND.iID := 0;
-                                end;
-
-                                //UIAs[31] := ws;
-                            end
-                            else
-                                ND.Value2 := none;
-                        except
-                        on E: Exception do
-                            //UIAs[31] := E.Message;
-                        end;
-                      end
-                      else if i = 53 then
-                      begin
-                      	//node := nodes.AddChild(rNode, lUIA[54]);
-                        Node := SetNodeData(rNode, lUIA[54], '', nil, 0);
-                        Result := Result + lUIA[54];
-                        try
-                        	for t := 0 to 5 do
-                          begin
-                            //cNode := nodes.AddChild(Node, lUIA[55+t]);
-                          	//TreeList1.SetNodeColumn(cnode, 1, UIAs[53+t]);
-                            SetNodeData(Node, lUIA[55+t], UIAs[53+t], nil, 0);
-                            Result := Result + #9 + lUIA[55+t] + ':' + UIAs[53+t] + #13#10;
-                          end;
-                          TreeList1.Expanded[Node] := True;
-                        except
-                        on E: Exception do
-                            //UIAs[31] := E.Message;
-                        end;
-                      end
-                      else if i = 54 then
-                      begin
-                        SetNodeData(rNode, lUIA[61], UIAs[59], nil, 0);
-                        Result := Result + lUIA[61] + ':' + #9 + UIAs[59] + #13#10;
-                      end
-                      else
-                      begin
-
-                        //node := nodes.AddChild(rNode, lUIA[i+1]);
-                        //TreeList1.SetNodeColumn(node, 1, UIAs[i]);
-                        SetNodeData(rNode, lUIA[i+1], UIAs[i], nil, 0);
-                        Result := Result + lUIA[i+1] + ':' + #9 + UIAs[i] + #13#10;
-                      end;
-                  end;
-                end;
-            end;
-            //rNode.Expand(True);
-            TreeList1.Expanded[rNode] := True;
-        end;
-    finally
-    end;
+							// node := nodes.AddChild(rNode, lUIA[i+1]);
+							// TreeList1.SetNodeColumn(node, 1, UIAs[i]);
+							SetNodeData(rNode, lUIA[i + 1], UIAs[i], nil, 0);
+							Result := Result + lUIA[i + 1] + ':' + #9 + UIAs[i] + #13#10;
+						end;
+					end;
+				end;
+			end;
+			// rNode.Expand(True);
+			TreeList1.Expanded[rNode] := True;
+		end;
+  finally
+  end;
 
 end;
 
@@ -4934,63 +5084,70 @@ var
     hm: HMonitor;
     iVW: IUIAutomationTreeWalker;
     pEle, cEle: IUIAutomationElement;
+    hr: HResult;
 begin
-    if AccIsNull(iAcc) and (not UIAMode) then Exit;
-    if UIAEIsNull(UIEle) and (UIAMode) then Exit;
+    if not Assigned(iAcc) and (not acMSAAMode.Checked) then Exit;
+    if (acMSAAMode.Checked) then Exit;
     try
 
 
 
         if mnublnMSAA.Checked then
             s := s + sMSAATxt;//MSAAText4Tip;
-        if mnublnIA2.Checked  and (not UIAMode) then
+        if mnublnIA2.Checked  and (not acMSAAMode.Checked) then
             s := s + SetIA2Text(iacc, false);
-        if mnublnCode.Checked and (not UIAMode) then
-        begin
-          c := sHTML;
-          inner := sTypeFF;
-          outer := sTypeIE;
-            iSP := iAcc as IServiceProvider;
-            if iMode = 0 then
-            begin
+        if mnublnCode.Checked and (not acMSAAMode.Checked) then
+					begin
+						c := sHTML;
+						inner := sTypeFF;
+						outer := sTypeIE;
+						hr := iAcc.QueryInterface(IID_IServiceProvider, iSP);
+						if (hr = 0) and (Assigned(iSP)) then
+						begin
+							hr := iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement, iEle);
+							if (hr = 0) and (Assigned(iEle)) then
+							begin
 
+								if (SUCCEEDED(iSP.QueryService(IID_IHTMLElement,
+									IID_IHTMLElement, iEle))) then
+								begin
+									sRC := iEle.outerHTML;
+									sRC := copy(sRC, 0, ShowSrcLen);
+									s := s + c + outer + ':' + #13#10 + sRC;
+								end;
+							end
+							else
+							begin
+              	hr := iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, isd);
+								if (hr = 0) and (Assigned(isd)) then
+								begin
+									isd.get_nodeInfo(PC, SI, PC2, PU, PU2, WD);
 
-                if (SUCCEEDED(iSP.QueryService(IID_IHTMLELEMENT, IID_IHTMLELEMENT, iEle))) then
-                begin
-                    Src := iEle.outerHTML;
-                    Src := Copy(Src, 0, ShowSrcLen);
-                    s := s + c + outer + ':' + #13#10 + Src;
-                end;
-            end
-            else if iMode = 1 then
-            begin
-                if SUCCEEDED(iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, isd)) then
-                begin
-                    isd.get_nodeInfo(PC, SI, PC2, PU, PU2, WD);
+									if WD <> 3 then
+									begin
+										PC := '';
+										isd.get_innerHTML(PC);
+										sRC := copy(PC, 0, ShowSrcLen);
+										s := s + c + inner + #13#10 + sRC;
+									end
+									else
+									begin
+										iSP := isd as IServiceProvider;
+										if SUCCEEDED(iSP.QueryInterface(IID_ISIMPLEDOMTEXT, iText))
+										then
+										begin
+											iText.get_domText(PC);
+											sRC := copy(PC, 0, ShowSrcLen);
+											s := s + c + '(' + sTxt + ')' + #13#10 + sRC;
+										end;
+									end;
+								end;
+							end;
+						end;
+						// s := s + Src;
+					end;
 
-                    if WD <>3 then
-                    begin
-                        PC := '';
-                        isd.get_innerHTML(PC);
-                        Src := Copy(PC, 0, ShowSrcLen);
-                        s := s + c +inner  + #13#10 + Src;
-                    end
-                    else
-                    begin
-                        iSP := isd as IServiceProvider;
-                        if SUCCEEDED(iSP.QueryInterface(IID_ISIMPLEDOMTEXT, iText)) then
-                        begin
-                            iText.get_domText(PC);
-                            Src := Copy(PC, 0, ShowSrcLen);
-                            s := s + c +'(' + sTxt + ')' + #13#10 + Src;
-                        end;
-                    end;
-                end;
-            end;
-            //s := s + Src;
-        end;
-
-        if not UIAMode then
+        if not acMSAAMode.Checked then
         begin
           vChild := varParent;//CHILDID_SELF;
           iAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, vChild);
@@ -5013,7 +5170,7 @@ begin
         end;
             ShowBalloonTip(self, 1, 'Aviewer', s, rc, sLeft, sTop, True);
             SetBalloonPos(sLeft, sTop);
-            if not UIAMode then
+            if not acMSAAMode.Checked then
               WindowFromAccessibleObject(iAcc, Wnd)
             else
             begin
@@ -5097,7 +5254,7 @@ var
     RC: TRect;
     vChild: variant;
 begin
-    if AccIsNull(iAcc) then Exit;
+    if not Assigned(iAcc) then Exit;
 
     try
         if not Assigned(WndFocus) then
@@ -5159,7 +5316,7 @@ procedure TwndMSAAV.ShowDescWnd(bkClr: TColor; RC:TRect);
 var
     vChild: variant;
 begin
-    if AccIsNull(iAcc) then Exit;
+    if not Assigned(iAcc) then Exit;
 
     try
         if not Assigned(WndDesc) then
@@ -5191,7 +5348,7 @@ procedure TwndMSAAV.ShowLabeledWnd(bkClr: TColor; RC:TRect);
 var
     vChild: variant;
 begin
-    if AccIsNull(iAcc) then Exit;
+    if not Assigned(iAcc) then Exit;
 
     try
         if not Assigned(WndLabel) then
@@ -5224,7 +5381,7 @@ procedure TwndMSAAV.ShowTargWnd(bkClr: TColor; RC:TRect);
 var
     vChild: variant;
 begin
-    if AccIsNull(iAcc) then Exit;
+    if not Assigned(iAcc) then Exit;
 
     try
         if not Assigned(WndTarg) then
@@ -5266,292 +5423,77 @@ begin
     result := LowerCase(s);
 end;
 
-function TwndMSAAV.GetOpeMode(CName: string): integer;
-var
-  i: integer;
-begin
-  Result := 2;
-
-  if (LowerCase(CName) = 'internet explorer_server') or (LowerCase(CName) = 'macromediaflashplayeractivex') or (LowerCase(CName) = 'windows.ui.core.corewindow') then
-    Result := 0
-  else
-  begin
-    for i := 0 to ClsNames.Count - 1 do
-    begin
-
-      if (ClsNames[i] = LowerCase(CName)) then
-      begin
-        Result := 1;
-
-        break;
-      end;
-    end;
-  end;
-  {else if (s = 'mozillauiwindowclass') or (s = 'chrome_renderwidgethosthwnd') or (s = 'mozillawindowclass') or (s = 'chrome_widgetwin_0') or (s = 'chrome_widgetwin_1') then
-    Result := 1
-  else
-    Result := 2; }
-end;
-
-
-
-procedure TwndMSAAV.Timer1Timer(Sender: TObject);
-var
-    Wnd: hwnd;
-    i: cardinal;
-    pAcc: IAccessible;
-    v: variant;
-    idis: iDispatch;
-    tagPT: UIAutomationClient_tlb.tagPoint;
-    rc: UIAutomationClient_tlb.tagRECT;
-    iVW: IUIAutomationTreeWalker;
-    oEle, edgeEle: IUIAutomationElement;
-    wName: widestring;
-  function IsEdge: boolean;
-  var
-    FID, CName: widestring;
-    pEle, cEle: IUIAutomationElement;
-    iCnt: integer;
-  begin
-    (*Name = Microsoft Edge  //Top window
-      ┗ClassName=Internet Explorer_Server   FID=InternetExplorer   //IWebBrowser??
-         ┗FID=InternetExplorer  //Element
-    *)
-    Result := False;
-    edgeEle := nil;
-    cEle := oEle;
-    cEle.Get_CurrentFrameWorkID(FID);
-    if not (LowerCase(FID) = 'internetexplorer') then
-      Exit;
-
-    for iCnt := 0 to 30 do
-    begin
-      cEle.Get_CurrentName(CName);
-      if LowerCase(CName) = 'microsoft edge' then
-      begin
-        Result := True;
-        edgeEle := cEle;
-        Break;
-      end
-      else
-      begin
-        iVW.GetParentElement(cEle, pEle);
-        cEle := pEle;
-        if cEle = nil then
-          Break;
-      end;
-    end;
-  end;
-begin
-    if not acCursor.Checked then
-        exit;
-    arPT[2] := arPT[1];
-    arPT[1] := arPT[0];
-    getcursorpos(arPT[0]);
-
-    if (arPT[0].x = oldPT.X) and (arPT[0].Y = oldPT.Y) then
-        Exit;
-    try
-    if (arPT[0].x = arPT[1].x) and (arPT[0].x = arPT[2].x) and (arPT[2].x = arPT[1].x) and
-    (arPT[0].y = arPT[1].y) and (arPT[0].y = arPT[2].y) and (arPT[2].y = arPT[1].y) then
-    begin
-        if SUCCEEDED(AccessibleObjectFrompoint(arPT[0], @pAcc, v)) then
-        begin
-            if ((not acOnlyFocus.Checked) and (acCursor.Checked)) then
-            begin
-                if SUCCEEDED(WindowFromAccessibleObject(pAcc, Wnd)) then
-                begin
-
-                    i := GetWindowLong(Wnd, GWL_HINSTANCE);
-                    if i = hInstance then
-                    begin
-                        pAcc :=nil;
-                        exit;
-                    end;
-
-                    if ( not acOnlyFOcus.Checked) then
-                    begin
-                        //UIEle := nil;
-                        //GetPhysicalCursorPos(PT);
-                        //UIA.ElementFromPoint(tagPoint(PT), UIEle);
-                        //UIAuto.ElementFromIAccessible(pAcc, 0, UIEle);
-                        Treemode := false;
-                        iAcc := pAcc;
-                        //iDis := pAcc.accParent;
-                        pAcc.Get_accParent(iDis);
-                        accRoot := iDis as IAccessible;
-                        varparent := v;
-                        pAcc.Get_accName(v, wName);
-                      if LowerCase(wName) = 'microsoft edge' then
-                      begin
-                        tagPT.X := arPT[0].X;
-                        tagPT.Y := arPT[0].Y;
-                        if SUCCEEDED(UIAuto.ElementFromPoint(tagPT, UIEle)) then
-                        begin
-                          iAcc := nil;
-                          UIAuto.Get_ControlViewWalker(iVW);
-                          iVW.NormalizeElement(UIEle, oEle);
-                          if IsEdge and Assigned(edgeEle) then
-                          begin
-                            UIEle := oEle;
-                            UIAMode := True;
-                            if (not acOnlyFocus.Checked) then
-                            begin
-                              Treemode := false;
-                              if (acCursor.Checked) and (not acMSAAMode.Checked) then
-                              begin
-                                if (acRect.Checked) then
-                                begin
-                                  UIEle.Get_CurrentBoundingRectangle(RC);
-                                  ShowRectWnd2(clRed, Rect(rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top));
-                                end;
-                                ShowText4UIA;
-                                oldPT := arPT[0];
-                                arPT[0] := Point(0, 0);
-                                arPT[1] := Point(0, 0);
-                                arPT[2] := Point(0, 0);
-                              end;
-                            end;
-                          end;
-                        end
-                      end
-                      else
-                      begin
-                        if (acCursor.Checked) then
-                        begin
-                          // s := GetWindowNameLC(Wnd);
-                          iMode := GetOpeMode(GetWindowNameLC(Wnd));
-                          if ((not acMSAAMode.Checked) and (iMode <> 2)) or (acMSAAMode.Checked) then
-                          begin
-                            if (acRect.Checked) then
-                            begin
-                              ShowRectWnd(clRed);
-                            end;
-                            UIAMode := False;
-                            ShowMSAAText;
-                          end
-                          else
-                            iAcc := nil;
-
-                          if iAcc <> nil then
-                          begin
-                            oldPT := arPT[0];
-                            arPT[0] := Point(0, 0);
-                            arPT[1] := Point(0, 0);
-                            arPT[2] := Point(0, 0);
-                          end;
-                        end;
-                      end;
-                    end
-                    else
-                        iAcc := nil;
-
-                end;
-            end
-            else
-                iAcc := nil;
-
-        end;
-    end;
-    except
-
-    end;
-
-end;
-
-
-procedure TwndMSAAV.Timer2Timer(Sender: TObject);
-begin
-    Timer2.Enabled := false;
-    Treemode := false;
-    if (not acMSAAMode.Checked) then
-    begin
-        if ( not acOnlyFOcus.Checked) then
-        begin
-
-
-            TreeList1.BeginUpdate;
-            TreeList1.Clear;
-            if UIAMode then
-              ShowText4UIA
-            else
-              ShowMSAAText;
-
-            TreeList1.EndUpdate;
-        end;
-    end
-    else
-    begin
-        if (acFocus.Checked) then
-        begin
-
-            TreeList1.BeginUpdate;
-            TreeList1.Clear;
-            if UIAMode then
-              ShowText4UIA
-            else
-              ShowMSAAText;
-
-            TreeList1.EndUpdate;
-        end;
-    end;
-end;
-
 
 
 procedure TwndMSAAV.FormClose(Sender: TObject; var Action: TCloseAction);
 var
     ini: TMemINiFile;
 begin
-    //UIAuto.Free;
+	// UIAuto.Free;
 
-    UIAuto := nil;
+	UIAuto := nil;
 
-    NotifyWinEvent(EVENT_OBJECT_DESTROY, Handle, OBJID_CLIENT, 0);
+	NotifyWinEvent(EVENT_OBJECT_DESTROY, Handle, OBJID_CLIENT, 0);
 
-    if hHook <> 0 then
-                begin
-                    if UnhookWinEvent (hHook) then
-                    begin
-                        //FreeHookInstance(HookProc);
-                        hHook := 0;
-                    end;
-                end;
-    try
-    ini := TMemIniFile.Create(SPath, TEncoding.Unicode);
-    try
-        ini.WriteInteger('Settings', 'Width', DoubleToInt(width / ScaleX));
-        ini.WriteInteger('Settings', 'Height', DoubleToInt(Height / ScaleY));
-        ini.WriteInteger('Settings', 'Top', Top);
-        ini.WriteInteger('Settings', 'Left', Left);
-        //P2W, P4H: integer;
-        ini.WriteInteger('Settings', 'P2W', Panel2.Width);
-        ini.WriteInteger('Settings', 'P4H', Panel4.Height);
-        ini.WriteBool('Settings', 'vMSAA', mnuMSAA.Checked);
-        ini.WriteBool('Settings', 'vARIA', mnuARIA.Checked);
-        ini.WriteBool('Settings', 'vHTML', mnuHTML.Checked);
-        ini.WriteBool('Settings', 'vIA2', mnuIA2.Checked);
-        ini.WriteBool('Settings', 'vUIA', mnuUIA.Checked);
-        ini.WriteBool('Settings', 'TVAll', mnuAll.Checked);
+	if hHook <> 0 then
+	begin
+		if UnhookWinEvent(hHook) then
+		begin
+			// FreeHookInstance(HookProc);
+			hHook := 0;
+		end;
+	end;
 
-        ini.WriteBool('Settings', 'bMSAA', mnublnMSAA.Checked);
-        ini.WriteBool('Settings', 'bIA2', mnublnIA2.Checked);
-        ini.WriteBool('Settings', 'bCode', mnublnCode.Checked);
-        ini.UpdateFile;
-    finally
-        ini.Free;
-    end;
+	try
+		if FileExists(SPath) then
+		begin
+			ini := TMemInifile.Create(SPath, TEncoding.Unicode);
+			try
+				ini.WriteInteger('Settings', 'Width', DoubleToInt(Width / ScaleX));
+				ini.WriteInteger('Settings', 'Height', DoubleToInt(Height / ScaleY));
+				ini.WriteInteger('Settings', 'Top', top);
+				ini.WriteInteger('Settings', 'Left', left);
+				// P2W, P4H: integer;
+				ini.WriteInteger('Settings', 'P2W', Panel2.Width);
+				ini.WriteInteger('Settings', 'P4H', Panel4.Height);
+				ini.WriteBool('Settings', 'vMSAA', mnuMSAA.Checked);
+				ini.WriteBool('Settings', 'vARIA', mnuARIA.Checked);
+				ini.WriteBool('Settings', 'vHTML', mnuHTML.Checked);
+				ini.WriteBool('Settings', 'vIA2', mnuIA2.Checked);
+				ini.WriteBool('Settings', 'vUIA', mnuUIA.Checked);
+				ini.WriteBool('Settings', 'TVAll', mnuAll.Checked);
 
+				ini.WriteBool('Settings', 'bMSAA', mnublnMSAA.Checked);
+				ini.WriteBool('Settings', 'bIA2', mnublnIA2.Checked);
+				ini.WriteBool('Settings', 'bCode', mnublnCode.Checked);
+				ini.UpdateFile;
+			finally
+				ini.Free;
+			end;
+		end;
+		if Assigned(TreeTH) then
+		begin
+			TreeTH.Terminate;
+			TreeTH.WaitFor;
+			TreeTH.Free;
+			TreeTH := nil;
+		end;
+    if Assigned(UIATH) then
+		begin
+			UIATH.Terminate;
+			UIATH.WaitFor;
+			UIATH.Free;
+			UIATH := nil;
+		end;
+		ClsNames.Free;
+		TBList.Free;
+		LangList.Free;
+		CoUnInitialize;
+		if hWndTip <> 0 then
+			DestroyWindow(hWndTip);
+	except
 
-    ClsNames.Free;
-    TBList.Free;
-    LangList.Free;
-    CoUnInitialize;
-    if hWndTip <> 0 then
-        DestroyWindow(hWndTip);
-    except
-
-    end;
+	end;
 end;
 
 
@@ -5564,11 +5506,11 @@ var
     i: integer;
 
 begin
+		dEventTime := 0;
     SystemCanSupportPerMonitorDpi(true);
     GetDCap(handle, Defx, Defy);
     GetWindowScale(Handle, DefX, DefY, ScaleX, ScaleY);
     TreeList1.NodeDataSize := SizeOf(TNodeData);
-    UIAMode := False;
     TreeTH := nil;
     APPDir :=  IncludeTrailingPathDelimiter(ExtractFileDir(Application.ExeName));
     TransDir := IncludeTrailingPathDelimiter(AppDir + 'Languages');
@@ -5609,20 +5551,20 @@ begin
     bSelMode := False;
     mnuSelMode.Checked := bSelMode;
     if mnuLang.Visible then
-    begin
-        if  (FindFirst(TransDir + '*.ini', faAnyFile, Rec) = 0) then
-        begin
-            repeat
-                if  ((Rec.Name <> '.') and (Rec.Name <> '..')) then
-                begin
-                    if  ((Rec.Attr and faDirectory) = 0)  then
-                    begin
-                    LangList.Add(Rec.Name);
-                    end;
-                end;
-            until (FindNext(Rec) <> 0);
-        end;
-    end;
+		begin
+			if (FindFirst(TransDir + '*.ini', faAnyFile, Rec) = 0) then
+			begin
+				repeat
+					if ((Rec.Name <> '.') and (Rec.Name <> '..')) then
+					begin
+						if ((Rec.Attr and faDirectory) = 0) then
+						begin
+							LangList.Add(Rec.Name);
+						end;
+					end;
+				until (FindNext(Rec) <> 0);
+			end;
+		end;
 
     Load;
     ExecCmdLine;
@@ -5645,39 +5587,41 @@ end;
 
 procedure TwndMSAAV.TreeList1Change(Sender: TObject; Node: TTreeNode);
 var
-    RC: TRect;
-    iSP: iServiceProvider;
-    Ele: IHTMLElement;
-    sDom: ISimpleDOMNode;
+	RC: TRect;
+	iSP: IServiceProvider;
+	Ele: IHTMLElement;
+	SDom: ISImpleDOMNode;
 begin
 
-    if TreeList1.SelectedCount > 0 then
-    begin
+	if TreeList1.SelectedCount > 0 then
+	begin
 
-        if Node.Data <> nil then
-        begin
-            if acRect.Checked then
-            begin
-                if iMode = 0 then
-                begin
-                    iSP := iAcc as IServiceProvider;
-                    if (SUCCEEDED(iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement, Ele))) then
-                        Ele.scrollIntoView(True);
-                end
-                else if iMode = 1 then
-                begin
-                    iSP := iAcc as IServiceProvider;
-                    if (SUCCEEDED(iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, sDom))) then
-                        sDom.scrollTo(True);
-                end;
-                Sleep(50);
-                TTreeData(Node.Data^).Acc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, 0);
-                ShowTargWnd(clBlue, RC);
-            end;
-        end;
+		if Node.Data <> nil then
+		begin
+			if acRect.Checked then
+			begin
+				if Assigned(CEle) then
+				begin
+					iSP := iAcc as IServiceProvider;
+					if (SUCCEEDED(iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement,
+						Ele))) then
+						Ele.scrollIntoView(True);
+				end
+				else if Assigned(SDom) then
+				begin
+					iSP := iAcc as IServiceProvider;
+					if (SUCCEEDED(iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE,
+						SDom))) then
+						SDom.scrollTo(True);
+				end;
+				Sleep(50);
+				TTreeData(Node.Data^).Acc.accLocation(RC.left, RC.top, RC.right,
+					RC.bottom, 0);
+				ShowTargWnd(clBlue, RC);
+			end;
+		end;
 
-
-    end;
+	end;
 end;
 
 function TwndMSAAV.UIAEIsNull(tEle: IUIAutomationelement): boolean;
@@ -5697,43 +5641,27 @@ begin
 
 end;
 
-function TwndMSAAV.AccIsNull(tAcc: IAccessible): boolean;
-var
-    i: integer;
-begin
-  result := True;
-  try
-    if Assigned(tAcc) then
-    begin
-      if SUCCEEDED(tAcc.Get_accChildCount(i)) then
-        Result := false;
-    end;
-  except
-    Result := True;
-  end;
-end;
-
 procedure TwndMSAAV.TreeList1Click(Sender: TObject);
 begin
-    if TreeList1.SelectedCount > 0 then
-    begin
-        if Assigned(UIAuto) and Assigned(iAcc)then
-        begin
-            if not AccIsNull(iAcc) then
-            begin
-                if iDefIndex = Integer(TreeList1.FocusedNode.Index) then
-                begin
-                    try
-                        iAcc.accDoDefaultAction(VarParent);
-                    except
+	if TreeList1.SelectedCount > 0 then
+	begin
+		if Assigned(UIAuto) and Assigned(iAcc) then
+		begin
+			if not not Assigned(iAcc) then
+			begin
+				if iDefIndex = integer(TreeList1.FocusedNode.Index) then
+				begin
+					try
+						iAcc.accDoDefaultAction(VarParent);
+					except
 
-                    end;
-                end;
-            end
-            else
-                iAcc := nil;
-        end;
-    end;
+					end;
+				end;
+			end
+			else
+				iAcc := nil;
+		end;
+	end;
 end;
 
 procedure TwndMSAAV.TreeList1Deletion(Sender: TObject; Node: TTreeNode);
@@ -5767,29 +5695,29 @@ begin
 end;
 
 procedure TwndMSAAV.TreeList1KeyDown(Sender: TObject; var Key: Word;
-  Shift: TShiftState);
+	Shift: TShiftState);
 
 begin
-    if (TreeList1.SelectedCount > 0) and (key = VK_RETURN) then
-    begin
-        if Assigned(UIAuto) and Assigned(iAcc)then
-        begin
-            if not AccIsNull(iAcc) then
-            begin
+	if (TreeList1.SelectedCount > 0) and (Key = VK_RETURN) then
+	begin
+		if Assigned(UIAuto) and Assigned(iAcc) then
+		begin
+			if not not Assigned(iAcc) then
+			begin
 
-                if iDefIndex = Integer(TreeList1.FocusedNode.Index) then
-                begin
-                    try
-                        iAcc.accDoDefaultAction(VarParent);
-                    except
+				if iDefIndex = integer(TreeList1.FocusedNode.Index) then
+				begin
+					try
+						iAcc.accDoDefaultAction(VarParent);
+					except
 
-                    end;
-                end;
-            end
-            else
-                iAcc := nil;
-        end;
-    end;
+					end;
+				end;
+			end
+			else
+				iAcc := nil;
+		end;
+	end;
 end;
 
 procedure TwndMSAAV.SetTreeMode(pNode: TTreeNode);
@@ -5797,7 +5725,7 @@ var
     b: boolean;
     RC: Tagrect;
 begin
-    if not AccIsNull(TTreeData(pNode.Data^).Acc) then
+    if Assigned(TTreeData(pNode.Data^).Acc) then
     begin
       VarParent := TTreeData(pNode.Data^).iID;
       iAcc :=  TTreeData(pNode.Data^).Acc;
@@ -5805,9 +5733,6 @@ begin
       Treemode := True;
       if (not acMSAAMode.Checked) then
       begin
-
-        if iMode <> 2 then
-        begin
           b := ShowMSAAText;
           if (acRect.Checked) then
           begin
@@ -5819,10 +5744,7 @@ begin
             begin
               ShowTipWnd;
             end;
-          end;
-        end
-        else
-          iAcc := nil;
+          end
       end
       else
       begin
@@ -5840,10 +5762,11 @@ begin
         end;
       end;
     end
-    else if not UIAEIsNULL(TTreeData(pNode.Data^).uiEle) then
+    else if Assigned(TTreeData(pNode.Data^).uiEle) then
     begin
       TreeMode := True;
       UIEle := TTreeData(pNode.Data^).uiEle;
+      //ShowMSAAText;
       ShowText4UIA;
       if (acRect.Checked) then
       begin
@@ -5860,97 +5783,109 @@ end;
 
 procedure TwndMSAAV.TreeView1Addition(Sender: TObject; Node: TTreeNode);
 var
-    Role: string;
-    ovChild, ovRole: OleVariant;
-    ws: widestring;
-    PC:PChar;
+	Role, iAccRole: string;
+	ovChild, ovRole: OleVariant;
+	ws, iAccName: WideString;
+	PC: PChar;
+  hr: hresult;
+  paEle: IUIAutomationElement;
 begin
 
- 	//tAcc := GetMSAA;
-  //TTreeData(Node.Data^).Acc := tAcc;
-  //if Node.Text = '' then
-  	//if Node.IsVisible then
-    //begin
-    mnuTVSAll.Enabled := True;
-    mnuTVOAll.Enabled := True;
-    Node.ImageIndex := 61;
-    node.ExpandedImageIndex := 61;
-    Node.SelectedIndex := 61;
-    if not UIAMode then
-    begin
-      TTreeData(Node.Data^).Acc.Get_accName(TTreeData(Node.Data^).iID, ws);
-      if ws = '' then
-        ws := None;
-      Role := Get_RoleText(TTreeData(Node.Data^).Acc, TTreeData(Node.Data^).iID);
-      ovChild := TTreeData(Node.Data^).iID;
-      Node.Text := ws + ' - ' + Role;
-      if SUCCEEDED(TTreeData(Node.Data^).Acc.Get_accRole(ovChild, ovRole)) then
-      begin
-        if VarHaveValue(ovRole) then
-        begin
-          if VarIsType(ovRole, VT_I4) and (TVarData(ovRole).VInteger <= 61) then
-          begin
-            Node.ImageIndex := TVarData(ovRole).VInteger - 1;
-            Node.ExpandedImageIndex := Node.ImageIndex;
-            Node.SelectedIndex := Node.ImageIndex;
-            // showmessage(inttostr(rNode.ImageIndex));
-          end;
-        end;
-      end;
-    end
-    else
-    begin
-      TTreeData(Node.Data^).uiEle.Get_CurrentName(ws);
-      if ws = '' then
-        ws := None;
-      //if SUCCEEDED( then
+	if not Assigned(Node.Data) then
+		Exit;
 
-      if SUCCEEDED(TTreeData(Node.Data^).uiEle.GetCurrentPropertyValue(UIA_LegacyIAccessibleRolePropertyId, ovRole)) then
-      begin
-        if VarHaveValue(ovRole) then
-        begin
-          if VarIsType(ovRole, VT_I4) and (TVarData(ovRole).VInteger <= 61) then
-          begin
-            Node.ImageIndex := TVarData(ovRole).VInteger - 1;
-            Node.ExpandedImageIndex := Node.ImageIndex;
-            Node.SelectedIndex := Node.ImageIndex;
-            PC := StrAlloc(255);
-            GetRoleTextW(ovRole, PC, StrBufSize(PC));
-            Node.Text := ws + ' - ' + PC;
-            StrDispose(PC);
-            // showmessage(inttostr(rNode.ImageIndex));
-          end;
-        end;
-      end;
+	mnuTVSAll.Enabled := True;
+	mnuTVOAll.Enabled := True;
+  Node.ImageIndex := 7;
+  Node.ExpandedImageIndex := 7;
+  Node.SelectedIndex := 7;
+	if not acMSAAMode.Checked then
+	begin
+
+		TTreeData(Node.Data^).Acc.Get_accName(TTreeData(Node.Data^).iID, ws);
+		if ws = '' then
+			ws := None;
+
+		Role := Get_RoleText(TTreeData(Node.Data^).Acc, TTreeData(Node.Data^).iID);
+
+		ovChild := TTreeData(Node.Data^).iID;
+		ws := StringReplace(ws, #13, ' ', [rfReplaceAll]);
+		ws := StringReplace(ws, #10, ' ', [rfReplaceAll]);
+		Node.Text := ws + ' - ' + Role;
+    if (mnuAll.Checked) and (NodeTxt <> '') and (NodeTxt = Node.Text) and (not nSelected) then
+    begin
+    	Node.Expanded := True;
+  		Node.Selected := True;
+      nSelected := true;
     end;
+		if SUCCEEDED(TTreeData(Node.Data^).Acc.Get_accRole(ovChild, ovRole)) then
+		begin
+			if VarHaveValue(ovRole) then
+			begin
+				if VarIsType(ovRole, VT_I4) and (TVarData(ovRole).VInteger <= 61) then
+				begin
+					Node.ImageIndex := TVarData(ovRole).VInteger - 1;
+					Node.ExpandedImageIndex := Node.ImageIndex;
+					Node.SelectedIndex := Node.ImageIndex;
+					// showmessage(inttostr(rNode.ImageIndex));
+				end;
+			end;
+		end;
+	end
+  else
+	begin
+		TTreeData(Node.Data^).uiEle.Get_CurrentName(ws);
+		if ws = '' then
+			ws := None;
+    ws := StringReplace(ws, #13, ' ', [rfReplaceAll]);
+		ws := StringReplace(ws, #10, ' ', [rfReplaceAll]);
+    Node.Text := ws;
+		if SUCCEEDED(TTreeData(Node.Data^).uiEle.GetCurrentPropertyValue
+			(UIA_LegacyIAccessibleRolePropertyId, ovRole)) then
+		begin
+			if VarHaveValue(ovRole) then
+			begin
+				if VarIsType(ovRole, VT_I4) and (TVarData(ovRole).VInteger <= 61) then
+				begin
+					Node.ImageIndex := TVarData(ovRole).VInteger - 1;
+					Node.ExpandedImageIndex := Node.ImageIndex;
+					Node.SelectedIndex := Node.ImageIndex;
+					PC := StrAlloc(255);
+					GetRoleTextW(ovRole, PC, StrBufSize(PC));
+					Node.Text := ws + ' - ' + PC;
+					StrDispose(PC);
+				end;
+			end;
+		end;
+	end;
 
-  end;
+end;
 
 procedure TwndMSAAV.TreeView1Change(Sender: TObject; Node: TTreeNode);
 begin
 
+	if TreeView1.SelectionCount = 0 then
+	begin
+		mnuTVSSel.Enabled := false;
+		mnuTVOSel.Enabled := false;
+	end
+	else
+	begin
+		mnuTVSSel.Enabled := True;
+		mnuTVOSel.Enabled := True;
+	end;
+	if bSelMode then
+		Exit;
 
-    if TreeView1.SelectionCount = 0 then
-    begin
-    	mnuTVSSel.Enabled := False;
-      mnuTVOSel.Enabled := False;
-    end
-    else
-    begin
-    	mnuTVSSel.Enabled := True;
-      mnuTVOSel.Enabled := True;
-    end;
-    if bSelMode then Exit;
-
-    try
-        if (((not Assigned(TreeTH)) or (TreeTH.Finished)) and (not UIAMode)) or (((not Assigned(UIATH)) or (UIATH.Finished)) and (UIAMode)) then
-        begin
-            SetTreeMode(Node);
-
-        end;
-    finally
-        //TreeView1.Enabled := True;
-    end;
+	try
+		if (((not Assigned(TreeTH)) or (TreeTH.Finished)) and (not acMSAAMode.Checked)) or
+			(((not Assigned(UIATH)) or (UIATH.Finished)) and (acMSAAMode.Checked)) then
+		begin
+			SetTreeMode(Node);
+		end;
+	finally
+		// TreeView1.Enabled := True;
+	end;
 end;
 
 procedure TwndMSAAV.TreeView1Deletion(Sender: TObject; Node: TTreeNode);
@@ -5966,10 +5901,8 @@ procedure TwndMSAAV.TreeView1Expanding(Sender: TObject; Node: TTreeNode;
     Role: string;
     ovChild, ovRole: OleVariant;
     ws: widestring;}
-
 begin
-
-    {try
+	{try
     if Node.Text = '' then
     begin
         TTreeData(Node.Data^).Acc.Get_accName(TTreeData(Node.Data^).iID, ws);
@@ -6088,22 +6021,35 @@ end;
 
 procedure TwndMSAAV.acMSAAModeExecute(Sender: TObject);
 begin
-    acMSAAMode.Checked := not acMSAAMode.Checked;
-    mnuSelD.Enabled := not acMSAAMode.Checked;
-    if Assigned(WndFocus) then
-    begin
-        WndFocus.Visible := false;
-    end;
-    if Assigned(WndTip) then
-    begin
-        WndTip.Visible := false;
-    end;
-    if acMSAAMode.Checked then
-    begin
-        mnuMSAA.Checked := True;
-        mnuARIA.Checked := false;
-        mnuHTML.Checked := false;
-    end;
+	acMSAAMode.Checked := not acMSAAMode.Checked;
+	// mnuSelD.Enabled := not acMSAAMode.Checked;
+	acShowTip.Enabled := not acMSAAMode.Checked;
+  if Assigned(TreeTH) then
+	begin
+		TreeTH.Terminate;
+		TreeTH.WaitFor;
+		TreeTH.Free;
+		TreeTH := nil;
+	end;
+	TreeList1.BeginUpdate;
+	TreeList1.Clear;
+	TreeList1.EndUpdate;
+	TBList.Clear;
+	TreeView1.Items.Clear;
+	if Assigned(WndFocus) then
+	begin
+		WndFocus.Visible := false;
+	end;
+	if Assigned(WndTip) then
+	begin
+		WndTip.Visible := false;
+	end;
+	{ if acMSAAMode.Checked then
+		begin
+		mnuMSAA.Checked := True;
+		mnuARIA.Checked := false;
+		mnuHTML.Checked := false;
+		end; }
 end;
 
 procedure TwndMSAAV.ExecMSAAMode(sender: TObject);
@@ -6158,8 +6104,7 @@ begin
                     begin
 
                         if SUCCEEDED(pAcc.Get_accParent(iDis)) then
-                        accRoot := iDis as IAccessible;
-                            accRoot := iDis as IAccessible;
+                        	accRoot := iDis as IAccessible;
                     end;
                 end
                 else
@@ -6297,16 +6242,12 @@ begin
             TreeMode := False;
             if (not acMSAAMode.Checked) then
             begin
-              if iMode <> 2 then
-              begin
+
                 if (acRect.Checked) then
                 begin
                   ShowRectWnd(clRed);
                 end;
                 ShowMSAAText;
-              end
-              else
-                iAcc := nil;
             end
             else
             begin
@@ -6374,7 +6315,7 @@ begin
     begin
         if not Assigned(WndFocus) then
             WndFocus := TWndFocusRect.Create(self);
-        if not UIAMode then
+        if not acMSAAMode.Checked then
           ShowRectWnd(clRed)
         else
         begin
@@ -6448,6 +6389,13 @@ begin
           WndSet.chkList.Checked[23] := True;
         end;
 
+        WndSet.ChkList.Items.Add(lIA2[15]);
+        b := Trunc(IntPower(2, 11));
+        if flgIA2 and b <> 0 then
+        begin
+          WndSet.chkList.Checked[24] := True;
+        end;
+
 
         WndSet.ChkList.Items.Add(lUIA[0]);
         WndSet.ChkList.Header[WndSet.ChkList.Items.Count - 1] := True;
@@ -6463,7 +6411,7 @@ begin
                 b := Trunc(IntPower(2, i-1));
                 if flgUIA and b <> 0 then
                 begin
-                    WndSet.chkList.Checked[i + 24] := True;
+                    WndSet.chkList.Checked[i + 25] := True;
                 end;
             end
             else
@@ -6471,7 +6419,7 @@ begin
                 b := Trunc(IntPower(2, i-32));
                 if flgUIA2 and b <> 0 then
                 begin
-                    WndSet.chkList.Checked[i + 24] := True;
+                    WndSet.chkList.Checked[i + 25] := True;
                 end;
             end;
         end;
@@ -6492,7 +6440,7 @@ begin
                 end;
             end;
             flgIA2 := 0;
-            for i := 0 to 10 do
+            for i := 0 to 11 do
             begin
                 if WndSet.chkList.Checked[i + 13] then
                 begin
@@ -6504,7 +6452,7 @@ begin
             flgUIA2 := 0;
             for i := 0 to 54 do
             begin
-                if WndSet.chkList.Checked[i + 25] then
+                if WndSet.chkList.Checked[i + 26] then
                 begin
                     if i < 31 then
                     begin
@@ -6898,6 +6846,7 @@ begin
             lIA2[12] := ini.ReadString('IA2', 'RV_Minimum','Minimum');
             lIA2[13] := ini.ReadString('IA2', 'RV_Maximum','Maximum');
             lIA2[14] := ini.ReadString('IA2', 'Textattributes','Textattributes');
+            lIA2[15] := ini.ReadString('IA2', 'uniqueID','uniqueID');
 
 
             lUIA[0] := ini.ReadString('UIA', 'UIA', 'UIAutomation');
@@ -7226,6 +7175,8 @@ begin
             acListFocus.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'sfListView', 'Shift+F2'));
             acMemoFocus.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'sfTextBox', 'Shift+F3'));
 
+            QSFailed := ini.ReadString('IA2', 'QS_Failed', 'Query Service Failed');
+            Err_Inter := ini.ReadString('General', 'Error_Interface', 'Interface not available');
         finally
             Result := UIA_fail;
             ini.Free;
@@ -7248,7 +7199,7 @@ begin
         WINEVENT_OUTOFCONTEXT or WINEVENT_SKIPOWNPROCESS );
     Msg := 'SetWinEventHook is Failed!!';
     //flgMSAA, flgIA2, flgUIA: integer;
-    flgMSAA := 124;
+    flgMSAA := 125;
     flgIA2 := 119;
     flgUIA := 50332680;
     flgUIA2 := 0;
@@ -7435,6 +7386,10 @@ begin
     else
     begin
       UIAuto.AddFocusChangedEventHandler(nil, self);
+      hr := UIAuto.ElementFromHandle(pointer(handle), uiEle);
+      if (hr = 0) and (Assigned(uiEle)) then
+      	uiEle.Get_CurrentProcessId(iPID);
+			uiEle := nil;
     end;
     TreeList1.Header.Columns[0].Width := TreeList1.ClientWidth div 2;
     TreeList1.Header.Columns[1].Width := TreeList1.ClientWidth div 2;
@@ -7480,31 +7435,29 @@ end;
 
 procedure TwndMSAAV.mnuMSAAClick(Sender: TObject);
 begin
-    if (not mnuMSAA.Checked) and (not mnuARIA.Checked) and (not mnuHTML.Checked) and (not mnuIA2.Checked) and (not mnuUIA.Checked) then
-            mnuMSAA.Checked := True;
+	if (not mnuMSAA.Checked) and (not mnuARIA.Checked) and (not mnuHTML.Checked)
+		and (not mnuIA2.Checked) and (not mnuUIA.Checked) then
+		mnuMSAA.Checked := True;
 end;
-
-
-
 
 procedure TwndMSAAV.mnuAllClick(Sender: TObject);
 begin
-    if (not mnuTarget.Checked) and (not mnuAll.Checked) then
-        mnuAll.Checked := True;
+	if (not mnuTarget.Checked) and (not mnuAll.Checked) then
+		mnuAll.Checked := True;
 end;
 
 procedure TwndMSAAV.mnuTargetClick(Sender: TObject);
 begin
-    if (not mnuTarget.Checked) and (not mnuAll.Checked) then
-        mnuTarget.Checked := True;
+	if (not mnuTarget.Checked) and (not mnuAll.Checked) then
+		mnuTarget.Checked := True;
 end;
 
 
 
-procedure TwndMSAAV.ReflexTV(cNode: TTreeNode; var HTML: string; var iCnt: integer; ForSel: boolean = false);
+procedure TwndMSAAV.RecursiveTV(cNode: TTreeNode; var HTML: string; var iCnt: integer; ForSel: boolean = false);
 var
 	i: integer;
-  tab, temp: string;
+  tab, temp, ia2t: string;
   Role: string;
   ws: widestring;
   ovChild: OleVariant;
@@ -7554,10 +7507,11 @@ var
       Res := Res + #13#10 + tab + '<ul>' + #13#10 + tab + #9 + '<li class="API">';
       Res := Res + MSAAText4HTML(Acc, tab + #9) + #13#10 + tab + #9 + '</li>';
 
-      if (iMode = 1) and (SUCCEEDED(Acc.QueryInterface(IID_ISERVICEPROVIDER, isp))) then//FF
+      ia2t := IA2Text4HTML(Acc, tab + #9);
+      if ia2t <> '' then
       begin
-        Res := Res + #13#10 + tab + #9 + '<li class="API">';
-      	Res := Res + IA2Text4HTML(Acc, tab + #9) + #13#10 + tab + #9 + '</li>';
+      	Res := Res + #13#10 + tab + #9 + '<li class="API">';
+        Res := Res + ia2t + #13#10 + tab + #9 + '</li>';
       end;
       finally
       	Res := Res + #13#10 + #9 + '</ul>' + #13#10 + tab + '</section>';
@@ -7605,7 +7559,7 @@ begin
         end
   			else
         	temp := temp + #13#10;
-				ReflexTV(cNode.Item[i], temp, iCnt, Forsel);
+				RecursiveTV(cNode.Item[i], temp, iCnt, Forsel);
       end
       else
       begin
@@ -7677,7 +7631,7 @@ end;
 function TwndMSAAV.GetEleName(Acc: IAccessible): string;
 var
   isp: iserviceprovider;
-  iRes: integer;
+  hr: hResult;
   isEle: ISimpleDOMNode;
   PC, PC2:PChar;
   SI: Smallint;
@@ -7686,31 +7640,24 @@ var
   iEle: IHTMLElement;
 begin
   Result := '';
-  if iMode = 0 then
-  begin
-    iRes := Acc.QueryInterface(IID_IServiceProvider, iSP);
-    if SUCCEEDED(iRes) and Assigned(iSP) then
+  hr := Acc.QueryInterface(IID_IServiceProvider, iSP);
+  if (hr = 0) and Assigned(iSP) then
+	begin
+		hr := iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement, iEle);
+		if (hr = 0) and Assigned(iEle) then
+		begin
+			Result := iEle.tagName;
+		end
+    else
     begin
-      iRes := iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement, iEle);
-      if SUCCEEDED(iRes) and Assigned(iEle) then
-      begin
-        Result := iEle.tagName;
-      end;
-    end;
-  end
-  else if iMode = 1 then
-  begin
-    iRes := Acc.QueryInterface(IID_IServiceProvider, iSP);
-    if SUCCEEDED(iRes) and Assigned(iSP) then
-    begin
-      iRes := iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, isEle);
-      if SUCCEEDED(iRes) and Assigned(isEle) then
+    	hr := iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, isEle);
+      if (hr = 0) and Assigned(isEle) then
       begin
         isEle.get_nodeInfo(PC, SI, PC2, PU, PU2, WD);
         Result := PC;
       end;
     end;
-  end;
+	end;
 end;
 
 function TwndMSAAV.GetTVAllItems: string;
@@ -7719,63 +7666,56 @@ var
   sList: TStringList;
   i: integer;
   isp: iserviceprovider;
-  iRes: integer;
+  hr: hResult;
   isEle, pEle: ISimpleDOMNode;
   isDoc: ISimpleDOMDocument;
   aPC : pWidechar;
   iEle: IHTMLElement;
   iDoc2: IHTMLDocument2;
 begin
+  hr := iAcc.QueryInterface(IID_IServiceProvider, iSP);
+	if (hr = 0) and Assigned(iSP) then
+	begin
+		hr := iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement, iEle);
+		if (hr = 0) and Assigned(iEle) then
+		begin
+			hr := iEle.Document.QueryInterface(IID_IHTMLDOCUMENT2, iDoc2);
+			if (hr = 0) and Assigned(iDoc2) then
+			begin
+				sTitle := iDoc2.Title;
+			end;
+		end;
+	end
+	else
+	begin
+		hr := iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, isEle);
+		if (hr = 0) and Assigned(isEle) then
+		begin
 
-  if iMode = 0 then
-  begin
-    iRes := iAcc.QueryInterface(IID_IServiceProvider, iSP);
-    if SUCCEEDED(iRes) and Assigned(iSP) then
-    begin
-      iRes := iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement, iEle);
-      if SUCCEEDED(iRes) and Assigned(iEle) then
-      begin
-        iRes := iEle.document.QueryInterface(IID_IHTMLDOCUMENT2, iDoc2);
-        if SUCCEEDED(iRes) and Assigned(iDoc2) then
-        begin
-          sTitle := idoc2.title;
-        end;
-      end;
-    end;
-  end
-  else if iMode = 1 then
-  begin
-    iRes := iAcc.QueryInterface(IID_IServiceProvider, iSP);
-    if SUCCEEDED(iRes) and Assigned(iSP) then
-    begin
-      iRes := iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, isEle);
-      if SUCCEEDED(iRes) and Assigned(isEle) then
-      begin
+			hr := isEle.QueryInterface(IID_ISIMPLEDOMDOCUMENT, isDoc);
+			i := 0;
+			while not Assigned(isDoc) do
+			begin
+				isEle.get_parentNode(pEle);
+				if not Assigned(pEle) then
+					break;
+				isEle := pEle;
 
-        iRes := isEle.QueryInterface(IID_ISIMPLEDOMDOCUMENT, isDoc);
-        i := 0;
-        while not Assigned(isDoc) do
-        begin
-          isEle.get_parentNode(pEle);
-          if not Assigned(pEle) then
-            break;
-          isEle := pEle;
+				hr := isEle.QueryInterface(IID_ISIMPLEDOMDOCUMENT, isDoc);
+				inc(i);
+				if i > 1000 then
+					break;
+			end;
+			if SUCCEEDED(hr) and Assigned(isDoc) then
+			begin
+				isDoc.get_title(aPC);
+				sTitle := aPC;
+			end;
+		end;
+	end;
 
-          iRes := isEle.QueryInterface(IID_ISIMPLEDOMDOCUMENT, isDoc);
-          inc(i);
-          if i > 1000 then
-            break;
-        end;
-        if SUCCEEDED(iRes) and Assigned(isDoc) then
-        begin
-          isDoc.get_title(aPC);
-          sTitle := aPC;
-        end;
-      end;
-    end;
-  end;
   i := 0;
-  ReflexTV(TreeView1.Items.Item[0], d, i);
+  RecursiveTV(TreeView1.Items.Item[0], d, i);
   d := '<ul>' + d  + #13#10 + '</li>' + #13#10 + '</ul>';
   d := '<h1>Accessibility Tree</h1>' + #13#10 + d;
 
@@ -7853,13 +7793,13 @@ var
   sList: TStringList;
   //i: integer;
   	i,iCnt: integer;
-  tab{, temp}: string;
+  tab{, temp}, ia2t: string;
   Role: string;
   ws: widestring;
   ovChild: OleVariant;
   iRole :integer;
   ovValue: OleVariant;
-
+  hr: hResult;
   iEle: IHTMLElement;
   iDoc2: IHTMLDocument2;
   isp: iserviceprovider;
@@ -7910,12 +7850,13 @@ var
     	Res := Res + #13#10 + tab + '<section id="x-details' + inttostr(iCnt) + '">';
       Res := Res + #13#10#9 + tab + '<ul>' + #13#10 + tab + #9 + '<li class="API">';
       Res := Res + MSAAText4HTML(Acc, tab + #9) + #13#10 + tab + #9 + '</li>';
-
-      if (iMode = 1) and (SUCCEEDED(Acc.QueryInterface(IID_ISERVICEPROVIDER, isp))) then//FF
+      ia2t := IA2Text4HTML(Acc, tab + #9);
+      if ia2t <> '' then
       begin
-        Res := Res + #13#10 + tab + #9 + '<li class="API">';
-      	Res := Res + IA2Text4HTML(Acc, tab + #9) + #13#10 + tab + #9 + '</li>';
+      	Res := Res + #13#10 + tab + #9 + '<li class="API">';
+      	Res := Res + ia2t + #13#10 + tab + #9 + '</li>';
       end;
+
       finally
       	Res := Res + #13#10 + #9 + '</ul>' + #13#10 + tab + '</section>';
       	Inc(iCnt);
@@ -7929,53 +7870,46 @@ var
   end;
 begin
   Result := '';
-  if iMode = 0 then
-  begin
-    iRes := iAcc.QueryInterface(IID_IServiceProvider, iSP);
-    if SUCCEEDED(iRes) and Assigned(iSP) then
-    begin
-      iRes := iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement, iEle);
-      if SUCCEEDED(iRes) and Assigned(iEle) then
-      begin
-        iRes := iEle.document.QueryInterface(IID_IHTMLDOCUMENT2, iDoc2);
-        if SUCCEEDED(iRes) and Assigned(iDoc2) then
-        begin
-          sTitle := idoc2.title;
-        end;
-      end;
-    end;
-  end
-  else if iMode = 1 then
-  begin
-    iRes := iAcc.QueryInterface(IID_IServiceProvider, iSP);
-    if SUCCEEDED(iRes) and Assigned(iSP) then
-    begin
-      iRes := iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, isEle);
-      if SUCCEEDED(iRes) and Assigned(isEle) then
-      begin
+  hr := iAcc.QueryInterface(IID_IServiceProvider, iSP);
+	if (hr = 0) and Assigned(iSP) then
+	begin
+		hr := iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement, iEle);
+		if (hr = 0) and Assigned(iEle) then
+		begin
+			hr := iEle.Document.QueryInterface(IID_IHTMLDOCUMENT2, iDoc2);
+			if (hr = 0) and Assigned(iDoc2) then
+			begin
+				sTitle := iDoc2.Title;
+			end;
+		end;
+	end
+	else
+	begin
+		hr := iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, isEle);
+		if (hr = 0) and Assigned(isEle) then
+		begin
 
-        iRes := isEle.QueryInterface(IID_ISIMPLEDOMDOCUMENT, isDoc);
-        i := 0;
-        while not Assigned(isDoc) do
-        begin
-          isEle.get_parentNode(pEle);
-          if not Assigned(pEle) then
-            break;
-          isEle := pEle;
+			hr := isEle.QueryInterface(IID_ISIMPLEDOMDOCUMENT, isDoc);
+			i := 0;
+			while not Assigned(isDoc) do
+			begin
+				isEle.get_parentNode(pEle);
+				if not Assigned(pEle) then
+					break;
+				isEle := pEle;
 
-          iRes := isEle.QueryInterface(IID_ISIMPLEDOMDOCUMENT, isDoc);
-          inc(i);
-          if i > 1000 then
-            break;
-        end;
-        if SUCCEEDED(iRes) and Assigned(isDoc) then
-        begin
-          isDoc.get_title(aPC);
-          sTitle := aPC;
-        end;
-      end;
-    end;
-  end;
+				hr := isEle.QueryInterface(IID_ISIMPLEDOMDOCUMENT, isDoc);
+				inc(i);
+				if i > 1000 then
+					break;
+			end;
+			if SUCCEEDED(hr) and Assigned(isDoc) then
+			begin
+				isDoc.get_title(aPC);
+				sTitle := aPC;
+			end;
+		end;
+	end;
   if (TreeView1.SelectionCount > 0) and (TreeView1.Items.Count > 0) then
     begin
 
@@ -8095,7 +8029,7 @@ end;
 procedure TwndMSAAV.PopupMenu2Popup(Sender: TObject);
 begin
 
-  if (TreeView1.Items.Count = 0) or UIAMode then
+  if (TreeView1.Items.Count = 0) or acMSAAMode.Checked then
   begin
   	mnuSave.Enabled := false;
     mnuOpenB.Enabled := false;
@@ -8121,33 +8055,48 @@ end;
 
 procedure TwndMSAAV.ThDone(Sender: TObject);
 begin
-    if not bTer then
+
+	if not bTer then
+	begin
+		if (not acMSAAMode.Checked) then
+		begin
+			if (acShowTip.Checked) then
+				begin
+					ShowTipWnd;
+				end;
+		end
+		else
+		begin
+
+			if (acShowTip.Checked) then
+			begin
+				ShowTipWnd;
+			end;
+		end;
+    if TreeList1.ChildCount[TreeList1.RootNode] > 0 then
+			begin
+				TreeList1.Expanded[TreeList1.RootNode];
+				TreeList1.OffsetX := 0;
+				TreeList1.OffsetY := 0;
+				TreeList1.Selected[TreeList1.RootNode] := True;
+				//GetNaviState;
+			end;
+
+    if Assigned(LoopNode) then
     begin
+    	LoopNode.Text := 'Possibility of infinite loop(300 or more nested structure)';
 
-        if (not acMSAAMode.Checked) then
-        begin
-            if iMode <> 2 then
-            begin
+  	end;
+    GetNaviState;
+    if Assigned(TreeView1.Selected) and (not TreeView1.Selected.Expanded) then
+    	TreeView1.Selected.Expanded := True;
 
-                if (acShowTip.Checked) then
-                begin
-                    ShowTipWnd;
-                end;
-            end;
-            if (UIAMode) and (acShowTip.Checked) then
-              ShowTipWnd;
-        end
-        else
-        begin
-
-            if (acShowTip.Checked) then
-            begin
-                ShowTipWnd;
-            end;
-        end;
-        GetNaviState;
-    end;
-
+	end
+  else
+  begin
+    treeview1.Items.Clear;
+    TBList.Clear;
+  end;
 end;
 
 procedure  TwndMSAAV.WMDPIChanged(var Message: TMessage);
