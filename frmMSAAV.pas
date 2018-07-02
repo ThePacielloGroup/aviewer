@@ -179,6 +179,7 @@ type
     acListFocus: TAction;
     acMemoFocus: TAction;
     acTriFocus: TAction;
+    ImageList4: TImageList;
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure acFocusExecute(Sender: TObject);
     procedure acCursorExecute(Sender: TObject);
@@ -238,7 +239,7 @@ type
     procedure acTriFocusExecute(Sender: TObject);
   private
     { Private declarations }
-    HTMLs: array [0..2, 0..1] of string;
+
     HTMLsFF: array [0..2, 0..1] of string;
     ARIAs: array [0..1, 0..1] of string;
     IA2Sts: array [0..17] of string;
@@ -257,19 +258,20 @@ type
     WndFocus, WndLabel, WndDesc, WndTarg: TwndFocusRect;
     WndTip: TfrmTipWnd;
     hRgn1, hRgn2, hRgn3: hRgn;
-    None, ConvErr, HelpURL, DllPath, APPDir, sTrue, sFalse: string;
+
     Created: boolean;
     CEle: IHTMLElement;
     SDom: ISImpleDOMNode;
     UIEle: IUIAutomationElement;
     TreeTH: TreeThread;
     UIATH: TreeThread4UIA;
+    HTMLTh: HTMLThread;
 
     Treemode: boolean;
     //UIA: IUIAutomation;
     P2W, P4H: integer;
-
-
+    cDPI: integer;
+    bFirstTime: boolean;
     TipText, TipTextIA2: string;
     sNode: TTreeNode;
     pNode: TTreeNode;
@@ -326,7 +328,7 @@ type
 
   public
     { Public declarations }
-
+    None, ConvErr, HelpURL, DllPath, APPDir, sTrue, sFalse: string;
     procedure GetNaviState(AllFalse: boolean = false);
     procedure Load;
     function LoadLang: string;
@@ -356,6 +358,7 @@ var
   lMSAA: array[0..11] of string;
   lIA2: array [0..15] of string;
   lUIA: array [0..61] of string;
+  HTMLs: array [0..2, 0..1] of string;
   flgMSAA, flgIA2, flgUIA, flgUIA2: integer;
 
 implementation
@@ -3679,76 +3682,21 @@ begin
 	end;
 	for i := 0 to 2 do
 		HTMLs[i, 1] := '';
-
-	HTMLs[0, 1] := CEle.tagName;
-		// rNode := TreeList1.Items.AddChild(nil, sHTML);
-		// Node := TreeList1.Items.AddChild(rNode, HTMLS[0, 0]);
-		// TreeList1.SetNodeColumn(node, 1, HTMLS[0, 1]);
-
 		rNode := SetNodeData(nil, sHTML, '', nil, 0);
-		SetNodeData(rNode, HTMLs[0, 0], HTMLs[0, 1], nil, 0);
 
-		iAttrCol := (CEle as IHTMLDOMNode).attributes as IHTMLATTRIBUTECOLLECTION;
-		sNode := nil;
-		for i := 0 to iAttrCol.Length - 1 do
+
+    if Assigned(HTMLTH) then
 		begin
-			ovValue := i;
-			iDomAttr := iAttrCol.item(ovValue) as IHTMLDOMATTRIBUTE;
-			if iDomAttr.specified then
-			begin
-				s := LowerCase(VarToStr(iDomAttr.nodeName));
-				if (s <> 'role') and (copy(s, 1, 4) <> 'aria') then
-				begin
-					try
-						if sNode = nil then
-						begin
-							// Node := TreeList1.Items.AddChild(rNode, HTMLS[1, 0]);
-							Node := SetNodeData(rNode, HTMLs[1, 0], '', nil, 0);
-							sNode := Node;
-						end;
-						// Node := TreeList1.Items.AddChild(sNode, VarToStr(iDOmAttr.nodeName));
-
-						if VarHaveValue(iDomAttr.nodeValue) then
-						begin
-							// TreeList1.SetNodeColumn(node, 1, VarToStr(iDomAttr.nodeValue));
-							SetNodeData(sNode, VarToStr(iDomAttr.nodeName),
-								VarToStr(iDomAttr.nodeValue), nil, 0);
-							hAttrs := hAttrs + VarToStr(iDomAttr.nodeName) +
-								VarToStr(iDomAttr.nodeValue) + '"' + #13#10;
-						end
-						else
-						begin
-							SetNodeData(sNode, VarToStr(iDomAttr.nodeName), '', nil, 0);
-						end;
-					except
-						on E: Exception do
-						begin
-							ShowErr(E.Message);
-						end;
-					end;
-				end;
-			end;
+			HTMLTH.Terminate;
+			HTMLTH.WaitFor;
+			HTMLTH.Free;
+			HTMLTH := nil;
 		end;
-		TreeList1.Expanded[sNode] := True;
-	if hAttrs = '' then
-	begin
-		// Node := TreeList1.Items.AddChild(rNode, HTMLs[1, 0]);
-		// TreeList1.SetNodeColumn(node, 1, none)
-		SetNodeData(rNode, HTMLs[1, 0], None, nil, 0);
-	end;
-	if hAttrs = '' then
-		HTMLs[1, 1] := None
-	else
-		HTMLs[1, 1] := hAttrs;
 
-	HTMLs[2, 1] := CEle.outerHTML;
+    HTMLTH := HTMLThread.Create(CEle, rNode);
+    HTMLTH.Start;
 
-	Result := sHTML + #13#10 + HTMLs[0, 0] + ':' + #9 + HTMLs[0, 1] + #13#10 +
-		HTMLs[1, 0] + ':' + #9 + HTMLs[1, 1] + #13#10 + HTMLs[2, 0] + ':' + #9 +
-		HTMLs[2, 1] + #13#10#13#10;
-	Memo1.Text := HTMLs[2, 0] + ':' + #13#10 + HTMLs[2, 1] + #13#10#13#10;
-	// rNode.Expand(True);
-	TreeList1.Expanded[rNode] := True;
+
 end;
 
 function TwndMSAAV.HTMLText4FF: string;
@@ -5485,6 +5433,14 @@ begin
 			UIATH.Free;
 			UIATH := nil;
 		end;
+
+    if Assigned(HTMLTH) then
+		begin
+			HTMLTH.Terminate;
+			HTMLTH.WaitFor;
+			HTMLTH.Free;
+			HTMLTH := nil;
+		end;
 		ClsNames.Free;
 		TBList.Free;
 		LangList.Free;
@@ -5506,10 +5462,12 @@ var
     i: integer;
 
 begin
+		bFirstTime := True;
 		dEventTime := 0;
     SystemCanSupportPerMonitorDpi(true);
     GetDCap(handle, Defx, Defy);
     GetWindowScale(Handle, DefX, DefY, ScaleX, ScaleY);
+    cDPI := DoubleToInt(DefY * ScaleY);
     TreeList1.NodeDataSize := SizeOf(TNodeData);
     TreeTH := nil;
     APPDir :=  IncludeTrailingPathDelimiter(ExtractFileDir(Application.ExeName));
@@ -5568,6 +5526,11 @@ begin
 
     Load;
     ExecCmdLine;
+
+    SizeChange;
+    cDPI := DoubleToInt(DefY * ScaleY);
+
+    bFirstTime := False;
 end;
 
 
@@ -7990,17 +7953,54 @@ end;
 
 procedure TwndMSAAV.SizeChange;
 var
-    SZ: TSize;
+	SZ: TSize;
+	i, w, iHeight, wSync: integer;
+  dBMP, mBMP, oriBMP: TBitmap;
+  tpColor: TColor;
 begin
-
-    GetTextExtentPoint(Canvas.Handle, PWideChar(Caption), Length(PwideChar(Caption)), SZ);
+		Font.Size := DoubleToInt(DefFont * ScaleY);
+  	Width := DoubleToInt(DefW * ScaleX);
+  	Height := DoubleToInt(DefH * ScaleY);
+		GetTextExtentPoint(Canvas.Handle, PWideChar(Caption), Length(PwideChar(Caption)), SZ);
     TreeList1.Font := Font;
-    //treelist1.ItemHeight := SZ.Height + 5;
     TreeList1.Header.Font := Font;
     TreeList1.Header.Height := SZ.Height + 3;
-    //TreeList1.Columns[0].Font := Font;
-    //TreeList1.Columns[1].Font := Font;
 
+    iHeight := DoubleToInt(16 * ScaleX);
+    Imagelist4.Clear;
+    ImageList4.Height := iHeight;
+    ImageList4.Width := iHeight;
+    for i := 0 to ImageList1.Count - 1 do
+    begin
+      try
+        dBMP := TBitmap.Create;
+  			mBMP := TBitmap.Create;
+        oriBMP := TBitmap.Create;
+        Imagelist1.GetBitmap(i, oriBMP);
+        dBMP.PixelFormat :=pf24bit;
+				mBMP.PixelFormat :=pf24bit;
+  			dBMP.Width := iHeight;
+  			dBMP.Height := iHeight;
+  			mBMP.Width := iHeight;
+  			mBMP.Height := iHeight;
+
+  			tpColor := OriBMP.Canvas.Pixels[0, 0];
+
+    		StretchBlt(dBMP.Canvas.Handle, 0, 0, dBMP.Width, dBMP.Height, OriBMP.Canvas.Handle, 0, 0, OriBMP.Width, OriBMP.Height, SRCCOPY);
+  			StretchBlt(mBMP.Canvas.Handle, 0, 0, mBMP.Width, mBMP.Height, OriBMP.Canvas.Handle, 0, 0, OriBMP.Width, OriBMP.Height, SRCCOPY);
+  			mBMP.Mask(tpColor);
+
+
+  			ImageList4.Add(dBMP, mBMP);
+      finally
+      	dBMP.Free;
+  			mBMP.Free;
+        oriBMP.Free;
+      end;
+    end;
+    toolbar1.Images := ImageList4;
+    toolbar1.ButtonHeight := iHeight + 5;
+    toolbar1.ButtonWidth := iHeight + 5;
 end;
 
 procedure TwndMSAAV.Splitter1Moved(Sender: TObject);
@@ -8103,9 +8103,11 @@ procedure  TwndMSAAV.WMDPIChanged(var Message: TMessage);
 begin
   scaleX := Message.WParamLo / DefX;//96.0;
   scaleY := Message.WParamHi / DefY;//96.0;
-  Font.Size := DoubleToInt(DefFont * ScaleY);
-  Width := DoubleToInt(DefW * ScaleX);
-  Height := DoubleToInt(DefH * ScaleY);
-  SizeChange;
+  if (not bFirstTime) and (cDPI <> Message.WParamLo) then
+  begin
+
+    cDPI := Message.WParamLo;
+  	SizeChange;
+  end;
 end;
 end.
