@@ -17,13 +17,9 @@ type
     UIEle: IUIAutomationElement;
     ipaID: integer;
     procedure RecurACC(ParentNode: TTreeNode; ParentAcc: iAccessible; iID: integer);
-    procedure ExpandNode;
-    procedure FindSameNode;
-    function Get_RoleText(Acc: IAccessible; Child: integer): string;
-    function IsSameUIElement(ia1, ia2: IAccessible; iID1, iID2: integer): boolean;
   protected
     iAcc, pac, getcAcc, tAcc: IAccessible;
-    pNode, rNode, sNode, RootNode: TTreeNode;
+    pNode, rNode, RootNode: TTreeNode;
     NodeCap, None, cAccRole: string;
     cAccName: widestring;
     iMode: Integer;
@@ -42,7 +38,6 @@ type
     UIAuto       : IUIAutomation;
     UIEle, UIpEle: IUIAutomationElement;
     procedure RecurACC(ParentNode: TTreeNode; ParentEle: IUIAutomationElement; uiCondition: IUIAutomationCondition);
-    function Get_RoleText(cEle: IUIAutomationElement): string;
     procedure ExpandNode;
   protected
     iAcc, pac, getcAcc, tAcc: IAccessible;
@@ -113,9 +108,8 @@ var
   SetNodeData, SetMemoText, GetTagName, GetCollection, GetAttrSpec, GetAttrs, TreeExpand: TThreadProcedure;
   bSpecify: wordbool;
 	s, Text1, Text2, nName: string;
-	hAttrs: WideString;
 	i, ColLen: integer;
-	Node, sNode: PVirtualNode;
+	sNode: PVirtualNode;
 	iAttrCol: IHTMLATTRIBUTECOLLECTION;
 	iDomAttr: IHTMLDOMATTRIBUTE;
 	ovValue, nValue: OleVariant;
@@ -244,56 +238,15 @@ begin
 
 end;
 
-function TreeThread.Get_RoleText(Acc: IAccessible; Child: integer): string;
-var
-    PC:PChar;
-    ovValue, ovChild: OleVariant;
-begin
-    ovChild := Child;
-    //ovValue := Acc.accRole[ovChild];
-    Acc.Get_accRole(ovChild, ovValue);
-    Result := None;
-    try
-                    //if (IDispatch(ovValue) = nil) then
-
-        if VarHaveValue(ovValue) then
-        begin
-            //GetMem(PC,255);
-            if VarIsNumeric(ovValue) then
-            begin
-                PC := StrAlloc(255);
-                GetRoleTextW(ovValue, PC, StrBufSize(PC));
-                Result := PC;
-                StrDispose(PC);
-            end
-            else if VarIsStr(ovValue) then
-            begin
-                Result := VarToStr(ovValue);
-            end;
-        end;
-    except
-
-    end;
-end;
-
 procedure TreeThread.Execute;
 var
 	GetAcc: TThreadProcedure;
 	hr: HResult;
-  ov: olevariant;
 begin
 	GetAcc := procedure
   begin
     UIAuto.ElementFromIAccessible(iAcc, ipaID, UIEle);
-    ov := ipaID;
-    iAcc.Get_accName(ov, cAccName);
-    if cAccName = '' then
-        cAccName := None;
-    cAccName := StringReplace(cAccName, #13, ' ', [rfReplaceAll]);
-    cAccName := StringReplace(cAccName, #10, ' ', [rfReplaceAll]);
-    cAccRole := Get_RoleText(iAcc, ipaID);
-    NodeCap := cAccName + ' - ' + cAccRole;
-
+    frmMSAAV.compEle := UIEle;
   end;
 
   try
@@ -309,7 +262,6 @@ begin
     end;
 
     try
-      sNode := nil;
 			Synchronize(GetAcc);
 			frmMSAAV.LoopNode := nil;
 			RecurACC(RootNode, pac, 0);
@@ -317,78 +269,13 @@ begin
 			if Terminated then
 			begin
 				frmMSAAV.bTer := True;
-				sNode := nil;
-			end
-      else
-      begin
-      	if not bRecursive then
-					Synchronize(ExpandNode);
-      end;
+
+			end;
 		except
 		end;
 	finally
     CoUninitialize;
   end;
-end;
-
-function TreeThread.IsSameUIElement(ia1, ia2: IAccessible; iID1, iID2: integer): boolean;
-var
-    UIEle1, UIEle2: IUIAutomationElement;
-    iSame: integer;
-    hr: hresult;
-    tagPT: UIAutomationClient_TLB.tagPoint;
-    cRC: TRect;
-begin
-	Result := false;
-	if Assigned(UIAuto) and Assigned(ia1) and Assigned(ia2) then
-	begin
-  	hr := ia1.accLocation(cRC.Left, cRC.Top, cRC.Right, cRC.Bottom, iID1);
-    tagPT.X := cRC.Location.X;
-		tagPT.Y := cRC.Location.Y;
-		if (hr = 0) and SUCCEEDED(UIAuto.ElementFromPoint(tagPT, UIEle1)) then
-		begin
-      hr := ia2.accLocation(cRC.Left, cRC.Top, cRC.Right, cRC.Bottom, iID2);
-    	tagPT.X := cRC.Location.X;
-			tagPT.Y := cRC.Location.Y;
-			if (hr = 0) and SUCCEEDED(UIAuto.ElementFromPoint(tagPT, UIEle2)) then
-			begin
-				hr := UIAuto.CompareElements(UIEle1, UIEle2, iSame);
-				if SUCCEEDED(hr) and (iSame <> 0) then
-					Result := True;
-			end;
-		end;
-
-	end;
-end;
-
-procedure TreeThread.FindSameNode;
-var
-	i: integer;
-  cNode: TTreeNode;
-begin
-	if TBList.Count = 0 then
-  	Exit;
-	for i := 0 to TBList.Count - 1 do
-  begin
-  	cNode := wndMSAAV.TreeView1.Items.GetNode(HTreeItem(TBList.Items[i]));
-    if (Assigned(cNode)) and (cNode.Text = NodeCap) then
-    begin
-    	if IsSameUIElement(iAcc, TTreeData(cNode.Data^).Acc, ipaID, TTreeData(cNode.Data^).iID) then
-      begin
-    		cNode.Expanded := True;
-  			//wndMSAAV.TreeView1.TopItem := cNode;
-  			cNode.Selected := True;
-      	break;
-      end;
-    end;
-  end;
-end;
-
-
-procedure TreeThread.ExpandNode;
-begin
-	wndMSAAV.TreeView1.Items[0].Expanded := True;
-  wndMSAAV.TreeView1.Items[0].Selected := True;
 end;
 
 
@@ -413,7 +300,6 @@ begin
       TD^.iID := iCH;
       pNode := cNode;
       rNode := wndMSAAV.TreeView1.Items.AddChildObject(pNode, '', Pointer(TD));
-
       if (rNode.Level >= 300) and not Assigned(frmMSAAV.LoopNode) then
       begin
       	frmMSAAV.Loopnode := ParentNode;
@@ -558,35 +444,6 @@ begin
 
 end;    }
 
-function TreeThread4UIA.Get_RoleText(cEle: IUIAutomationElement): string;
-var
-    PC:PChar;
-    ovValue: OleVariant;
-begin
-
-  try
-    if SUCCEEDED(UIEle.GetCurrentPropertyValue(UIA_LegacyIAccessibleRolePropertyId, ovValue)) then
-    begin
-      if VarHaveValue(ovValue) then
-      begin
-        if VarIsNumeric(ovValue) then
-        begin
-          PC := StrAlloc(255);
-          GetRoleTextW(ovValue, PC, StrBufSize(PC));
-          result := PC;
-          StrDispose(PC);
-        end
-        else if VarIsStr(ovValue) then
-        begin
-          result := VarToStr(ovValue);
-        end;
-      end;
-    end;
-  except
-    result := None;
-  end;
-end;
-
 
 
 procedure TreeThread4UIA.RecurACC(ParentNode: TTreeNode; ParentEle: IUIAutomationElement; uiCondition: IUIAutomationCondition);
@@ -600,7 +457,6 @@ var
 	ov: OleVariant;
 	hr: HResult;
 	PC: PChar;
-  uiWnd: hwnd;
 	arElement: IUIAutomationElementArray;
 	iLen, i: integer;
 	Scope: TreeScope;

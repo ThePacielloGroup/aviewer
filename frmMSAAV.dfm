@@ -3,7 +3,7 @@ object wndMSAAV: TwndMSAAV
   Top = 0
   ActiveControl = Toolbar1
   Caption = 'Accessibility Viewer'
-  ClientHeight = 556
+  ClientHeight = 441
   ClientWidth = 924
   Color = clBtnFace
   Constraints.MinHeight = 500
@@ -2467,7 +2467,7 @@ object wndMSAAV: TwndMSAAV
     Left = 337
     Top = 22
     Width = 5
-    Height = 534
+    Height = 419
     AutoSnap = False
     MinSize = 12
     OnMoved = Splitter1Moved
@@ -2633,7 +2633,7 @@ object wndMSAAV: TwndMSAAV
     Left = 0
     Top = 22
     Width = 337
-    Height = 534
+    Height = 419
     Align = alLeft
     BevelOuter = bvNone
     Constraints.MinWidth = 12
@@ -2643,7 +2643,7 @@ object wndMSAAV: TwndMSAAV
       Left = 327
       Top = 0
       Width = 10
-      Height = 534
+      Height = 419
       Align = alRight
       Caption = 'Collapse TreeView'
       TabOrder = 1
@@ -2665,7 +2665,7 @@ object wndMSAAV: TwndMSAAV
       Left = 0
       Top = 0
       Width = 327
-      Height = 534
+      Height = 419
       Align = alClient
       DoubleBuffered = True
       HideSelection = False
@@ -2693,14 +2693,14 @@ object wndMSAAV: TwndMSAAV
     Left = 342
     Top = 22
     Width = 582
-    Height = 534
+    Height = 419
     Align = alClient
     BevelOuter = bvNone
     TabOrder = 2
     TabStop = True
     object Splitter2: TSplitter
       Left = 0
-      Top = 264
+      Top = 149
       Width = 582
       Height = 5
       Cursor = crVSplit
@@ -2713,7 +2713,7 @@ object wndMSAAV: TwndMSAAV
     end
     object Panel4: TPanel
       Left = 0
-      Top = 269
+      Top = 154
       Width = 582
       Height = 265
       Align = alBottom
@@ -2737,19 +2737,29 @@ object wndMSAAV: TwndMSAAV
         Stretch = False
         PickerColor = clBtnFace
         AccName = 'Collapse Button'
-        CtrlNext = Memo1
-        CtrlDown = Memo1
       end
-      object Memo1: TAccMemo
+      object Memo1: TAccSynEdit
         Left = 0
         Top = 10
         Width = 582
         Height = 255
         Align = alClient
-        ReadOnly = True
-        ScrollBars = ssVertical
+        Font.Charset = DEFAULT_CHARSET
+        Font.Color = clWindowText
+        Font.Height = -13
+        Font.Name = 'Courier New'
+        Font.Style = []
         TabOrder = 1
-        AccName = 'CodeText'
+        Gutter.Font.Charset = DEFAULT_CHARSET
+        Gutter.Font.Color = clWindowText
+        Gutter.Font.Height = -11
+        Gutter.Font.Name = 'Courier New'
+        Gutter.Font.Style = []
+        Highlighter = SynHTMLSyn1
+        ScrollBars = ssVertical
+        TabWidth = 2
+        WordWrap = True
+        FontSmoothing = fsmNone
         CtrlPrev = PB3
         CtrlUp = PB3
       end
@@ -2758,7 +2768,7 @@ object wndMSAAV: TwndMSAAV
       Left = 0
       Top = 0
       Width = 582
-      Height = 264
+      Height = 149
       Align = alClient
       BevelOuter = bvNone
       TabOrder = 0
@@ -2787,7 +2797,7 @@ object wndMSAAV: TwndMSAAV
         Left = 0
         Top = 10
         Width = 582
-        Height = 254
+        Height = 139
         Align = alClient
         Header.AutoSizeIndex = 0
         Header.Font.Charset = DEFAULT_CHARSET
@@ -2823,7 +2833,7 @@ object wndMSAAV: TwndMSAAV
     Left = 176
     Top = 400
     Bitmap = {
-      494C01010E008C01BC0810001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010E008C01580910001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000004000000001002000000000000040
       0000000000000000000000000000000000000000000000000000BDBDBD007A7A
       7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A
@@ -3490,6 +3500,7 @@ object wndMSAAV: TwndMSAAV
   end
   object Timer2: TTimer
     Enabled = False
+    Interval = 1
     OnTimer = Timer2Timer
     Left = 80
     Top = 400
@@ -3620,7 +3631,7 @@ object wndMSAAV: TwndMSAAV
     Left = 256
     Top = 200
     Bitmap = {
-      494C01013E005000CC020F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01013E00500068030F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       00000000000036000000280000003C000000F0000000010020000000000000E1
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000
@@ -5524,5 +5535,16 @@ object wndMSAAV: TwndMSAAV
       Caption = 'S&elect Mode'
       OnClick = mnuSelModeClick
     end
+  end
+  object ImageList4: TImageList
+    Left = 112
+    Top = 198
+  end
+  object SynHTMLSyn1: TSynHTMLSyn
+    Options.AutoDetectEnabled = False
+    Options.AutoDetectLineLimit = 0
+    Options.Visible = False
+    Left = 256
+    Top = 134
   end
 end

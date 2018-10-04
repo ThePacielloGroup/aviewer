@@ -28,7 +28,7 @@ uses
   iAccessible2Lib_tlb, ISimpleDOM, Actions,
   Menus, Thread, TipWnd, UIAutomationClient_TLB, AccCTRLs,
   frmSet, Math, IntList, StrUtils, PermonitorApi, Multimon, VirtualTrees,
-  System.ImageList, UIA_TLB;
+  System.ImageList, UIA_TLB, SynEdit, SynEditHighlighter, SynHighlighterHtml;
 
 const
     IID_IServiceProvider: TGUID = '{6D5140C1-7436-11CE-8034-00AA006009FA}';
@@ -146,7 +146,6 @@ type
     mnuTV: TMenuItem;
     mnuTL: TMenuItem;
     mnuCode: TMenuItem;
-    Memo1: TAccMemo;
     TreeView1: TAccTreeView;
     mnuTVCont: TMenuItem;
     mnuTarget: TMenuItem;
@@ -180,6 +179,8 @@ type
     acMemoFocus: TAction;
     acTriFocus: TAction;
     ImageList4: TImageList;
+    Memo1: TAccSynEdit;
+    SynHTMLSyn1: TSynHTMLSyn;
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure acFocusExecute(Sender: TObject);
     procedure acCursorExecute(Sender: TObject);
@@ -360,6 +361,7 @@ var
   lUIA: array [0..61] of string;
   HTMLs: array [0..2, 0..1] of string;
   flgMSAA, flgIA2, flgUIA, flgUIA2: integer;
+  CompEle: IUIAutomationElement;
 
 implementation
 
@@ -1423,7 +1425,7 @@ begin
   mnuTVSSel.Enabled := false;
   mnuTVOSel.Enabled := false;
   iDefIndex := -1;
-  Memo1.Lines.Clear;
+  Memo1.ClearAll;
   bSame := False;
   try
     if acMSAAMode.Checked then
@@ -1612,7 +1614,7 @@ Example:
 	mnuTVOSel.Enabled := false;
 	iDefIndex := -1;
 	LoopNode := nil;
-	Memo1.Lines.Clear;
+	Memo1.ClearAll;
 	if SUCCEEDED(WindowFromAccessibleObject(iAcc, Wnd)) then
 	begin
 
@@ -1963,340 +1965,337 @@ begin
     end;
 end;
 
-function TwndMSAAV.IA2Text4HTML(pAcc: IAccessible = nil; tab: string = ''): string;
+function TwndMSAAV.IA2Text4HTML(pAcc: IAccessible = nil;
+	tab: string = ''): string;
 var
-    isp: iserviceprovider;
-    iInter: IInterface;
-    ia2, ia2Targ: iaccessible2;
-    iAV: IAccessibleValue;
-    iaTarg: IAccessible;
-    hr, i, iRole, t, p, iTarg, iUID: integer;
-    MSAAs: array [0..13] of widestring;
-    Node: TTreeNode;
-    ovChild, ovValue: OleVariant;
-    iAL: IAccessibleRelation;
-    s, ws: widestring;
-    oList, cList: TStringList;
-    iSOffset, IEOffset: integer;
-    ia2Txt: IAccessibleText;
-
+	iSP: IServiceProvider;
+	iInter: IInterface;
+	ia2, ia2Targ: IAccessible2;
+	iAV: IAccessibleValue;
+	iaTarg: IAccessible;
+	hr, i, iRole, t, p, iTarg, iUID: integer;
+	MSAAs: array [0 .. 13] of WideString;
+	Node: TTreeNode;
+	ovChild, ovValue: OleVariant;
+	iAL: IAccessibleRelation;
+	s, ws: WideString;
+	oList, cList: TStringList;
+	iSOffset, IEOffset: integer;
+	ia2Txt: IAccessibleText;
 
 begin
-    result := '';
-    if not Assigned(iAcc) then Exit;
-    if pAcc = nil then pAcc := iAcc;
-    //if (iMode <> 1) then Exit;
-    if (not mnuMSAA.Checked) then Exit;
-    oList := TStringList.Create;
-    try
+	Result := '';
+	if not Assigned(iAcc) then
+		Exit;
+	if pAcc = nil then
+		pAcc := iAcc;
+	// if (iMode <> 1) then Exit;
+	if (not mnuMSAA.Checked) then
+		Exit;
+	oList := TStringList.Create;
+	try
 
-        hr := pAcc.QueryInterface(IID_ISERVICEPROVIDER, isp);
-        if SUCCEEDED(hr) and ASsigned(iSP) then
-        begin
-            try
-            	hr := isp.QueryService(IID_IAccessible, iid_iaccessible2, ia2);
-                {if not SUCCEEDED(isp.QueryService(IID_IAccessible, iid_iaccessible2, ia2)) then
-                begin
-                    hr := E_NOINTERFACE;
-                    ia2 := nil;
-                end; }
-            except
-                hr := E_FAIL;
-            end;
-            if SUCCEEDED(hr) and ASsigned(ia2) then
-            begin
-                for i := 0 to 13 do
-                begin
-                    MSAAs[i] := none;
-                end;
+		hr := pAcc.QueryInterface(IID_IServiceProvider, iSP);
+		if SUCCEEDED(hr) and Assigned(iSP) then
+		begin
+			try
+				hr := iSP.QueryService(IID_IACCESSIBLE, IID_IACCESSIBLE2, ia2);
+			except
+				hr := E_FAIL;
+			end;
+			if SUCCEEDED(hr) and Assigned(ia2) then
+			begin
+				for i := 0 to 13 do
+				begin
+					MSAAs[i] := None;
+				end;
 
-                ovChild := varParent;
-                if (flgIA2 and TruncPow(2, 0)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.Get_accName(ovChild, ws)) then
-                        begin
-                            MSAAs[0] := ws;
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[0] := E.Message;
-                    end;
-                end;
+				ovChild := VarParent;
+				if (flgIA2 and TruncPow(2, 0)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Get_accName(ovChild, ws)) then
+						begin
+							MSAAs[0] := ws;
+						end;
+					except
+						on E: Exception do
+							MSAAs[0] := E.Message;
+					end;
+				end;
 
-                if (flgIA2 and TruncPow(2, 1)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.role(iRole)) then
-                        begin
-                            MSAAs[1] := GetIA2Role(iRole);;
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[1] := E.Message;
-                    end;
-                end;
-                if (flgIA2 and TruncPow(2, 2)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.Get_states(iRole)) then
-                        begin
-                            MSAAs[2] := GetIA2State(iRole);
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[2] := E.Message;
-                    end;
-                end;
-                if (flgIA2 and TruncPow(2, 3)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.Get_accDescription(ovChild, ws)) then
-                        begin
-                            MSAAs[3] := ws;
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[3] := E.Message;
-                    end;
-                end;
+				if (flgIA2 and TruncPow(2, 1)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Role(iRole)) then
+						begin
+							MSAAs[1] := GetIA2Role(iRole);;
+						end;
+					except
+						on E: Exception do
+							MSAAs[1] := E.Message;
+					end;
+				end;
+				if (flgIA2 and TruncPow(2, 2)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Get_states(iRole)) then
+						begin
+							MSAAs[2] := GetIA2State(iRole);
+						end;
+					except
+						on E: Exception do
+							MSAAs[2] := E.Message;
+					end;
+				end;
+				if (flgIA2 and TruncPow(2, 3)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Get_accDescription(ovChild, ws)) then
+						begin
+							MSAAs[3] := ws;
+						end;
+					except
+						on E: Exception do
+							MSAAs[3] := E.Message;
+					end;
+				end;
 
+				if (flgIA2 and TruncPow(2, 5)) <> 0 then
+				begin
 
+					cList := TStringList.Create;
+					try
 
-                if (flgIA2 and TruncPow(2, 5)) <> 0 then
-                begin
+						try
+							if SUCCEEDED(ia2.Get_attributes(s)) then
+							begin
+								cList.Delimiter := ';';
+								cList.DelimitedText := s;
+								for i := 0 to cList.Count - 1 do
+								begin
+									if cList[i] = '' then
+										continue;
 
-                    cList := TStringList.Create;
-                    try
+									if i = 0 then
+										MSAAs[5] := cList[i]
+									else
+										MSAAs[5] := MSAAs[5] + ', ' + cList[i];
+									oList.Add(cList[i]);
 
-                    try
-                        if SUCCEEDED(ia2.Get_attributes(s)) then
-                        begin
-                            cList.Delimiter := ';';
-  													cList.DelimitedText := s;
-                            for i := 0 to cList.Count - 1 do
-                            begin
-                            		if cList[i] = '' then continue;
+								end;
+							end;
+						except
+							on E: Exception do
+							begin
+								MSAAs[5] := MSAAs[5] + E.Message;
+								oList.Add(E.Message);
+							end;
+						end;
+					finally
+						cList.Free;
+					end;
 
-                                if i = 0 then
-                                    MSAAs[5] := cList[i]
-                                else
-                                    MSAAs[5] := MSAAs[5] + ', ' + cList[i];
-                                oList.Add(cList[i]);
+				end;
 
-                            end;
-                        end;
-                    except
-                        on E: Exception do
-                        begin
-                            MSAAs[5] := MSAAs[5] + E.Message;
-                            oList.Add(E.Message);
-                        end;
-                    end;
-                    finally
-                    	cList.Free;
-                    end;
+				if (flgIA2 and TruncPow(2, 6)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Get_accValue(ovChild, ws)) then
+						begin
+							MSAAs[6] := ws;
+						end;
+					except
+						on E: Exception do
+							MSAAs[6] := E.Message;
+					end;
+				end;
 
-                end;
+				if (flgIA2 and TruncPow(2, 7)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Get_localizedExtendedRole(ws)) then
+						begin
+							MSAAs[7] := ws;
+						end;
+					except
+						on E: Exception do
+							MSAAs[7] := E.Message;
+					end;
+				end;
+				if (flgIA2 and TruncPow(2, 8)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Get_localizedExtendedStates(10, PWideString1(ws),
+							iRole)) then
+						begin
+							MSAAs[8] := ws;
+						end;
+					except
+						on E: Exception do
+							MSAAs[8] := E.Message;
+					end;
+				end;
+				if (flgIA2 and TruncPow(2, 9)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(iSP.QueryService(IID_IACCESSIBLE, iid_iaccessiblevalue,
+							iAV)) then
+						begin
+							if SUCCEEDED(iAV.Get_currentValue(ovValue)) then
+								MSAAs[9] := ovValue;
+							if SUCCEEDED(iAV.Get_minimumValue(ovValue)) then
+								MSAAs[10] := ovValue;
+							if SUCCEEDED(iAV.Get_maximumValue(ovValue)) then
+								MSAAs[11] := ovValue;
+						end;
+					except
+						on E: Exception do
+							MSAAs[9] := E.Message;
+					end;
+				end;
+				if (flgIA2 and TruncPow(2, 10)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.QueryInterface(IID_IAccessibleText, ia2Txt)) then
+						begin
 
-                if (flgIA2 and TruncPow(2, 6)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.Get_accValue(ovChild, ws)) then
-                        begin
-                            MSAAs[6] := ws;
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[6] := E.Message;
-                    end;
-                end;
+							ia2Txt.Get_attributes(1, iSOffset, IEOffset, ws);
+							MSAAs[12] := SysUtils.StringReplace(ws, '\,', ',',
+								[rfReplaceAll, rfIgnoreCase]);
 
+						end;
+					except
+						on E: Exception do
+							MSAAs[12] := E.Message;
+					end;
+				end;
+				if (flgIA2 and TruncPow(2, 11)) <> 0 then
+				begin
+					try
+						if SUCCEEDED(ia2.Get_uniqueID(iUID)) then
+						begin
 
+							ia2Txt.Get_attributes(1, iSOffset, IEOffset, ws);
+							MSAAs[13] := inttostr(iUID);
 
-                if (flgIA2 and TruncPow(2, 7)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.Get_localizedExtendedRole(ws)) then
-                        begin
-                            MSAAs[7] := ws;
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[7] := E.Message;
-                    end;
-                end;
-                if (flgIA2 and TruncPow(2, 8)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.Get_localizedExtendedStates(10, PWideString1(ws), iRole)) then
-                        begin
-                            MSAAs[8] := ws;
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[8] := E.Message;
-                    end;
-                end;
-                if (flgIA2 and TruncPow(2, 9)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(isp.QueryService(IID_IAccessible, iid_iaccessiblevalue, iAV)) then
-                        begin
-                            if SUCCEEDED(iAV.Get_currentValue(ovValue)) then
-                            	MSAAs[9] := ovValue;
-                            if SUCCEEDED(iAV.Get_minimumValue(ovValue)) then
-                            	MSAAs[10] := ovValue;
-                            if SUCCEEDED(iAV.Get_maximumValue(ovValue)) then
-                            	MSAAs[11] := ovValue;
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[9] := E.Message;
-                    end;
-                end;
-                if (flgIA2 and TruncPow(2, 10)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.QueryInterface(IID_IAccessibleText, ia2Txt)) then
-                        begin
+						end;
+					except
+						on E: Exception do
+							MSAAs[13] := E.Message;
+					end;
+				end;
+				Result := Result + #13#10#9 + tab + '<strong>' + lIA2[0] + '</strong>' +
+					#13#10#9 + '<ul>';
+				for i := 0 to 11 do
+				begin
+					if (flgIA2 and TruncPow(2, i)) <> 0 then
+					begin
+						if i = 5 then
+						begin
+							Result := Result + #13#10#9#9 + tab + '<li>' + lIA2[i + 1] + ': '
+								+ MSAAs[i] + '</li>';
+						end
+						else if (i = 4) then
+						begin
+							Node := nil;
 
-                            ia2Txt.Get_attributes(1 , iSOffset, iEOffset, ws);
-                            MSAAs[12] := SysUtils.StringReplace(ws, '\,', ',', [rfReplaceAll, rfIgnoreCase]);
+							try
+								if SUCCEEDED(ia2.Get_nRelations(iRole)) then
+								begin
+									for p := 0 to iRole - 1 do
+									begin
+										Result := Result + #13#10#9#9 + tab + '<li>' + rType + ': ';
+										ia2.Get_relation(p, iAL);
+										iAL.Get_RelationType(s);
 
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[12] := E.Message;
-                    end;
-                end;
-                if (flgIA2 and TruncPow(2, 11)) <> 0 then
-                begin
-                    try
-                        if SUCCEEDED(ia2.Get_uniqueID(iUID)) then
-                        begin
+										Result := Result + s + '</li>';
+										Result := Result + #13#10#9#9 + tab + '<li>' + rTarg + ': ';
 
-                            ia2Txt.Get_attributes(1 , iSOffset, iEOffset, ws);
-                            MSAAs[13] := IntToStr(iUID);
+										iAL.Get_nTargets(iTarg);
+										for t := 0 to iTarg do
+										begin
+											iInter := nil;
+											hr := iAL.Get_target(t, iInter);
+											if SUCCEEDED(hr) then
+											begin
+												hr := iInter.QueryInterface(IID_IACCESSIBLE2, ia2Targ);
+												if SUCCEEDED(hr) then
+												begin
+													hr := ia2Targ.QueryInterface
+														(IID_IServiceProvider, iSP);
+													if SUCCEEDED(hr) then
+													begin
+														hr := iSP.QueryService(IID_IACCESSIBLE,
+															IID_IACCESSIBLE, iaTarg);
+														if SUCCEEDED(hr) then
+														begin
 
-                        end;
-                    except
-                        on E: Exception do
-                            MSAAs[13] := E.Message;
-                    end;
-                end;
-                Result := Result + #13#10#9 + tab + '<strong>' + lIA2[0] + '</strong>' + #13#10#9 + '<ul>';
-                for i := 0 to 11 do
-                begin
-                    if (flgIA2 and TruncPow(2, i)) <> 0 then
-                    begin
-                        if i = 5 then
-                        begin
-                            Result := Result + #13#10#9#9 + tab + '<li>' + lIA2[i+1] + ': ' + MSAAs[i] + '</li>';// + '(';// + #13#10;
-                              {if oList.Count > 0 then
-                              begin
-                            	  for p := 0 to oList.Count - 1 do
-                                begin
-                                Result := Result + oList[p];
+															// s := iaTarg.accName[0];
+															iaTarg.Get_accName(0, s);
+															if s = '' then
+																s := None;
+															// iaTarg.Get_accValue(0, s);
+															ia2Targ.Role(iRole);
+															ws := GetIA2Role(iRole);
+															if ws = '' then
+																ws := None;
+															// iaTarg.Get_accValue(0, ws);
+															Result := Result + s + ' - ' + ws;
+															{ if t <> itarg then
+																Result := Result + ','; }
+														end;
+													end;
+												end;
+											end;
+										end;
+										Result := Result + ';</li>';
+									end;
+								end;
+							except
+								on E: Exception do
+									ShowErr(E.Message);
+							end;
+						end
+						else if i = 9 then
+						begin
 
-                              end;
-                              Result := Result + '</li>';}//');<br>';
-                        end
-                        else if (i = 4) {and ((flgIA2 and 16) <> 0)} then
-                        begin
-                            node := nil;
+							for t := 0 to 2 do
+							begin
+								Result := Result + #13#10#9#9 + tab + '<li>' + lIA2[11 + t] +
+									': ' + MSAAs[t + 9] + ';</li>';
+							end;
 
-                            try
-                                if SUCCEEDED(ia2.Get_nRelations(iRole)) then
-                                begin
-                                    for p := 0 to iRole - 1 do
-                                    begin
-                                        Result := Result + #13#10#9#9 + tab + '<li>' + rType + ': ';
-                                        ia2.Get_relation(p, iAL);
-                                        iAL.Get_RelationType(s);
+						end
+						else if i = 10 then
+						begin
 
-                                        Result := Result + s + '</li>';
-                                        Result := Result + #13#10#9#9 + tab + '<li>' + rTarg + ': ';
+							Result := Result + #13#10#9#9 + tab + '<li>' + lIA2[14] + ': ' +
+								MSAAs[12] + '</li>';
+						end
+						else if i = 11 then
+						begin
 
+							Result := Result + #13#10#9#9 + tab + '<li>' + lIA2[15] + ': ' +
+								MSAAs[13] + '</li>';
+						end
+						else
+						begin
 
-                                        iAL.Get_nTargets(iTarg);
-                                        for t := 0 to iTarg do
-                                        begin
-                                            iInter := nil;
-                                            hr := iAL.Get_target(t, iInter);
-                                            if SUCCEEDED(hr) then
-                                            begin
-                                                hr := iInter.QueryInterface(IID_IACCESSIBLE2, ia2Targ);
-                                                if SUCCEEDED(hr) then
-                                                begin
-                                                    hr := ia2Targ.QueryInterface(IID_ISERVICEPROVIDER, isp);
-                                                    if SUCCEEDED(hr) then
-                                                    begin
-                                                        hr := isp.QueryService(IID_IAccessible, iid_iaccessible, iaTarg);
-                                                        if SUCCEEDED(hr) then
-                                                        begin
-
-                                                            //s := iaTarg.accName[0];
-                                                            iaTarg.Get_accName(0, s);
-                                                            if s = '' then
-                                                                s := none;
-                                                            //iaTarg.Get_accValue(0, s);
-                                                            ia2Targ.role(iRole);
-                                                            ws := GetIA2Role(iRole);
-                                                            if ws = '' then
-                                                                ws := none;
-                                                            //iaTarg.Get_accValue(0, ws);
-                                                            Result := Result + s + ' - ' + ws;
-                                                            {if t <> itarg then
-                                                            	Result := Result + ',';}
-                                                        end;
-                                                    end;
-                                                end;
-                                            end;
-                                        end;
-                                        Result := Result + ';</li>';
-                                    end;
-                                end;
-                            except
-                                on E:Exception do
-                                    ShowErr(E.Message);
-                            end;
-                        end
-                        else if i = 9 then
-                        begin
-
-                          for t := 0 to 2 do
-                          begin
-                            Result := Result + #13#10#9#9 + tab + '<li>' + lIA2[11+t] + ': ' + MSAAs[t+9] + ';</li>';
-                          end;
-
-                        end
-                        else if i = 10 then
-                        begin
-
-                            Result := Result + #13#10#9#9 + tab + '<li>' + lIA2[14] + ': ' + MSAAs[12] + '</li>';
-                        end
-                        else if i = 11 then
-                        begin
-
-                            Result := Result + #13#10#9#9 + tab + '<li>' + lIA2[15] + ': ' + MSAAs[13] + '</li>';
-                        end
-                        else
-                        begin
-
-                            Result := Result + #13#10#9#9 + tab + '<li>' + lIA2[i+1] + ': ' + MSAAs[i] + ';</li>';
-                        end;
-                    end;
-                end;
+							Result := Result + #13#10#9#9 + tab + '<li>' + lIA2[i + 1] + ': '
+								+ MSAAs[i] + ';</li>';
+						end;
+					end;
+				end;
 
 
-                //Result := Result + lIA2[9] + ':' + #9 + MSAAs[8] + #13#10;
+				// Result := Result + lIA2[9] + ':' + #9 + MSAAs[8] + #13#10;
 
-            end;
-        end;
-    finally
-        oList.Free;
-    end;
+			end;
+		end;
+	finally
+		oList.Free;
+	end;
 
 end;
 
@@ -4288,14 +4287,14 @@ begin
 		Exit;
 	if not acMSAAMode.Checked then
 	begin
-		uiEle := nil;
-    iAcc.accLocation(cRC.Left, cRC.Top, cRC.Right, cRC.Bottom, varParent);
-    tagPT.X := cRC.Location.X;
-		tagPT.Y := cRC.Location.Y;
-		UIAuto.ElementFromPoint(tagPT, uiEle);
+		if (not Assigned(uiEle)) then
+    begin
+      hr := UIAuto.ElementFromIAccessible(iAcc, varParent, UIEle);
+    	if (hr <> S_OK) and (not Assigned(uiEle)) then
+      	Exit;
+    end;
 	end;
-	if (not Assigned(uiEle)) then
-		Exit;
+
 
 	try
 		// iRes := UIA.ElementFromIAccessible(iAcc, 0, UIEle);
@@ -5481,7 +5480,6 @@ begin
     else
         Transpath := APPDir + ChangeFileExt(ExtractFileName(Application.ExeName), '.ini');
     DllPath := APPDir + 'IAccessible2Proxy.dll';
-    //memo1.ParentWindow := handle;
     arPT[0] := Point(0, 0);
     arPT[1] := Point(0, 0);
     arPT[2] := Point(0, 0);
@@ -5744,6 +5742,70 @@ begin
 
 end;
 
+procedure TwndMSAAV.TreeView1Expanding(Sender: TObject; Node: TTreeNode;
+  var AllowExpansion: Boolean);
+{var
+    Role: string;
+    ovChild, ovRole: OleVariant;
+    ws: widestring;
+    i: integer;  }
+begin
+	{try
+    if Node.Text = '' then
+    begin
+        TTreeData(Node.Data^).Acc.Get_accName(TTreeData(Node.Data^).iID, ws);
+        if ws = '' then ws := None;
+        Role := Get_ROLETExt(TTreeData(Node.Data^).Acc, TTreeData(Node.Data^).iID);
+        Node.Text := ws + ' - ' + Role;
+        if SUCCEEDED(TTreeData(Node.Data^).Acc.Get_accRole(ovChild, ovRole)) then
+            begin
+                if VarHaveValue(ovRole) then
+                begin
+                    if VarIsType(ovRole, VT_I4) and (TVarData(ovRole).VInteger <= 61) then
+                    begin
+                        Node.ImageIndex := TVarData(ovRole).VInteger - 1;
+                        Node.ExpandedImageIndex := Node.ImageIndex ;
+                        Node.SelectedIndex := Node.ImageIndex ;
+                        //showmessage(inttostr(rNode.ImageIndex));
+                    end;
+                end;
+            end;
+    end;
+    for i := 0 to node.Count - 1 do
+    begin
+
+        if node.Item[i].Text = '' then
+        begin
+            //if not AccIsNull(TTreeData(Node.Data^).Acc) then
+            //begin
+            ws := '';
+            Role := '';
+            //ws := TTreeData(node.Item[i].Data^).Acc.accName[TTreeData(node.Item[i].Data^).iID];
+            TTreeData(node.Item[i].Data^).Acc.Get_accName(TTreeData(node.Item[i].Data^).iID, ws);
+            if ws = '' then ws := None;
+            Role := Get_ROLETExt(TTreeData(node.Item[i].Data^).Acc, TTreeData(node.Item[i].Data^).iID);
+            node.Item[i].Text := ws + ' - ' + Role;
+            if SUCCEEDED(TTreeData(node.Item[i].Data^).Acc.Get_accRole(ovChild, ovRole)) then
+            begin
+                if VarHaveValue(ovRole) then
+                begin
+                    if VarIsType(ovRole, VT_I4) and (TVarData(ovRole).VInteger <= 61) then
+                    begin
+                        node.Item[i].ImageIndex := TVarData(ovRole).VInteger - 1;
+                        node.Item[i].ExpandedImageIndex := node.Item[i].ImageIndex ;
+                        node.Item[i].SelectedIndex := node.Item[i].ImageIndex ;
+                        //showmessage(inttostr(rNode.ImageIndex));
+                    end;
+                end;
+            end;
+            //end;
+        end;
+    end;
+    finally
+        AllowExpansion := True;
+    end;  }
+end;
+
 procedure TwndMSAAV.TreeView1Addition(Sender: TObject; Node: TTreeNode);
 var
 	Role, iAccRole: string;
@@ -5751,14 +5813,18 @@ var
 	ws, iAccName: WideString;
 	PC: PChar;
   hr: hresult;
-  paEle: IUIAutomationElement;
+  iSame: integer;
+  paEle, UIEle2: IUIAutomationElement;
 begin
 
 	if not Assigned(Node.Data) then
 		Exit;
+  if node.AbsoluteIndex = 0 then
+  begin
+		mnuTVSAll.Enabled := True;
+		mnuTVOAll.Enabled := True;
+  end;
 
-	mnuTVSAll.Enabled := True;
-	mnuTVOAll.Enabled := True;
   Node.ImageIndex := 7;
   Node.ExpandedImageIndex := 7;
   Node.SelectedIndex := 7;
@@ -5775,11 +5841,19 @@ begin
 		ws := StringReplace(ws, #13, ' ', [rfReplaceAll]);
 		ws := StringReplace(ws, #10, ' ', [rfReplaceAll]);
 		Node.Text := ws + ' - ' + Role;
-    if (mnuAll.Checked) and (NodeTxt <> '') and (NodeTxt = Node.Text) and (not nSelected) then
+    if {(mnuAll.Checked) and (NodeTxt <> '') and} (NodeTxt = Node.Text) and (not nSelected) then
     begin
-    	Node.Expanded := True;
-  		Node.Selected := True;
-      nSelected := true;
+      if SUCCEEDED(UIAuto.ElementFromIAccessible(TTreeData(Node.Data^).Acc,
+				TTreeData(Node.Data^).iID, UIEle2)) then
+			begin
+				hr := UIAuto.CompareElements(CompEle, UIEle2, iSame);
+				if SUCCEEDED(hr) and (iSame <> 0) then
+				begin
+					Node.Expanded := True;
+					Node.Selected := True;
+					nSelected := True;
+				end;
+			end;
     end;
 		if SUCCEEDED(TTreeData(Node.Data^).Acc.Get_accRole(ovChild, ovRole)) then
 		begin
@@ -5790,7 +5864,6 @@ begin
 					Node.ImageIndex := TVarData(ovRole).VInteger - 1;
 					Node.ExpandedImageIndex := Node.ImageIndex;
 					Node.SelectedIndex := Node.ImageIndex;
-					// showmessage(inttostr(rNode.ImageIndex));
 				end;
 			end;
 		end;
@@ -5856,70 +5929,6 @@ begin
     Dispose(Node.Data);
 end;
 
-
-
-procedure TwndMSAAV.TreeView1Expanding(Sender: TObject; Node: TTreeNode;
-  var AllowExpansion: Boolean);
-{var
-    Role: string;
-    ovChild, ovRole: OleVariant;
-    ws: widestring;}
-begin
-	{try
-    if Node.Text = '' then
-    begin
-        TTreeData(Node.Data^).Acc.Get_accName(TTreeData(Node.Data^).iID, ws);
-        if ws = '' then ws := None;
-        Role := Get_ROLETExt(TTreeData(Node.Data^).Acc, TTreeData(Node.Data^).iID);
-        Node.Text := ws + ' - ' + Role;
-        if SUCCEEDED(TTreeData(Node.Data^).Acc.Get_accRole(ovChild, ovRole)) then
-            begin
-                if VarHaveValue(ovRole) then
-                begin
-                    if VarIsType(ovRole, VT_I4) and (TVarData(ovRole).VInteger <= 61) then
-                    begin
-                        Node.ImageIndex := TVarData(ovRole).VInteger - 1;
-                        Node.ExpandedImageIndex := Node.ImageIndex ;
-                        Node.SelectedIndex := Node.ImageIndex ;
-                        //showmessage(inttostr(rNode.ImageIndex));
-                    end;
-                end;
-            end;
-    end;
-    for i := 0 to node.Count - 1 do
-    begin
-
-        if node.Item[i].Text = '' then
-        begin
-            //if not AccIsNull(TTreeData(Node.Data^).Acc) then
-            //begin
-            ws := '';
-            Role := '';
-            //ws := TTreeData(node.Item[i].Data^).Acc.accName[TTreeData(node.Item[i].Data^).iID];
-            TTreeData(node.Item[i].Data^).Acc.Get_accName(TTreeData(node.Item[i].Data^).iID, ws);
-            if ws = '' then ws := None;
-            Role := Get_ROLETExt(TTreeData(node.Item[i].Data^).Acc, TTreeData(node.Item[i].Data^).iID);
-            node.Item[i].Text := ws + ' - ' + Role;
-            if SUCCEEDED(TTreeData(node.Item[i].Data^).Acc.Get_accRole(ovChild, ovRole)) then
-            begin
-                if VarHaveValue(ovRole) then
-                begin
-                    if VarIsType(ovRole, VT_I4) and (TVarData(ovRole).VInteger <= 61) then
-                    begin
-                        node.Item[i].ImageIndex := TVarData(ovRole).VInteger - 1;
-                        node.Item[i].ExpandedImageIndex := node.Item[i].ImageIndex ;
-                        node.Item[i].SelectedIndex := node.Item[i].ImageIndex ;
-                        //showmessage(inttostr(rNode.ImageIndex));
-                    end;
-                end;
-            end;
-            //end;
-        end;
-    end;
-    finally
-        AllowExpansion := True;
-    end; }
-end;
 
 procedure TwndMSAAV.Toolbar1Enter(Sender: TObject);
 begin
@@ -6233,14 +6242,14 @@ end;
 procedure TwndMSAAV.acNextSExecute(Sender: TObject);
 begin
     TreeList1.Clear;
-    Memo1.Lines.Clear;
+    Memo1.ClearAll;
     ExecMSAAMode(acNextS);
 end;
 
 procedure TwndMSAAV.acPrevSExecute(Sender: TObject);
 begin
     TreeList1.Clear;
-    Memo1.Lines.Clear;
+    Memo1.ClearAll;
     ExecMSAAMode(acPrevS);
 end;
 
@@ -6255,7 +6264,7 @@ end;
 procedure TwndMSAAV.acChildExecute(Sender: TObject);
 begin
     TreeList1.Clear;
-    Memo1.Lines.Clear;
+    Memo1.ClearAll;
     ExecMSAAMode(acChild);
 end;
 
@@ -6263,7 +6272,7 @@ end;
 procedure TwndMSAAV.acParentExecute(Sender: TObject);
 begin
     TreeList1.Clear;
-    Memo1.Lines.Clear;
+    Memo1.ClearAll;
     ExecMSAAMode(acParent);
 end;
 
