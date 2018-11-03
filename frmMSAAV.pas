@@ -56,12 +56,14 @@ type
     Value2: string;
     Acc: IAccessible;
     iID: integer;
+
    end;
    PTreeData = ^TTreeData;
    TTreeData = record
       Acc: IAccessible;
       uiEle: IUIAUTOMATIONELEMENT;
       iID: integer;
+      dummy: boolean;
    end;
    {PIE = ^FIE;
     FIE = record
@@ -314,7 +316,6 @@ type
     function GetSameAcc: boolean;
     function IsSameUIElement(ia1, ia2: IAccessible; iID1, iID2: integer): boolean;
     procedure SetTreeMode(pNode: TTreeNode);
-    function UIAEIsNull(tEle: IUIAutomationelement): boolean;
     procedure mnuLangChildClick(Sender: TObject);
     procedure RecursiveTV(cNode: TTreeNode; var HTML: string; var iCnt: integer; ForSel: boolean = false);
     function Get_RoleText(Acc: IAccessible; Child: integer): string;
@@ -361,7 +362,6 @@ var
   lUIA: array [0..61] of string;
   HTMLs: array [0..2, 0..1] of string;
   flgMSAA, flgIA2, flgUIA, flgUIA2: integer;
-  CompEle: IUIAutomationElement;
 
 implementation
 
@@ -499,12 +499,9 @@ procedure WinEventProc(hWinEventHook: THandle; event: DWORD; HWND: HWND;
 var
 
 	vChild: variant;
-	i: cardinal;
 	pAcc: IAccessible;
-	s: string;
 	iDis: iDispatch;
   hr: HResult;
-  icPID: integer;
 	function SetiAcc: boolean;
 	begin
   	result := False;
@@ -548,33 +545,18 @@ end;
 
 function TwndMSAAV.HandleFocusChangedEvent(const sender: IUIAutomationElement): HResult;
 var
-    i: cardinal;
     hr: HResult;
     icPID: integer;
     rc: UIAutomationClient_tlb.tagRECT;
-    //iVW: IUIAutomationTreeWalker;
-  function IsEdge: boolean;
-  var
-    FID, CName: widestring;
-    pEle, cEle: IUIAutomationElement;
-    iCnt: integer;
-  begin
 
-    Result := False;
-    sender.Get_CurrentFrameWorkID(FID);
-    if (LowerCase(FID) = 'microsoftedge') then
-    begin
-      result := True;
-    end;
-  end;
 begin
   Result := S_OK;
 
   UIEle := sender;
-  if (hr = 0) and (Assigned(uiEle)) then
+  if (Assigned(uiEle)) then
   begin
   	hr := uiEle.Get_CurrentProcessId(icPID);
-    if icPID = wndMSAAV.iPID then
+    if (hr = S_OK) and (icPID = wndMSAAV.iPID) then
     	exit;
   end;
 
@@ -598,66 +580,16 @@ begin
 			Timer2.Enabled := True;
 		end;
   end;
-  //UIAuto.Get_ControlViewWalker(iVW);
-
-  {if IsEdge then
-  begin
-    UIEle := sender;
-    UIEle.Get_CurrentNativeWindowHandle(pInt);
-    Wnd := HWND(pInt);
-    i := GetWindowLong(Wnd, GWL_HINSTANCE);
-    if i = hInstance then exit;
-    if (not wndMSAAV.acMSAAMode.Checked) then
-    begin
-      if (wndMSAAV.acOnlyFOcus.Checked) then
-      begin
-        iAcc := nil;
-        UIAMode := True;
-        UIEle.Get_CurrentBoundingRectangle(RC);
-        ShowRectWnd2(clYellow, Rect(rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top));
-      end
-      else
-      begin
-        if (wndMSAAV.acFocus.Checked) then
-        begin
-          iAcc := nil;
-          UIAMode := True;
-          UIEle.Get_CurrentBoundingRectangle(RC);
-          ShowRectWnd2(clRed, Rect(rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top));
-          Timer2.Enabled := false;
-          Timer2.Enabled := True;
-        end;
-      end;
-    end
-    else
-    begin
-      if (wndMSAAV.acFocus.Checked) then
-      begin
-        iAcc := nil;
-        UIAMode := True;
-        UIEle.Get_CurrentBoundingRectangle(RC);
-        ShowRectWnd2(clRed, Rect(rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top));
-        Timer2.Enabled := false;
-        Timer2.Enabled := True;
-      end;
-    end;
-
-  end; }
 end;
 
 
 procedure TwndMSAAV.Timer1Timer(Sender: TObject);
 var
 	Wnd: HWND;
-	i: cardinal;
 	pAcc: IAccessible;
 	v: variant;
 	iDis: iDispatch;
 	tagPT: UIAutomationClient_TLB.tagPoint;
-	RC: UIAutomationClient_TLB.tagRECT;
-	iVW: IUIAutomationTreeWalker;
-	oEle, edgeEle: IUIAUTOMATIONELEMENT;
-	wName: WideString;
 	hr: HResult;
   icPID: integer;
 
@@ -693,7 +625,7 @@ begin
             if (hr = 0) and (Assigned(uiEle)) then
             begin
               hr := uiEle.Get_CurrentProcessId(icPID);
-              if icPID = iPID then
+              if (hr = S_OK) and (icPID = iPID) then
               	exit;
             end;
 						Treemode := false;
@@ -1349,15 +1281,9 @@ end;
 
 procedure TwndMSAAV.ShowText4UIA;
 var
-  paEle, pEle: IUIAutomationElement;
-  iVW: IUIAutomationTreeWalker;
-  iCnt: integer;
-  Cls: widestring;
+  pEle: IUIAutomationElement;
   bSame: boolean;
-  uiCondi  : IUIAutomationCondition;
-  ov: OleVariant;
   hr: hresult;
-  iLegacy: ILegacyIAccessibleProvider;
 	iLeg: IUIAutomationLegacyIAccessiblePattern;
 	iInt: IInterface;
 	iSP: IServiceProvider;
@@ -1379,10 +1305,6 @@ var
   var
     i, iSame: integer;
     rNode: TTreeNode;
-    pArray: PSafeArray;
-    ubHigh : Integer;
-    varValue: OleVariant;
-    arRID: array [0..1, 0..1] of integer;
   begin
     bSame := false;
     try
@@ -1391,7 +1313,7 @@ var
           for i := 0 to TBList.Count - 1 do
           begin
             rNode := TreeView1.Items.GetNode(HTreeItem(TBList.Items[i]));
-            if SUCCEEDED(UIAuto.CompareElements(uiEle, TTreeData(rNode.Data^).uiEle, iSame)) then
+            if (Assigned(rNode)) and (SUCCEEDED(UIAuto.CompareElements(uiEle, TTreeData(rNode.Data^).uiEle, iSame))) then
             begin
               if iSame <> 0 then
               begin
@@ -1545,7 +1467,6 @@ end;
 
 function TwndMSAAV.ShowMSAAText:boolean;
 var
-    vChild: variant;
     s: string;
     Wnd: hwnd;
     iSP: IServiceProvider;
@@ -1553,20 +1474,18 @@ var
     iDom: IHTMLDOMNode;
     Path, cAccRole: string;
     ws: widestring;
-    RC: TRect;
     iSEle: ISimpleDOMNode;
     SI: Smallint;
     PU, PU2: PUINT;
     WD: Word;
     PC, PC2:PChar;
-    pAcc, accParent: IAccessible;
+    pAcc: IAccessible;
     iRes: integer;
     iDoc: IHTMLDocument2;
     pEle, TempEle: ISimpleDOMNode;
     i: integer;
     AWnd: HWND;
     bSame: boolean;
-    iDis: iDispatch;
     procedure GetAccTxt;
 		begin
 			iAcc.Get_accName(VarParent, ws);
@@ -1623,7 +1542,6 @@ Example:
 		CEle := nil;
 		SDom := nil;
 		Path := IncludeTrailingPathDelimiter(ExtractFileDir(Application.ExeName));
-		iAcc.accLocation(RC.left, RC.top, RC.right, RC.bottom, vChild);
 		if acOnlyFocus.Checked then
 			ShowRectWnd(clYellow)
 		else if (acRect.Checked) then
@@ -1806,7 +1724,6 @@ Example:
 					end
 					else
 					begin
-						bSame := false;
 						Timer1.Enabled := false;
 						try
 							bSame := GetSameAcc;
@@ -3233,10 +3150,8 @@ var
 	pCond: IUIAutomationCondition;
 	iVW: IUIAutomationTreeWalker;
 	Scope: TreeScope;
-	iLegacy: ILegacyIAccessibleProvider;
 	iLeg: IUIAutomationLegacyIAccessiblePattern;
 	iInt: IInterface;
-	iSP: IServiceProvider;
 	function GetiLegacy: HResult;
 	begin
   	result := S_FALSE;
@@ -3664,14 +3579,8 @@ end;
 
 function TwndMSAAV.HTMLText: string;
 var
-
-	s: string;
-	hAttrs: WideString;
 	i: integer;
-	rNode, Node, sNode: PVirtualNode;
-	iAttrCol: IHTMLATTRIBUTECOLLECTION;
-	iDomAttr: IHTMLDOMATTRIBUTE;
-	ovValue: OleVariant;
+	rNode: PVirtualNode;
 begin
 	if not Assigned(CEle) then
 	begin
@@ -4162,7 +4071,6 @@ var
     iSame: integer;
     hr: hresult;
     tagPT: UIAutomationClient_TLB.tagPoint;
-    ov: olevariant;
     cRC: TRect;
 begin
 	Result := false;
@@ -4212,7 +4120,6 @@ var
 	ND: PNodeData;
 
   tagPT: UIAutomationClient_TLB.tagPoint;
-  ov: olevariant;
   cRC: TRect;
 const
 	IsProps: Array [0 .. 19] of integer = (30027, 30028, 30029, 30030, 30031,
@@ -4287,14 +4194,14 @@ begin
 		Exit;
 	if not acMSAAMode.Checked then
 	begin
-		if (not Assigned(uiEle)) then
-    begin
-      hr := UIAuto.ElementFromIAccessible(iAcc, varParent, UIEle);
-    	if (hr <> S_OK) and (not Assigned(uiEle)) then
-      	Exit;
-    end;
+		uiEle := nil;
+    iAcc.accLocation(cRC.Left, cRC.Top, cRC.Right, cRC.Bottom, varParent);
+    tagPT.X := cRC.Location.X;
+		tagPT.Y := cRC.Location.Y;
+		UIAuto.ElementFromPoint(tagPT, uiEle);
 	end;
-
+	if (not Assigned(uiEle)) then
+		Exit;
 
 	try
 		// iRes := UIA.ElementFromIAccessible(iAcc, 0, UIEle);
@@ -5585,23 +5492,6 @@ begin
 	end;
 end;
 
-function TwndMSAAV.UIAEIsNull(tEle: IUIAutomationelement): boolean;
-var
-    i: integer;
-begin
-  result := True;
-  try
-    if Assigned(tEle) then
-    begin
-      if SUCCEEDED(tEle.Get_CurrentProcessId(i)) then
-        Result := false;
-    end;
-  except
-    Result := True;
-  end;
-
-end;
-
 procedure TwndMSAAV.TreeList1Click(Sender: TObject);
 begin
 	if TreeList1.SelectedCount > 0 then
@@ -5808,22 +5698,15 @@ end;
 
 procedure TwndMSAAV.TreeView1Addition(Sender: TObject; Node: TTreeNode);
 var
-	Role, iAccRole: string;
+	Role: string;
 	ovChild, ovRole: OleVariant;
-	ws, iAccName: WideString;
+	ws: WideString;
 	PC: PChar;
-  hr: hresult;
-  iSame: integer;
-  paEle, UIEle2: IUIAutomationElement;
 begin
-
 	if not Assigned(Node.Data) then
 		Exit;
-  if node.AbsoluteIndex = 0 then
-  begin
-		mnuTVSAll.Enabled := True;
-		mnuTVOAll.Enabled := True;
-  end;
+	mnuTVSAll.Enabled := True;
+	mnuTVOAll.Enabled := True;
 
   Node.ImageIndex := 7;
   Node.ExpandedImageIndex := 7;
@@ -5841,20 +5724,12 @@ begin
 		ws := StringReplace(ws, #13, ' ', [rfReplaceAll]);
 		ws := StringReplace(ws, #10, ' ', [rfReplaceAll]);
 		Node.Text := ws + ' - ' + Role;
-    if {(mnuAll.Checked) and (NodeTxt <> '') and} (NodeTxt = Node.Text) and (not nSelected) then
+    {if (mnuAll.Checked) and (NodeTxt <> '') and (NodeTxt = Node.Text) and (not nSelected) then
     begin
-      if SUCCEEDED(UIAuto.ElementFromIAccessible(TTreeData(Node.Data^).Acc,
-				TTreeData(Node.Data^).iID, UIEle2)) then
-			begin
-				hr := UIAuto.CompareElements(CompEle, UIEle2, iSame);
-				if SUCCEEDED(hr) and (iSame <> 0) then
-				begin
-					Node.Expanded := True;
-					Node.Selected := True;
-					nSelected := True;
-				end;
-			end;
-    end;
+    	Node.Expanded := True;
+  		Node.Selected := True;
+      nSelected := true;
+    end;   }
 		if SUCCEEDED(TTreeData(Node.Data^).Acc.Get_accRole(ovChild, ovRole)) then
 		begin
 			if VarHaveValue(ovRole) then
@@ -5864,6 +5739,7 @@ begin
 					Node.ImageIndex := TVarData(ovRole).VInteger - 1;
 					Node.ExpandedImageIndex := Node.ImageIndex;
 					Node.SelectedIndex := Node.ImageIndex;
+					// showmessage(inttostr(rNode.ImageIndex));
 				end;
 			end;
 		end;
@@ -7440,7 +7316,6 @@ var
   var
   	Res: string;
     PC:PChar;
-    isp: iserviceprovider;
   begin
   	Role:= '';
     ovChild := Child;
@@ -7498,6 +7373,9 @@ var
   end;
 
 begin
+	if not Assigned(cNode.Data) then
+  	Exit;
+
 	tab := #9;
 	if cNode.Level > 0 then
   begin
@@ -7775,7 +7653,6 @@ var
   iEle: IHTMLElement;
   iDoc2: IHTMLDocument2;
   isp: iserviceprovider;
-  iRes: integer;
   isEle, pEle: ISimpleDOMNode;
   isDoc: ISimpleDOMDocument;
   aPC : pWidechar;
@@ -7784,7 +7661,6 @@ var
   var
   	Res: string;
     PC:PChar;
-    isp: iserviceprovider;
   begin
   	Role:= '';
     ovChild := Child;
@@ -7963,7 +7839,7 @@ end;
 procedure TwndMSAAV.SizeChange;
 var
 	SZ: TSize;
-	i, w, iHeight, wSync: integer;
+	i, iHeight: integer;
   dBMP, mBMP, oriBMP: TBitmap;
   tpColor: TColor;
 begin
@@ -7981,10 +7857,12 @@ begin
     ImageList4.Width := iHeight;
     for i := 0 to ImageList1.Count - 1 do
     begin
+    	dBMP := TBitmap.Create;
+      mBMP := TBitmap.Create;
+      oriBMP := TBitmap.Create;
       try
-        dBMP := TBitmap.Create;
-  			mBMP := TBitmap.Create;
-        oriBMP := TBitmap.Create;
+
+
         Imagelist1.GetBitmap(i, oriBMP);
         dBMP.PixelFormat :=pf24bit;
 				mBMP.PixelFormat :=pf24bit;
@@ -8097,8 +7975,8 @@ begin
 
   	end;
     GetNaviState;
-    if Assigned(TreeView1.Selected) and (not TreeView1.Selected.Expanded) then
-    	TreeView1.Selected.Expanded := True;
+    //if Assigned(TreeView1.Selected) and (not TreeView1.Selected.Expanded) then
+    	//TreeView1.Selected.Expanded := True;
 
 	end
   else
