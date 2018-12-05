@@ -116,6 +116,7 @@ var
   SetNodeData, SetMemoText, GetTagName, GetCollection, GetAttrSpec, GetAttrs, TreeExpand: TThreadProcedure;
   bSpecify: wordbool;
 	s, Text1, Text2, nName: string;
+  hAttrs: String;
 	i, ColLen: integer;
 	sNode: PVirtualNode;
 	iAttrCol: IHTMLATTRIBUTECOLLECTION;
@@ -125,8 +126,9 @@ begin
 
 	SetNodeData := procedure
   begin
-  	ResNode := wndMSAAV.TreeList1.InsertNode(pNode, amAddChildLast , nil);
-  	ND := wndMSAAV.TreeList1.GetNodeData(ResNode);
+  	//ResNode := wndMSAAV.TreeList1.InsertNode(pNode, amAddChildLast , nil);
+    ResNode := wndMSAAV.TreeList1.AddChild(pNode, nil);
+  	ND := ResNode.GetData;
   	ND.Value1 := Text1;
   	ND.Value2 := Text2;
   	ND.Acc := nil;
@@ -207,6 +209,7 @@ begin
             	pNode := sNode;
               Text1 := nName;
               Text2 := VarToStr(nValue);
+              hAttrs := hAttrs + Text1 + '=' + Text2 + #13#10;
               Synchronize(SetNodeData);
 						end
 						else
@@ -225,7 +228,10 @@ begin
 				end;
 			end;
 		end;
-
+    if hAttrs = '' then
+			HTMLs[1, 1] := None
+		else
+			HTMLs[1, 1] := hAttrs;
 
   Synchronize(TreeExpand);
 end;

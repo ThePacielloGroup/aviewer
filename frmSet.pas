@@ -22,8 +22,9 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics,
-  Controls, Forms, Dialogs, StdCtrls,
-  CheckLst, AccCTRLs, commctrl, iniFiles, ComObj, ShlObj, ShellAPI, Math, StrUtils;
+  Controls, Forms, Dialogs, StdCtrls, menus,
+  CheckLst, AccCTRLs, commctrl, iniFiles, ComObj, ShlObj, ShellAPI, Math, StrUtils,
+  VirtualTrees, PermonitorApi;
 
 type
   TWndSet = class(TForm)
@@ -39,20 +40,31 @@ type
     cbExTip: TTransCheckBox;
     FontDialog1: TFontDialog;
     Memo1: TAccMemo;
+    gbShortCut: TAccGroupBox;
+    cmbShortCut: TAccComboBox;
+    btnAssign: TAccButton;
+    clShortcut: TVirtualStringTree;
     procedure FormCreate(Sender: TObject);
     procedure btnRegClick(Sender: TObject);
     procedure btnUnregClick(Sender: TObject);
     procedure btnFontClick(Sender: TObject);
+    procedure clShortcutGetText(Sender: TBaseVirtualTree; Node: PVirtualNode;
+      Column: TColumnIndex; TextType: TVSTTextType; var CellText: string);
+    procedure clShortcutClick(Sender: TObject);
+    procedure btnAssignClick(Sender: TObject);
+    procedure clShortcutFreeNode(Sender: TBaseVirtualTree; Node: PVirtualNode);
   private
     { Private declare }
 
     Transpath, APPDir, SPath, DllPath, M1: string;
-
+    bFirstTime: boolean;
     procedure WMDPIChanged(var Message: TMessage); message WM_DPICHANGED;
   public
     { Public declare }
-    DefFont: integer;
+    DefFont, DefW, DefH: integer;
     ScaleX, ScaleY, DefX, DefY: double;
+    cDPI, sDPI: integer;
+    TFNode, MFNode: PVirtualNode;
     procedure Load_Str(Path: string);
     procedure SizeChange;
   end;
@@ -61,6 +73,8 @@ var
   WndSet: TWndSet;
 
 implementation
+uses
+    frmMSAAV;
 
 {$R *.dfm}
 
@@ -137,9 +151,9 @@ end;
 
 procedure TWndSet.SizeChange;
 var
-    SZ, SZ2, SZ3, SZ4: TSize;
-    iMax, iMax2: integer;
-
+    SZ, SZ2, SZ3, SZ4,SZ5: TSize;
+    iMax, iMax2, iFont, iWidth, iHeight, i: integer;
+    pNode, cNode: PVirtualnode;
     procedure GetStrSize(Cap: string; var FSZ: TSize);
     begin
 
@@ -148,7 +162,20 @@ var
 
     end;
 begin
-    Font.Size := DoubleToInt(DefFont * ScaleX);
+	if ScaleX = 0 then
+  	exit;
+  if (not bFirstTime) and (ScaleX <> 1) then
+		self.ChangeScale(sDPI, cDPI);
+	{iFont := DoubleToInt(FontDialog1.Font.Size div Font.Size * ScaleX);
+  iWidth := DefW * iFont;
+  iHeight := DefH * iFont;
+  Width := iWidth;
+  Height := iHeight;
+  caption := inttostr(iWidth * iFont); }
+	Font := FontDialog1.Font;
+  Canvas.Font := Font;
+  DefFont := Font.Size;
+    //Font.Size := DoubleToInt(DefFont * ScaleX);
     M1 := Font.Name + ',' + IntToStr(DefFont);
 
     Memo1.Lines[0] := '';
@@ -157,52 +184,105 @@ begin
     GetStrSize(gbFont.Caption, SZ2);
     GetStrSize(btnFont.Caption, SZ3);
     GetStrSize(M1, SZ4);
+    GetStrSize(gbShortcut.Caption, SZ5);
         //ChkList.Top := sz.Height + 5;
 
-    if SZ.Width> ChkList.Width then
+    if SZ.cx> ChkList.Width then
     begin
-        gbSelProp.Width := sz.Width + 20;
+        gbSelProp.Width := sz.cx + 20;
     end;
-    ChkList.Top := SZ.Height;
+    ChkList.Top := SZ.cy;
     ChkList.Width := gbSelProp.Width - 30;
     gbSelProp.Height := ChkList.Height + SZ.Height + 10;
-    gbFont.Left := gbSelProp.Left + gbSelProp.Width + 6;
 
-    btnFont.Top := SZ2.Height+5;
-    btnFont.Width := SZ3.Width + 5;
-    btnFont.Height := SZ3.Height + 5;
+    if SZ5.cx < 380 then
+    begin
+    	gbShortcut.Width := 380;
+    end
+    else
+      gbShortcut.Width := SZ5.cx + 20;
+    clShortcut.Top := SZ5.cy;
+    clShortcut.Width := gbShortcut.Width - 30;
+
+    clShortcut.Height := SZ5.cy * 24;
+    clShortcut.Font := Font;
+    clShortcut.Header.Font := Font;
+    clShortcut.Header.Height := SZ5.cy + 3;
+
+    pNode := TFNode;
+    clShortcut.NodeHeight[pNode] := ChkList.ItemHeight;
+    cNode := pNode.FirstChild;
+    clShortcut.NodeHeight[cNode] := ChkList.ItemHeight;
+    for i := 1 to pNode.ChildCount - 1 do
+    begin
+    	cNode := cNode.NextSibling;
+      if cNode = nil then
+      	break
+      else
+      	clShortcut.NodeHeight[cNode] := ChkList.ItemHeight;
+    end;
+
+    pNode := MFNode;
+    clShortcut.NodeHeight[pNode] := ChkList.ItemHeight;
+    cNode := pNode.FirstChild;
+    clShortcut.NodeHeight[cNode] := ChkList.ItemHeight;
+    for i := 1 to pNode.ChildCount - 1 do
+    begin
+    	cNode := cNode.NextSibling;
+      if cNode = nil then
+      	break
+      else
+      	clShortcut.NodeHeight[cNode] := ChkList.ItemHeight;
+    end;
+
+    cmbShortcut.Top := clShortcut.Top + clShortcut.Height + SZ5.cy;
+    cmbShortcut.Width :=  (clShortcut.Width div 3) * 2 - 2;
+    btnAssign.Top := cmbShortcut.Top;
+    btnAssign.Width := (clShortcut.Width div 3) - 2;
+    btnAssign.Left := cmbShortcut.Left + cmbShortcut.Width + 5;
+    btnAssign.Height := cmbShortcut.Height;
+
+    gbShortcut.Height :=  clShortcut.Height + (SZ5.cy * 2) + cmbShortcut.Height;
+    gbSelProp.Height := gbShortcut.Height;
+    ChkList.Height := gbShortcut.Height -  (SZ.cy * 2);
+
+    gbFont.Left := gbShortcut.Left + gbShortcut.Width + 6;
+
+    btnFont.Top := SZ2.cy+5;
+    btnFont.Width := SZ3.cx + 5;
+    btnFont.Height := SZ3.cy + 5;
     Memo1.Top := btnFont.Top + BtnFont.Height + 6;
-    memo1.Height := SZ4.Height * 3;
-    memo1.Width := SZ4.width *2;
-    iMax := Max(Memo1.Width, SZ3.Width);
+    memo1.Height := SZ4.cy * 3;
+    memo1.Width := SZ4.cx *2;
+    iMax := Max(Memo1.Width, SZ3.cx);
     if SZ2.Width> iMax then
     begin
-        gbFont.Width := sz2.Width + 32;
+        gbFont.Width := sz2.cx + 32;
     end
     else
     begin
         gbFont.Width := iMax + 32;
     end;
-    gbFont.Height := 50 + btnFont.Height + Memo1.Height + (sz.Height div 2);
-    gbRegDll.Left := gbSelProp.Left + gbSelProp.Width + 6;
+    gbFont.Height := 50 + btnFont.Height + Memo1.Height + (sz.cy div 2);
+    gbRegDll.Left := gbShortcut.Left + gbShortcut.Width + 6;
     gbRegDll.Top := gbFont.Top + gbFont.Height + 6;
     GetStrSize(gbRegDll.Caption, SZ);
     GetStrSize(btnReg.Caption, SZ2);
     GetStrSize(btnunReg.Caption, SZ3);
 
-    iMax := Max(SZ2.Width, SZ3.Width);
+    iMax := Max(SZ2.cx, SZ3.cx);
 
-    if SZ.Width > iMax then
+    if SZ.cx > iMax then
     begin
-        gbRegDll.Width := sz.Width + 32;
+        gbRegDll.Width := sz.cx + 32;
     end
     else
         gbRegDll.Width := iMax + 32;
-    btnReg.Top := SZ.Height+5;
+    btnReg.Top := SZ.cy+5;
     btnReg.Width := iMax + 16 + 5;
-    btnReg.Height := SZ2.Height + 5;
+    btnReg.Height := SZ2.cy + 5;
     btnunReg.Top := btnReg.Top + btnReg.Height + 5;
-    btnUnReg.Height := SZ3.Height + 5;
+    btnUnReg.Height := SZ3.cy + 5;
     btnunReg.Width := iMax + 16 + 5;
     gbRegDll.Height := 50 + btnUnReg.Height + btnReg.Height;
 
@@ -210,27 +290,33 @@ begin
 
 
     iMax := Max(gbRegDll.Width, gbFont.Width);
-    iMax := Max(iMax, cbExtip.Width);
     iMax2 := Max(gbSelProp.Height, gbFont.Height + gbRegDll.Height {+ btnReg.Height + btnUnreg.Height}{ + cbExtip.Height});
-    width := gbSelProp.Width + iMax + 40;
-    Height := iMax2 + 50;
+    Clientwidth := gbSelProp.Width + gbShortcut.Width + iMax + 40;
+    ClientHeight := iMax2 + SZ.cy;
 
 
     GetStrSize(btnOK.Caption, SZ);
     GetStrSize(btnCancel.Caption, SZ2);
-    iMax := Max(SZ2.Width, SZ.Width);
+    iMax := Max(SZ2.cx, SZ.cx);
 
-    btnOK.Height := SZ.Height + 5;
+    btnOK.Height := SZ.cy + 5;
     btnOK.Width := iMax + 10;
 
 
-    btnCancel.Height := SZ2.Height + 5;
+    btnCancel.Height := SZ2.cy + 5;
     btnCancel.Width := iMax + 10;
     btnOK.Left := width - 20 - iMax;
     btnCancel.Left := width - 20 - iMax;
     btnOK.Top := ClientHeight - (btnOK.Height + btnCancel.Height + 10);
     btnCancel.Top := btnOK.Top + btnOK.Height + 5;
 
+    if bFirstTime then
+    begin
+    	bFirstTime := False;
+
+    end
+    else
+    	self.ChangeScale(DoubleToInt(width * ScaleX), width);
 end;
 
 procedure TWndSet.btnFontClick(Sender: TObject);
@@ -242,9 +328,11 @@ begin
     FontDialog1.Font.Size := DefFont;
     if FontDialog1.Execute then
     begin
-        Font := FontDialog1.Font;
-        DefFont := Font.Size;
+        //Font := FontDialog1.Font;
+        //DefFont := Font.Size;
         SizeChange;
+        //MEmo1.Text := FontDialog1.Font.Name + ',' + inttostr(FontDialog1.Font.Size);
+        //Memo1.Font := FontDialog1.Font;
     end;
 
 end;
@@ -316,6 +404,106 @@ begin
 
 end;
 
+procedure TWndSet.btnAssignClick(Sender: TObject);
+var
+	SCD: PSCData;
+begin
+	if clShortcut.SelectedCount > 0 then
+  begin
+  	if clShortcut.GetNodeLevel(clShortcut.FocusedNode) = 1 then
+    begin
+    	SCD := clShortcut.GetNodeData(clShortcut.FocusedNode);
+      if cmbShortcut.ItemIndex = 0 then
+      	SCD.SCKey := 0
+      else
+        SCD.SCKey := TextToShortCut(cmbShortcut.Items[cmbShortcut.ItemIndex] );
+      clShortcut.RepaintNode(clShortcut.FocusedNode);
+    end;
+  end;
+end;
+
+procedure TWndSet.clShortcutClick(Sender: TObject);
+var
+	SCD: PSCData;
+  d: string;
+  i: integer;
+begin
+	if clShortcut.SelectedCount > 0 then
+  begin
+  	if clShortcut.GetNodeLevel(clShortcut.FocusedNode) = 1 then
+    begin
+    	cmbShortcut.Enabled := true;
+    	btnAssign.Enabled := true;
+     	SCD := clShortcut.GetNodeData(clShortcut.FocusedNode);
+      d := shortcuttotext(SCD.SCKey);
+      for i := 0 to cmbShortcut.Items.Count - 1 do
+      begin
+        if (d = '') then
+        begin
+        	cmbShortCut.ItemIndex := 0;
+          break;
+        end
+        else
+        begin
+        	if cmbShortcut.Items[i] = d then
+          begin
+           	cmbShortCut.ItemIndex := i;
+          break;
+          end;
+        end;
+      end;
+    end
+    else
+    begin
+      cmbShortcut.Enabled := false;
+    	btnAssign.Enabled := false;
+    end;
+  end
+  else
+  begin
+    cmbShortcut.Enabled := false;
+    btnAssign.Enabled := false;
+  end;
+end;
+
+procedure TWndSet.clShortcutFreeNode(Sender: TBaseVirtualTree;
+  Node: PVirtualNode);
+var
+	SCD: PSCData;
+begin
+  SCD := Sender.GetNodeData(Node);
+  Finalize(SCD^);
+end;
+
+procedure TWndSet.clShortcutGetText(Sender: TBaseVirtualTree;
+  Node: PVirtualNode; Column: TColumnIndex; TextType: TVSTTextType;
+  var CellText: string);
+var
+  SCD: PSCData;
+begin
+	if not Assigned(Sender.GetNodeData(Node)) then
+    exit;
+  if TextType = ttNormal then
+  begin
+    case Column of
+      0:
+      begin
+        SCD := Sender.GetNodeData(Node);
+        CellText := SCD.Name;
+      end;
+      1:
+      begin
+      	if sender.GetNodeLevel(Node) > 0 then
+        begin
+
+        	SCD := Sender.GetNodeData(Node);
+        	CellText := ShortcuttoText(SCD.SCKey);
+        end;
+      end;
+    end;
+  end;
+end;
+
 procedure TWndSet.Load_Str(Path: string);
 var
     d: string;
@@ -362,7 +550,11 @@ begin
             btnOK.Caption := ini.ReadString('SetDLG', 'btnOK', '&OK');
             btnCancel.Caption := ini.ReadString('SetDLG', 'btnCancel', '&Cancel');
             cbExTip.Caption := ini.ReadString('General', 'ExTooltip', 'Expansion tooltip');
-            SizeChange;
+            clShortcut.Header.Columns[0].Text := ini.ReadString('SetDLG', 'column1', 'Name');
+        		clShortcut.Header.Columns[1].Text := ini.ReadString('SetDLG', 'column2', 'Key');
+          	gbShortCut.Caption := ini.ReadString('SetDLG', 'gbShortcut', 'Shortcut Key');
+            btnAssign.Caption := ini.ReadString('SetDLG', 'btnAssign', '&Assign');
+            //SizeChange;
 
         finally
             ini.Free;
@@ -376,6 +568,11 @@ procedure TWndSet.FormCreate(Sender: TObject);
 var
     ini: TMemIniFile;
 begin
+	bFirstTime := True;
+  GetDCap(self.Handle, Defx, Defy);
+    GetWindowScale(self.Handle, DefX, DefY, ScaleX, ScaleY);
+    cDPI := DoubleToInt(DefY * ScaleY);
+    sDPI := cDPI;
     APPDir :=  IncludeTrailingPathDelimiter(ExtractFileDir(Application.ExeName));
     DllPath := APPDir + 'IAccessible2Proxy.dll';
     SPath := IncludeTrailingPathDelimiter(GetMyDocPath) + 'MSAAV.ini';
@@ -398,11 +595,15 @@ end;
 
 procedure TWndSet.WMDPIChanged(var Message: TMessage);
 begin
-  if (DefX > 0) and (DefY > 0) then
+  scaleX := Message.WParamLo / DefX;
+  scaleY := Message.WParamHi / DefY;
+  if (not bFirstTime) and (cDPI <> Message.WParamLo) then
   begin
-    scaleX := Message.WParamLo / DefX;
+  	scaleX := Message.WParamLo / DefX;
     scaleY := Message.WParamHi / DefY;
-    SizeChange;
+		self.ChangeScale(Message.WParamLo, cDPI);
+  	cDPI := Message.WParamLo;
+  	SizeChange;
   end;
 end;
 

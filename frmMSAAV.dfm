@@ -2811,6 +2811,7 @@ object wndMSAAV: TwndMSAAV
         TreeOptions.PaintOptions = [toShowButtons, toShowDropmark, toShowRoot, toShowTreeLines, toThemeAware, toUseBlendedImages, toUseExplorerTheme]
         TreeOptions.SelectionOptions = [toFullRowSelect, toAlwaysSelectNode]
         OnClick = TreeList1Click
+        OnFreeNode = TreeList1FreeNode
         OnGetText = TreeList1GetText
         OnKeyDown = TreeList1KeyDown
         Columns = <
@@ -2833,7 +2834,7 @@ object wndMSAAV: TwndMSAAV
     Left = 176
     Top = 400
     Bitmap = {
-      494C01010E008C01580910001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010E008C01800910001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000004000000001002000000000000040
       0000000000000000000000000000000000000000000000000000BDBDBD007A7A
       7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A
@@ -3461,10 +3462,10 @@ object wndMSAAV: TwndMSAAV
       ShortCut = 8306
       OnExecute = acMemoFocusExecute
     end
-    object acTriFocus: TAction
-      Caption = 'acTriFocus'
+    object ac3ctrls: TAction
+      Caption = 'ac3ctrls'
       ShortCut = 8307
-      OnExecute = acTriFocusExecute
+      OnExecute = ac3ctrlsExecute
     end
   end
   object Timer1: TTimer
@@ -3631,7 +3632,7 @@ object wndMSAAV: TwndMSAAV
     Left = 256
     Top = 200
     Bitmap = {
-      494C01013E00500068030F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01013E00500090030F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       00000000000036000000280000003C000000F0000000010020000000000000E1
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000

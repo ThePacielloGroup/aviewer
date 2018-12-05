@@ -50,6 +50,12 @@ type
     function get_FillPatternColor(out retVal: SYSINT): HResult; stdcall;
     function get_ExtendedProperties(out retVal: WideString): HResult; stdcall;
   end;
+  PSCData = ^TSCData;
+  TSCData = record
+  	Name: String;
+    SCKey: TShortCut;
+    actName: String;
+  end;
    PNodeData = ^TNodeData;
    TNodeData = record
     Value1: String;
@@ -179,7 +185,7 @@ type
     acTreeFocus: TAction;
     acListFocus: TAction;
     acMemoFocus: TAction;
-    acTriFocus: TAction;
+    ac3ctrls: TAction;
     ImageList4: TImageList;
     Memo1: TAccSynEdit;
     SynHTMLSyn1: TSynHTMLSyn;
@@ -239,7 +245,8 @@ type
     procedure acTreeFocusExecute(Sender: TObject);
     procedure acListFocusExecute(Sender: TObject);
     procedure acMemoFocusExecute(Sender: TObject);
-    procedure acTriFocusExecute(Sender: TObject);
+    procedure ac3ctrlsExecute(Sender: TObject);
+    procedure TreeList1FreeNode(Sender: TBaseVirtualTree; Node: PVirtualNode);
   private
     { Private declarations }
 
@@ -289,7 +296,7 @@ type
     ExTip, nSelected: boolean;
     DefFont, DefW, DefH: integer;
     ScaleX, ScaleY, DefX, DefY: double;
-    sMSAAtxt: string;
+    sMSAAtxt, sHTMLtxt, sUIATxt, sARIATxt, sIA2Txt: string;
     dEventTime: dword;
     procedure ExecOnlyFocus;
     function MSAAText(pAcc: IAccessible = nil; TextOnly: boolean = false): string;
@@ -308,6 +315,7 @@ type
     procedure ExecMSAAMode(sender: TObject);
     //Thread terminate
     procedure ThDone(Sender: TObject);
+    procedure ThHTMLDone(Sender: TObject);
     procedure RecursiveID(sID: string; isEle: ISimpleDOMNODE; Labelled: boolean = true);
     procedure ShowBalloonTip(Control: TWinControl; Icon: integer; Title: string; Text: string; RC: TRect; X, Y:integer; Track:boolean = false);
     procedure SetBalloonPos(X, Y:integer);
@@ -330,7 +338,7 @@ type
 
   public
     { Public declarations }
-    None, ConvErr, HelpURL, DllPath, APPDir, sTrue, sFalse: string;
+    ConvErr, HelpURL, DllPath, APPDir, sTrue, sFalse: string;
     procedure GetNaviState(AllFalse: boolean = false);
     procedure Load;
     function LoadLang: string;
@@ -362,7 +370,8 @@ var
   lUIA: array [0..61] of string;
   HTMLs: array [0..2, 0..1] of string;
   flgMSAA, flgIA2, flgUIA, flgUIA2: integer;
-
+  scList: TList;
+  None: string;
 implementation
 
 
@@ -1534,6 +1543,11 @@ Example:
 	iDefIndex := -1;
 	LoopNode := nil;
 	Memo1.ClearAll;
+  sMSAAtxt := '';
+  sHTMLtxt := '';
+  sUIATxt := '';
+  sARIATxt := '';
+  sIA2Txt := '';
 	if SUCCEEDED(WindowFromAccessibleObject(iAcc, Wnd)) then
 	begin
 
@@ -1573,7 +1587,7 @@ Example:
 						CEle := iEle;
 						if mnuARIA.Checked then
 						begin
-							ARIAText;
+							sARIATxt := ARIAText;
 						end;
 						if mnuHTML.Checked then
 						begin
@@ -1646,9 +1660,9 @@ Example:
 						SDom := isEle;
 						// GetNaviState;
 						if mnuARIA.Checked then
-							ARIAText;
+							sARIATxt := ARIAText;
 						if mnuHTML.Checked then
-							HTMLText4FF;
+							sHTMLTxt := HTMLText4FF;
 						if (not Treemode) and (Splitter1.Enabled = True) then
 						begin
 							iRes := iSP.QueryService(IID_ISIMPLEDOMNODE,
@@ -1746,9 +1760,9 @@ Example:
 				end;
 			end;
 			if mnuIA2.Checked then
-				SetIA2Text;
+				sIA2Txt := SetIA2Text;
 			if mnuUIA.Checked then
-				UIAText;
+				sUIATxt := UIAText;
 			if Treemode then
 				GetNaviState;
 		end
@@ -3602,6 +3616,7 @@ begin
 		end;
 
     HTMLTH := HTMLThread.Create(CEle, rNode);
+    HTMLTH.OnTerminate := THHTMLDone;
     HTMLTH.Start;
 
 
@@ -3857,212 +3872,221 @@ end;
 function TwndMSAAV.ARIAText: string;
 var
 
-    iAttrCol: IHTMLATTRIBUTECOLLECTION;
-    iDomAttr: IHTMLDOMATTRIBUTE;
-    aEle: IHTMLELEMENT;
-    s: string;
-    List, List2: TStringList;
-    ovValue: OleVariant;
-    i: integer;
-    aAttrs, LowerS: string;
-    rNode, Node, rcNode: pVirtualnode;
-    aPC, aPC2: array [0..64] of pchar;
-    aSI: array [0..64] of Smallint;
-    WD: Word;
-    Serv: IServiceProvider;
-    lAcc: IAccessible;
-    RC: TRect;
+	iAttrCol: IHTMLATTRIBUTECOLLECTION;
+	iDomAttr: IHTMLDOMATTRIBUTE;
+	aEle: IHTMLElement;
+	s: string;
+	List, List2: TStringList;
+	ovValue: OleVariant;
+	i: integer;
+	aAttrs, LowerS: string;
+	rNode, Node, rcNode: PVirtualNode;
+	aPC, aPC2: array [0 .. 64] of PChar;
+	aSI: array [0 .. 64] of Smallint;
+	WD: Word;
+	Serv: IServiceProvider;
+	lAcc: IAccessible;
+	RC: TRect;
 begin
 
-    if (CEle = nil) or (SDOM = nil) then
-    begin
-        //GetNaviState(True);
-        Exit;
-    end;
-    if Assigned(WndLabel) then
-    begin
-        FreeAndNil(Wndlabel);
-        Wndlabel := nil;
-    end;
-    if Assigned(WndDesc) then
-    begin
-        FreeAndNil(WndDesc);
-        WndDesc := nil;
-    end;
-    if Assigned(WndTarg) then
-    begin
-        FreeAndNil(WndTarg);
-        WndTarg := nil;
-    end;
+    if (CEle = nil) or (SDom = nil) then
+	begin
+		// GetNaviState(True);
+		Exit;
+	end;
+	if Assigned(WndLabel) then
+	begin
+		FreeAndNil(WndLabel);
+		WndLabel := nil;
+	end;
+	if Assigned(WndDesc) then
+	begin
+		FreeAndNil(WndDesc);
+		WndDesc := nil;
+	end;
+	if Assigned(WndTarg) then
+	begin
+		FreeAndNil(WndTarg);
+		WndTarg := nil;
+	end;
 
-        if (Assigned(CEle)) then
-        begin
-            iAttrCol := (CEle as IHTMLDOMNODE).attributes as IHTMLATTRIBUTECOLLECTION;
-            for i := 0 to iAttrCol.length - 1 do
-            begin
-                ovValue := i;
-                iDomAttr := iAttrCol.item(ovValue) as IHTMLDomAttribute;
-                if iDomAttr.specified then
-                begin
-                    s := lowerCase(VarToStr(iDomAttr.nodeName));
-                    if s = 'role' then
-                    begin
-                        try
-                            if VarHaveValue(iDomAttr.nodeValue) then
-                                Arias[0, 1] := VarToStr(iDomAttr.nodeValue)
-                            else
-                                Arias[0, 1] := ''
-                        except
-                            on E:Exception do
-                            begin
-                                ShowErr(E.Message);
-                                Arias[0, 1] := ''
-                            end;
-                        end;
-                    end
-                    else if Copy(s, 1, 4) = 'aria' then
-                    begin
+	if (Assigned(CEle)) then
+	begin
+		iAttrCol := (CEle as IHTMLDomNode).attributes as IHTMLATTRIBUTECOLLECTION;
+		for i := 0 to iAttrCol.Length - 1 do
+		begin
+			ovValue := i;
+			iDomAttr := iAttrCol.item(ovValue) as IHTMLDOMATTRIBUTE;
+			if iDomAttr.specified then
+			begin
+				s := LowerCase(VarToStr(iDomAttr.nodeName));
+				if s = 'role' then
+				begin
+					try
+						if VarHaveValue(iDomAttr.nodeValue) then
+							ARIAs[0, 1] := VarToStr(iDomAttr.nodeValue)
+						else
+							ARIAs[0, 1] := ''
+					except
+						on E: Exception do
+						begin
+							ShowErr(E.Message);
+							ARIAs[0, 1] := ''
+						end;
+					end;
+				end
+				else if copy(s, 1, 4) = 'aria' then
+				begin
 
-                        try
-                            if VarHaveValue(iDomAttr.nodeValue) then
-                            begin
+					try
+						if VarHaveValue(iDomAttr.nodeValue) then
+						begin
 
-                                aattrs := aattrs + '"' + VarToStr(iDOmAttr.nodeName) + '","' + (iDomAttr.nodeValue) + '"' + #13#10;
-                                LowerS := LowerCase(VarToStr(iDOmAttr.nodeName));
-                                if acRect.Checked then
-                                begin
-                                    if LowerS = 'aria-labelledby' then
-                                    begin
-                                        aEle := (CEle.document as IHTMLDOCUMENT3).getElementById(VarToStr(iDOmAttr.nodeValue));
-                                        if ASsigned(aEle) then
-                                        begin
-                                            if SUCCEEDED(aEle.QueryInterface(IID_IServiceProvider, Serv)) then
-                                            begin
-                                                if SUCCEEDED(Serv.QueryService(IID_IACCESSIBLE, IID_IACCESSIBLE, lAcc)) then
-                                                begin
-                                                    //if SUCCEEDED(lAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, 0)) then
-                                                    //begin
-                                                        lAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, 0);
-                                                        ShowLabeledWnd(clBlue, RC);
-                                                    //end;
+							aAttrs := aAttrs + '"' + VarToStr(iDomAttr.nodeName) + '","' +
+								(iDomAttr.nodeValue) + '"' + #13#10;
+							LowerS := LowerCase(VarToStr(iDomAttr.nodeName));
+							if acRect.Checked then
+							begin
+								if LowerS = 'aria-labelledby' then
+								begin
+									aEle := (CEle.Document as IHTMLDOCUMENT3)
+										.getElementById(VarToStr(iDomAttr.nodeValue));
+									if Assigned(aEle) then
+									begin
+										if SUCCEEDED(aEle.QueryInterface(IID_IServiceProvider, Serv))
+										then
+										begin
+											if SUCCEEDED(Serv.QueryService(IID_IACCESSIBLE,
+												IID_IACCESSIBLE, lAcc)) then
+											begin
+												// if SUCCEEDED(lAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, 0)) then
+												// begin
+												lAcc.accLocation(RC.left, RC.top, RC.right,
+													RC.bottom, 0);
+												ShowLabeledWnd(clBlue, RC);
+												// end;
 
-                                                end;
-                                            end;
-                                        end;
-                                    end
-                                    else if LowerS = 'aria-decirbedby' then
-                                    begin
-                                        aEle := (CEle.document as IHTMLDOCUMENT3).getElementById(VarToStr(iDOmAttr.nodeValue));
-                                        if ASsigned(aEle) then
-                                        begin
-                                            if SUCCEEDED(aEle.QueryInterface(IID_IServiceProvider, Serv)) then
-                                            begin
-                                                if SUCCEEDED(Serv.QueryService(IID_IACCESSIBLE, IID_IACCESSIBLE, lAcc)) then
-                                                begin
-                                                    //if SUCCEEDED(lAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, 0)) then
-                                                    //begin
-                                                        lAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, 0);
-                                                        ShowDescWnd(clBlue, RC);
-                                                    //end;
-                                                end;
+											end;
+										end;
+									end;
+								end
+								else if LowerS = 'aria-decirbedby' then
+								begin
+									aEle := (CEle.Document as IHTMLDOCUMENT3)
+										.getElementById(VarToStr(iDomAttr.nodeValue));
+									if Assigned(aEle) then
+									begin
+										if SUCCEEDED(aEle.QueryInterface(IID_IServiceProvider, Serv))
+										then
+										begin
+											if SUCCEEDED(Serv.QueryService(IID_IACCESSIBLE,
+												IID_IACCESSIBLE, lAcc)) then
+											begin
+												// if SUCCEEDED(lAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, 0)) then
+												// begin
+												lAcc.accLocation(RC.left, RC.top, RC.right,
+													RC.bottom, 0);
+												ShowDescWnd(clBlue, RC);
+												// end;
+											end;
 
-                                            end;
-                                        end;
-                                    end;
-                                end;
-                            end;
+										end;
+									end;
+								end;
+							end;
+						end;
 
-                        except
-                            on E:Exception do
-                            begin
-                                ShowErr(E.Message);
-                                aattrs := aattrs + '';
-                            end;
-                        end;
-                    end;
-                end;
-            end;
-        end
-        else if (Assigned(SDOM)) then
-        begin
-            //function get_attributes(maxAttribs: WORD; out attribNames: TBSTR; out nameSpaceID: Smallint; out attribValues: TBSTR; out numAttribs: WORD): HRESULT; stdcall;
-            //function get_attributesForNames(numAttribs: WORD; out attribNames: TBSTR; out nameSpaceID: Smallint; out attribValues: TBSTR): HRESULT; stdcall;
-            SDOM.get_attributes(65, aPC[0], aSI[0], aPC2[0], WD);
-            for i := 0 to WD - 1 do
-            begin
-                LowerS := LowerCase(aPC[i]);
-                if LowerS = 'role' then
-                begin
-                    Arias[0, 1] := aPC2[i];
-                end
-                else if Copy(LowerS, 1, 4) = 'aria' then
-                begin
+					except
+						on E: Exception do
+						begin
+							ShowErr(E.Message);
+							aAttrs := aAttrs + '';
+						end;
+					end;
+				end;
+			end;
+		end;
+	end
+	else if (Assigned(SDom)) then
+	begin
+		// function get_attributes(maxAttribs: WORD; out attribNames: TBSTR; out nameSpaceID: Smallint; out attribValues: TBSTR; out numAttribs: WORD): HRESULT; stdcall;
+		// function get_attributesForNames(numAttribs: WORD; out attribNames: TBSTR; out nameSpaceID: Smallint; out attribValues: TBSTR): HRESULT; stdcall;
+		SDom.Get_attributes(65, aPC[0], aSI[0], aPC2[0], WD);
+		for i := 0 to WD - 1 do
+		begin
+			LowerS := LowerCase(aPC[i]);
+			if LowerS = 'role' then
+			begin
+				ARIAs[0, 1] := aPC2[i];
+			end
+			else if copy(LowerS, 1, 4) = 'aria' then
+			begin
 
-                    aattrs := aattrs + '"' +  aPC[i] + '","' + aPC2[i] + '"' +  #13#10;
-                    if acRect.Checked then
-                    begin
-                        if LowerS = 'aria-labelledby' then
-                        begin
-                            //showmessage(aPC2[i]);
-                            RecursiveID(aPC2[i], SDOM, True);
-                        end
-                        else if LowerS = 'aria-decirbedby' then
-                            RecursiveID(aPC2[i], SDOM, False);
-                    end;
-                end;
-            end;
-        end;
-        if ARIAs[0, 1] = '' then
-            ARIAs[0, 1] := none;
-        if aattrs = '' then
-            ARIAS[1, 1] := none
-        else
-            ARIAs[1, 1] := aattrs;
+				aAttrs := aAttrs + '"' + aPC[i] + '","' + aPC2[i] + '"' + #13#10;
+				if acRect.Checked then
+				begin
+					if LowerS = 'aria-labelledby' then
+					begin
+						// showmessage(aPC2[i]);
+						RecursiveID(aPC2[i], SDom, True);
+					end
+					else if LowerS = 'aria-decirbedby' then
+						RecursiveID(aPC2[i], SDom, false);
+				end;
+			end;
+		end;
+	end;
+	if ARIAs[0, 1] = '' then
+		ARIAs[0, 1] := None;
+	if aAttrs = '' then
+		ARIAs[1, 1] := None
+	else
+		ARIAs[1, 1] := aAttrs;
 
-        {rNode := TreeList1.Items.AddChild(nil, sAria);
-        Node := TreeList1.Items.AddChild(rNode, Arias[0, 0]);
-        TreeList1.SetNodeColumn(node, 1, Arias[0, 1]);   }
-        rNode := SetNodeData(nil, sARIA, '', nil, 0);
-        Node := SetNodeData(rNode, Arias[0, 0], Arias[0, 1], nil, 0);
+	{ rNode := TreeList1.Items.AddChild(nil, sAria);
+		Node := TreeList1.Items.AddChild(rNode, Arias[0, 0]);
+		TreeList1.SetNodeColumn(node, 1, Arias[0, 1]); }
+	rNode := SetNodeData(nil, sARIA, '', nil, 0);
+	Node := SetNodeData(rNode, ARIAs[0, 0], ARIAs[0, 1], nil, 0);
 
-        //Node := TreeList1.Items.AddChild(rNode, Arias[1, 0]);
-        if aattrs = '' then
-        begin
-            //TreeList1.SetNodeColumn(node, 1, Arias[1, 1]);
-            SetNodeData(rNode, Arias[1, 0], Arias[1, 1], nil, 0);
-        end
-        else
-        begin
-            rcNode := Node;
-            List := TStringList.Create;
-            List2 := TStringList.Create;
-            try
-                List.Text := aattrs;
-                for i := 0 to List.Count - 1 do
-                begin
-                    List2.Clear;
-                    List2.CommaText := List[i];
-                    if List2.Count >= 1 then
-                    begin
-                        //Node := TreeList1.Items.AddChild(rcNode, List2[0]);
-                        if List2.Count >= 2 then
-                        begin
-                            //TreeList1.SetNodeColumn(node, 1, List2[1]);
-                            SetNodeData(rcNode, List2[0], List2[1], nil, 0);
-                        end
-                        else
-                          SetNodeData(rcNode, List2[0], '', nil, 0);
-                    end;
-                end;
-            finally
-                List.Free;
-                List2.Free;
-            end;
-        end;
-        Result := sAria + #13#10 + Arias[0, 0] + ':' + #9 +  Arias[0, 1] +
-                  #13#10 + Arias[1, 0] + ':' + #9 +  Arias[1, 1] + #13#10#13#10;
-        //rNode.Expand(True);
-        TreeList1.Expanded[rNode] := True;
+	// Node := TreeList1.Items.AddChild(rNode, Arias[1, 0]);
+	if aAttrs = '' then
+	begin
+		// TreeList1.SetNodeColumn(node, 1, Arias[1, 1]);
+		SetNodeData(rNode, ARIAs[1, 0], ARIAs[1, 1], nil, 0);
+	end
+	else
+	begin
+		rcNode := Node;
+		List := TStringList.Create;
+		List2 := TStringList.Create;
+		try
+			List.Text := aAttrs;
+			for i := 0 to List.Count - 1 do
+			begin
+				List2.Clear;
+				List2.CommaText := List[i];
+				if List2.Count >= 1 then
+				begin
+					// Node := TreeList1.Items.AddChild(rcNode, List2[0]);
+					if List2.Count >= 2 then
+					begin
+						// TreeList1.SetNodeColumn(node, 1, List2[1]);
+						SetNodeData(rcNode, List2[0], List2[1], nil, 0);
+					end
+					else
+						SetNodeData(rcNode, List2[0], '', nil, 0);
+				end;
+			end;
+		finally
+			List.Free;
+			List2.Free;
+		end;
+	end;
+	Result := sARIA + #13#10 + ARIAs[0, 0] + ':' + #9 + ARIAs[0, 1] + #13#10 +
+		ARIAs[1, 0] + ':' + #9 + ARIAs[1, 1] + #13#10#13#10;
+	// rNode.Expand(True);
+	TreeList1.Expanded[rNode] := True;
 end;
 
 function TwndMSAAV.IsSameUIElement(ia1, ia2: IAccessible; iID1, iID2: integer): boolean;
@@ -5347,6 +5371,10 @@ begin
 			HTMLTH.Free;
 			HTMLTH := nil;
 		end;
+
+    if Assigned(SCList) then
+    	SCList.Free;
+
 		ClsNames.Free;
 		TBList.Free;
 		LangList.Free;
@@ -5368,6 +5396,7 @@ var
     i: integer;
 
 begin
+	scList := nil;
 		bFirstTime := True;
 		dEventTime := 0;
     SystemCanSupportPerMonitorDpi(true);
@@ -5518,6 +5547,15 @@ end;
 procedure TwndMSAAV.TreeList1Deletion(Sender: TObject; Node: TTreeNode);
 begin
     Dispose(Node.Data);
+end;
+
+procedure TwndMSAAV.TreeList1FreeNode(Sender: TBaseVirtualTree;
+  Node: PVirtualNode);
+var
+	ND: PNodeData;
+begin
+  ND := Sender.GetNodeData(Node);
+  Finalize(ND^);
 end;
 
 procedure TwndMSAAV.TreeList1GetText(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex; TextType: TVSTTextType;
@@ -5820,22 +5858,8 @@ end;
 
 
 procedure TwndMSAAV.acCopyExecute(Sender: TObject);
-var
-    Mem: TMemoryStream;
-    sList: TStringList;
 begin
-    //Clipboard.AsText := CPTXT;
-    Mem := TMemoryStream.Create;
-    sList := TStringList.Create;
-    try
-        TreeList1.SaveToStream(Mem);
-        Mem.Seek(0, soFromBeginning);
-        sList.LoadFromStream(Mem);
-        Clipboard.AsText := sList.Text;
-    finally
-        sList.Free;
-        Mem.Free;
-    end;
+	Clipboard.AsText := sMSAATxt + #10#13 + sARIATxt + #13#10 + sHTMLTxt + #10#13 + sIA2txt + #10#13 + sUIATxt;
 end;
 
 procedure TwndMSAAV.acCursorExecute(Sender: TObject);
@@ -6190,8 +6214,11 @@ procedure TwndMSAAV.acSettingExecute(Sender: TObject);
 var
     WndSet: TWndSet;
     i, b:integer;
-
+    d, lbtb, lbmf, mfTV, mfLV, mfST, mf3ctrl: string;
+    sc: word;
     ini: TMemINiFile;
+    SCD: PSCData;
+    cNode, rNode: PVirtualNode;
 begin
   FormStyle := fsNormal;
   timer1.Enabled := false;
@@ -6200,11 +6227,17 @@ begin
         WndSet.Load_Str(TransPath);
         WndSet.Font := Font;
         WndSet.DefFont := DefFont;
-        WndSet.DefY := DefY;
+        {WndSet.DefY := DefY;
         WndSet.DefX := DefX;
         WndSet.ScaleX := ScaleX;
-        WndSet.ScaleY := ScaleY;
-        WndSet.SizeChange;
+        WndSet.ScaleY := ScaleY;  }
+        WndSet.DefW := WndSet.Width;
+        WndSet.DefH := WndSet.Height;
+        WndSet.FontDialog1.Font := Font;
+        {WndSet.cDPI := DoubleToInt(DefY * ScaleY);
+        WndSet.sDPI := WndSet.cDPI; }
+
+
 
         WndSet.cbExTip.Checked := Extip;
         WndSet.ChkList.Items.Add(lMSAA[0]);
@@ -6271,9 +6304,186 @@ begin
                 end;
             end;
         end;
+        WndSet.cmbShortCut.Items.Add(None);
+        for i := 0 to 25 do
+        begin
+        	WndSet.cmbShortCut.Items.Add('Ctrl+' + Chr(65 + i));
+        end;
+
+        for i := 0 to 25 do
+        begin
+        	WndSet.cmbShortCut.Items.Add('Ctrl+Alt+' + Chr(65 + i));
+        end;
+
+        for i := 1 to 12 do
+        begin
+        	WndSet.cmbShortCut.Items.Add('F' + inttostr(i));
+        end;
+
+        for i := 1 to 12 do
+        begin
+        	WndSet.cmbShortCut.Items.Add('Ctrl+F' + inttostr(i));
+        end;
+
+        for i := 1 to 12 do
+        begin
+        	WndSet.cmbShortCut.Items.Add('Ctrl+Shift+F' + inttostr(i));
+        end;
+
+        for i := 1 to 12 do
+        begin
+        	WndSet.cmbShortCut.Items.Add('Shift+F' + inttostr(i));
+        end;
+
+        for i := 1 to 12 do
+        begin
+        	WndSet.cmbShortCut.Items.Add('Alt+F' + inttostr(i));
+        end;
+
+        ini := TMemIniFile.Create(TransPath, TEncoding.UTF8);
+        try
+        	lbmf := ini.ReadString('SetDLG', 'lbmf', 'Move focus to');
+          lbtb := ini.ReadString('SetDLG', 'lbtb', 'Toolbar functions');
+
+          mfTV := ini.ReadString('SetDLG', 'mfTreeView', 'TreeView');
+        	//WndSet.clShortcut.Checked[WndSet.clShortcut.Items.Count - 1] := (acTreeFocus.ShortCut <> 0);
 
 
+          mfLV := ini.ReadString('SetDLG', 'mfListView', 'ListView');
+          //WndSet.clShortcut.Checked[WndSet.clShortcut.Items.Count - 1] := (acListFocus.ShortCut <> 0);
 
+
+          mfST := ini.ReadString('SetDLG', 'mfTextBox', 'Source Text');
+          //WndSet.clShortcut.Checked[WndSet.clShortcut.Items.Count - 1] := (acMemoFocus.ShortCut <> 0);
+
+          mf3ctrl := ini.ReadString('SetDLG', 'mf3ctrls', 'between 3 controls');
+          //WndSet.clShortcut.Checked[WndSet.clShortcut.Items.Count - 1] := (acTriFocus.ShortCut <> 0);
+
+
+				finally
+					ini.Free;
+				end;
+        WndSet.clShortcut.NodeDataSize := SizeOf(TSCData);
+
+        rNode := WndSet.clShortcut.AddChild(nil);
+        SCD := rNode.GetData;
+        SCD^.Name := lbtb;
+  			SCD^.SCKey := 0;
+        WndSet.TFNode := rNode;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := tbFocus.Hint;
+  			SCD^.SCKey := acFocus.ShortCut;
+        SCD^.actName := acFocus.Name;
+        WndSet.clShortcut.Selected[cNode] := True;
+        WndSet.clShortcut.OnClick(WndSet.clShortcut);
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := tbCursor.Hint;
+  			SCD^.SCKey := acCursor.ShortCut;
+        SCD^.actName := acCursor.Name;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := tbRectAngle.Hint;
+  			SCD^.SCKey := acRect.ShortCut;
+        SCD^.actName := acRect.Name;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := tbShowtip.Hint;
+  			SCD^.SCKey := acShowtip.ShortCut;
+        SCD^.actName := acShowtip.Name;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := tbCopy.Hint;
+  			SCD^.SCKey := acCopy.ShortCut;
+        SCD^.actName := acCopy.Name;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := tbOnlyFocus.Hint;
+  			SCD^.SCKey := acOnlyFocus.ShortCut;
+        SCD^.actName := acOnlyFocus.Name;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := tbParent.Hint;
+  			SCD^.SCKey := acParent.ShortCut;
+        SCD^.actName := acParent.Name;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := tbChild.Hint;
+  			SCD^.SCKey := acChild.ShortCut;
+        SCD^.actName := acChild.Name;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := tbPrevS.Hint;
+  			SCD^.SCKey := acPrevS.ShortCut;
+        SCD^.actName := acPrevS.Name;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := tbNextS.Hint;
+  			SCD^.SCKey := acNextS.ShortCut;
+        SCD^.actName := acNextS.Name;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := tbHelp.Hint;
+  			SCD^.SCKey := acHelp.ShortCut;
+        SCD^.actName := acHelp.Name;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := tbMSAAMode.Hint;
+  			SCD^.SCKey := acMSAAMode.ShortCut;
+        SCD^.actName := acMSAAMode.Name;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := tbRegister.Hint;
+  			SCD^.SCKey := acSetting.ShortCut;
+        SCD^.actName := acSetting.Name;
+        WndSet.clShortcut.Expanded[rNode] := True;
+
+        rNode := WndSet.clShortcut.AddChild(nil);
+        SCD := rNode.GetData;
+        SCD.Name := lbmf;
+  			SCD.SCKey := 0;
+        WndSet.MFNode := rNode;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := mfTV;
+  			SCD^.SCKey := acTreeFocus.ShortCut;
+        SCD^.actName := acTreeFocus.Name;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := mfLV;
+  			SCD^.SCKey := acListFocus.ShortCut;
+        SCD^.actName := acListFocus.Name;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := mfST;
+  			SCD^.SCKey := acMemoFocus.ShortCut;
+        SCD^.actName := acMemoFocus.Name;
+
+        cNode := WndSet.clShortcut.AddChild(rNode);
+        SCD := cNode.GetData;
+  			SCD^.Name := mf3ctrl;
+  			SCD^.SCKey := ac3ctrls.ShortCut;
+        SCD^.actName := ac3ctrls.Name;
+
+        WndSet.clShortcut.Expanded[rNode] := True;
+        WndSet.SizeChange;
         if WndSet.ShowModal = mrOK then
         begin
             Font := WndSet.Font;
@@ -6328,7 +6538,59 @@ begin
                 ini.WriteInteger('Settings', 'flgUIA', flgUIA);
                 ini.WriteInteger('Settings', 'flgUIA2', flgUIA2);
                 ini.WriteBool('Settings', 'ExTooltip', Extip);
+
+                rNode := WndSet.TFNode;
+								cNode := rNode.FirstChild;
+                SCD := WndSet.clShortcut.GetNodeData(cNode);
+                ini.WriteInteger('Shortcut', SCD^.actName, SCD^.SCKey);
+            		for i := 1 to rNode.ChildCount - 1 do
+								begin
+									cNode := cNode.NextSibling;
+									if cNode = nil then
+										break
+									else
+                  begin
+                  	SCD := WndSet.clShortcut.GetNodeData(cNode);
+                		ini.WriteInteger('Shortcut', SCD^.actName, SCD^.SCKey);
+                  end;
+								end;
+
+								rNode := WndSet.MFNode;
+								cNode := rNode.FirstChild;
+                SCD := WndSet.clShortcut.GetNodeData(cNode);
+                ini.WriteInteger('Shortcut', SCD^.actName, SCD^.SCKey);
+								for i := 1 to rNode.ChildCount - 1 do
+								begin
+									cNode := cNode.NextSibling;
+									if cNode = nil then
+										break
+									else
+									begin
+                  	SCD := WndSet.clShortcut.GetNodeData(cNode);
+                		ini.WriteInteger('Shortcut', SCD^.actName, SCD^.SCKey);
+                  end;
+								end;
+
                 ini.UpdateFile;
+
+                acFocus.ShortCut := Word(ini.ReadInteger('Shortcut', acFocus.Name, 115));
+        				acCursor.ShortCut := Word(ini.ReadInteger('Shortcut', acCursor.Name, 116));
+                acRect.ShortCut := Word(ini.ReadInteger('Shortcut', acRect.Name, 117));
+        				acShowtip.ShortCut := Word(ini.ReadInteger('Shortcut', acShowtip.Name, 114));
+        				acCopy.ShortCut := Word(ini.ReadInteger('Shortcut', acCopy.Name, 118));
+        				acOnlyfocus.ShortCut := Word(ini.ReadInteger('Shortcut', acOnlyfocus.Name, 119));
+        				acParent.ShortCut := Word(ini.ReadInteger('Shortcut', acParent.Name, 120));
+        				acChild.ShortCut := Word(ini.ReadInteger('Shortcut', acChild.Name, 121));
+        				acPrevS.ShortCut := Word(ini.ReadInteger('Shortcut', acPrevS.Name, 122));
+        				acNextS.ShortCut := Word(ini.ReadInteger('Shortcut', acNextS.Name, 123));
+        				acHelp.ShortCut := Word(ini.ReadInteger('Shortcut', acHelp.Name, 112));
+        				acMSAAMode.ShortCut := Word(ini.ReadInteger('Shortcut', acMSAAMode.Name, 8308));
+        				acSetting.ShortCut := Word(ini.ReadInteger('Shortcut', acSetting.Name, 8309));
+        				acTreeFocus.ShortCut := Word(ini.ReadInteger('Shortcut', acTreeFocus.Name, 8304));
+        				acListFocus.ShortCut := Word(ini.ReadInteger('Shortcut', acListFocus.Name, 8305));
+        				acMemoFocus.ShortCut := Word(ini.ReadInteger('Shortcut', acMemoFocus.Name, 8306));
+        				ac3ctrls.ShortCut := Word(ini.ReadInteger('Shortcut', ac3ctrls.Name, 8307));
+
             finally
                 ini.Free;
             end;
@@ -6422,7 +6684,7 @@ begin
   TreeView1.SetFocus;
 end;
 
-procedure TwndMSAAV.acTriFocusExecute(Sender: TObject);
+procedure TwndMSAAV.ac3ctrlsExecute(Sender: TObject);
 begin
   if TreeView1.Focused then
     TreeList1.SetFocus
@@ -6823,9 +7085,9 @@ begin
             tbPrevS.Hint := ini.ReadString('General', 'MSAA_tbPrevSHint', 'Navigates to previous sibling object');
             tbNextS.Hint := ini.ReadString('General', 'MSAA_tbNextSHint', 'Navigates to next sibling object');
             tbHelp.Hint := ini.ReadString('General', 'MSAA_tbHelpHint', 'Show online help');
-            tbHelp.Hint := tbHelp.Hint + '(' +HelpURL + ')';
+            //tbHelp.Hint := tbHelp.Hint + '(' +HelpURL + ')';
 
-            tbMSAAMode.Hint := ini.ReadString('General', 'MSAA_tbMSAAModeHint', '');
+            tbMSAAMode.Hint := ini.ReadString('General', 'MSAA_tbMSAAModeHint', 'UIA mode');
             tbRegister.Hint := ini.ReadString('General', 'MSAA_tbMSAASetHint', 'Show Setting Dialog');
             mnuLang.Caption := ini.ReadString('General', 'mnuLang', '&Language');
             mnuView.Caption := ini.ReadString('General', 'mnuView', '&View');
@@ -7006,7 +7268,7 @@ begin
             IA2Sts[16] := ini.ReadString('IA2', 'IA2_STATE_TRANSIENT', 'Transient');
             IA2Sts[17] := ini.ReadString('IA2', 'IA2_STATE_VERTICAL', 'Vertical');
 
-            acFocus.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbFocus', 'F4'));
+            {acFocus.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbFocus', 'F4'));
             acCursor.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbCursor', 'F5'));
             acRect.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbRectAngle', 'F6'));
             acShowtip.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbBalloon', 'F3'));
@@ -7022,6 +7284,7 @@ begin
             acTreeFocus.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'sfTreeView', 'Shift+F1'));
             acListFocus.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'sfListView', 'Shift+F2'));
             acMemoFocus.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'sfTextBox', 'Shift+F3'));
+            acTriFocus.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'sf3ctrls', 'Shift+F4')); }
 
             QSFailed := ini.ReadString('IA2', 'QS_Failed', 'Query Service Failed');
             Err_Inter := ini.ReadString('General', 'Error_Interface', 'Interface not available');
@@ -7108,6 +7371,24 @@ begin
         mnublnMSAA.Checked := ini.ReadBool('Settings', 'bMSAA', True);
         mnublnIA2.Checked := ini.ReadBool('Settings', 'bIA2', True);
         mnublnCode.Checked := ini.ReadBool('Settings', 'bCode', True);
+
+        acFocus.ShortCut := Word(ini.ReadInteger('Shortcut', acFocus.Name, 115));
+        acCursor.ShortCut := Word(ini.ReadInteger('Shortcut', acCursor.Name, 116));
+        acRect.ShortCut := Word(ini.ReadInteger('Shortcut', acRect.Name, 117));
+        acShowtip.ShortCut := Word(ini.ReadInteger('Shortcut', acShowtip.Name, 114));
+        acCopy.ShortCut := Word(ini.ReadInteger('Shortcut', acCopy.Name, 118));
+        acOnlyfocus.ShortCut := Word(ini.ReadInteger('Shortcut', acOnlyfocus.Name, 119));
+        acParent.ShortCut := Word(ini.ReadInteger('Shortcut', acParent.Name, 120));
+        acChild.ShortCut := Word(ini.ReadInteger('Shortcut', acChild.Name, 121));
+        acPrevS.ShortCut := Word(ini.ReadInteger('Shortcut', acPrevS.Name, 122));
+        acNextS.ShortCut := Word(ini.ReadInteger('Shortcut', acNextS.Name, 123));
+        acHelp.ShortCut := Word(ini.ReadInteger('Shortcut', acHelp.Name, 112));
+        acMSAAMode.ShortCut := Word(ini.ReadInteger('Shortcut', acMSAAMode.Name, 8308));
+        acSetting.ShortCut := Word(ini.ReadInteger('Shortcut', acSetting.Name, 8309));
+        acTreeFocus.ShortCut := Word(ini.ReadInteger('Shortcut', acTreeFocus.Name, 8304));
+        acListFocus.ShortCut := Word(ini.ReadInteger('Shortcut', acListFocus.Name, 8305));
+        acMemoFocus.ShortCut := Word(ini.ReadInteger('Shortcut', acMemoFocus.Name, 8306));
+        ac3ctrls.ShortCut := Word(ini.ReadInteger('Shortcut', ac3ctrls.Name, 8307));
 
         b := ini.ReadBool('Settings', 'TVAll', False);
         mnuAll.Checked := b;
@@ -7938,6 +8219,13 @@ begin
       mnuOSel.Enabled := True;
     end;
   end;
+end;
+
+procedure TwndMSAAV.ThHTMLDone(Sender: TObject);
+begin
+	sHTMLTxt := sHTML + #13#10 + HTMLs[0, 0] + ':' + #9 + HTMLs[0, 1] + #13#10 +
+		HTMLs[1, 0] + ':' + #9 + HTMLs[1, 1] + #13#10 + HTMLs[2, 0] + ':' + #9 +
+		HTMLs[2, 1] + #13#10#13#10;
 end;
 
 procedure TwndMSAAV.ThDone(Sender: TObject);
