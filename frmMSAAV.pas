@@ -1300,6 +1300,7 @@ var
   iEle: IHTMLElement;
   iDom: IHTMLDomNode;
   iSEle: ISimpleDOMNode;
+  eleHWND, paHWND: HWND;
 	function GetiLegacy: HResult;
 	begin
   	result := S_FALSE;
@@ -1358,6 +1359,7 @@ begin
   iDefIndex := -1;
   Memo1.ClearAll;
   bSame := False;
+  pEle := nil;
   try
     if acMSAAMode.Checked then
     begin
@@ -1378,6 +1380,11 @@ begin
         if (hr = 0) and (Assigned(tAcc))then
         begin
         	iAcc := tAcc;
+          if (mnuAll.Checked) and (SUCCEEDED(WindowFromAccessibleObject(iAcc, eleHWND))) then
+          begin
+          	paHWND := GetAncestor(eleHWND, GA_ROOT);
+            UIAuto.ElementFromHandle(pointer(paHWND), pEle);
+          end;
           if mnuMSAA.Checked then
           	sMSAATxt := MSAAText(tAcc);
           hr := iAcc.QueryInterface(IID_IServiceProvider, iSP);
@@ -1433,7 +1440,7 @@ begin
       //sMSAATxt := MSAAText4UIA;
       //if mnuUIA.Checked then
 
-      pEle := nil;
+
       if (not Treemode) and (Splitter1.Enabled = True) then
       begin
         if (TreeView1.Items.Count > 0) then
@@ -1452,8 +1459,10 @@ begin
           TreeView1.Items.Clear;
           if not Assigned(pEle) then
             pEle := uiEle;
-
-          UIATH := TreeThread4UIA.Create(UIAuto, uiEle, uiEle, None, True, False, nil);
+          if mnuAll.Checked then
+          	UIATH := TreeThread4UIA.Create(UIAuto, uiEle, pEle, None, True, true, nil)
+          else
+          	UIATH := TreeThread4UIA.Create(UIAuto, uiEle, pEle, None, True, False, nil);
           UIATH.OnTerminate := ThDone;
           UIATH.Start;
         end;
