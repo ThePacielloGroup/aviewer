@@ -1373,6 +1373,7 @@ begin
         UIATH := nil;
       end;
       UIAText;
+
       hr := GetiLegacy;
       if (hr = 0) and (Assigned(iLeg)) then
       begin
@@ -1459,6 +1460,7 @@ begin
           TreeView1.Items.Clear;
           if not Assigned(pEle) then
             pEle := uiEle;
+
           if mnuAll.Checked then
           	UIATH := TreeThread4UIA.Create(UIAuto, uiEle, pEle, None, True, true, nil)
           else
