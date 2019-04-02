@@ -28,7 +28,7 @@ uses
   iAccessible2Lib_tlb, ISimpleDOM, Actions,
   Menus, Thread, TipWnd, UIAutomationClient_TLB, AccCTRLs,
   frmSet, Math, IntList, StrUtils, PermonitorApi, Multimon, VirtualTrees,
-  System.ImageList, UIA_TLB, SynEdit, SynEditHighlighter, SynHighlighterHtml;
+  System.ImageList, UIA_TLB, SynEdit, SynEditHighlighter, SynHighlighterHtml, CommDlg;
 
 const
     IID_IServiceProvider: TGUID = '{6D5140C1-7436-11CE-8034-00AA006009FA}';
@@ -167,7 +167,6 @@ type
     ImageList3: TImageList;
     N1: TMenuItem;
     mnuTVSave: TMenuItem;
-    SaveDlg: TSaveDialog;
     PopupMenu2: TPopupMenu;
     mnuSAll: TMenuItem;
     mnuSSel: TMenuItem;
@@ -277,12 +276,12 @@ type
     UIATH: TreeThread4UIA;
     HTMLTh: HTMLThread;
 
-    Treemode: boolean;
+    Treemode, bPFunc: boolean;
     //UIA: IUIAutomation;
     P2W, P4H: integer;
     cDPI: integer;
     bFirstTime: boolean;
-    TipText, TipTextIA2: string;
+    TipText, TipTextIA2, sFilter: string;
     sNode: TTreeNode;
     pNode: TTreeNode;
     sRC: TRect;
@@ -298,6 +297,7 @@ type
     ScaleX, ScaleY, DefX, DefY: double;
     sMSAAtxt, sHTMLtxt, sUIATxt, sARIATxt, sIA2Txt: string;
     dEventTime: dword;
+    function SaveHTMLDLG(initDir: string; var FName: string): boolean;
     procedure ExecOnlyFocus;
     function MSAAText(pAcc: IAccessible = nil; TextOnly: boolean = false): string;
     function MSAAText4UIA(TextOnly: boolean = false): string;
@@ -521,6 +521,8 @@ var
 	end;
 
 begin
+	if wndMSAAV.bPFunc then Exit;
+
 	hr := AccessibleObjectFromEvent(HWND, idObject, idChild, @pAcc, vChild);
   if (hr = 0) and (Assigned(pAcc)) and (event = EVENT_OBJECT_FOCUS) and (wndMSAAV.dEventTime < dwmsEventTime) then
   begin
@@ -560,6 +562,7 @@ var
 
 begin
   Result := S_OK;
+  if bPFunc then Exit;
 
   UIEle := sender;
   if (Assigned(uiEle)) then
@@ -603,7 +606,7 @@ var
   icPID: integer;
 
 begin
-	if not acCursor.Checked then
+	if (not acCursor.Checked) or bPFunc then
 		Exit;
   {if not acMSAAMode.Checked then
   	Exit; }
@@ -5456,6 +5459,7 @@ var
 begin
 	scList := nil;
 		bFirstTime := True;
+    bPFunc := False;
 		dEventTime := 0;
     SystemCanSupportPerMonitorDpi(true);
     GetDCap(handle, Defx, Defy);
@@ -7244,7 +7248,7 @@ begin
 
 
 
-            SaveDlg.Filter :=  ini.ReadString('General', 'SaveDLGFilter', 'HTML File|*.htm*|Text File|*.txt|All|*.*');
+            sFilter :=  ini.ReadString('General', 'SaveDLGFilter', 'HTML File|*.htm*|Text File|*.txt|All|*.*');
 
             sHTML := ini.ReadString('HTML', 'HTML', 'HTML');
             HTMLs[0, 0] := ini.ReadString('HTML', 'Element_name', 'Element Name');
@@ -7982,6 +7986,36 @@ begin
   mnuTVOAllClick(self);
 end;
 
+function TwndMSAAV.SaveHTMLDLG(initDir: string; var FName: string): boolean;
+var
+  ofn: TOpenFileName;
+  szFile: array[0..MAX_PATH] of Char;
+begin
+  Result := False;
+  FillChar(ofn, SizeOf(TOpenFileName), 0);
+
+  with ofn do
+  begin
+    lStructSize := SizeOf(TOpenFileName);
+    hwndOwner := Handle;
+    Flags := OFN_OVERWRITEPROMPT or OFN_HIDEREADONLY;
+    lpstrFile := szFile;
+    nMaxFile := SizeOf(szFile);
+    if (initDir <> '') then
+      lpstrInitialDir := PChar(initDir);
+    StrPCopy(lpstrFile, FName);
+    lpstrFilter := PChar(ReplaceStr(sFilter, '|', #0)+#0#0);;
+    nFilterIndex := 1;
+    lpstrDefExt := 'html';
+  end;
+
+  if GetSaveFileName(ofn) then
+  begin
+  	Result := True;
+  	FName := StrPas(szFile);
+  end;
+end;
+
 procedure TwndMSAAV.mnuTVOAllClick(Sender: TObject);
 var
   temp: string;
@@ -8007,21 +8041,23 @@ end;
 procedure TwndMSAAV.mnuTVSAllClick(Sender: TObject);
 var
   sList: TStringList;
+  FName: string;
 begin
     if TreeView1.Items.Count > 0 then
     begin
       sList := TStringList.Create;
+      bPFunc := True;
       try
 
         sList.Text := GetTVAllItems;
-
-        if SaveDLG.Execute then
+        if SaveHTMLDLG('', FName) then
         begin
-        	sList.SaveToFile(SaveDLG.FileName, TEncoding.UTF8);
+        	sList.SaveToFile(FName, TEncoding.UTF8);
         end;
 
       finally
         sList.Free;
+        bPFunc := False;
       end;
     end;
 
@@ -8242,21 +8278,24 @@ end;
 procedure TwndMSAAV.mnuTVSSelClick(Sender: TObject);
 var
   sList: TStringList;
+  FName: string;
 begin
 		//Save Treeview contents
     if (TreeView1.SelectionCount > 0) and (TreeView1.Items.Count > 0) then
     begin
       sList := TStringList.Create;
+      bPFunc := True;
       try
 
       	sList.Text := GetTVSelItems;
-        if SaveDLG.Execute then
+        if SaveHTMLDLG('', FName) then
         begin
-        	sList.SaveToFile(SaveDLG.FileName, TEncoding.UTF8);
+        	sList.SaveToFile(FName, TEncoding.UTF8);
         end;
 
       finally
         sList.Free;
+        bPFunc := False;
       end;
     end;
 
