@@ -2646,7 +2646,7 @@ object wndMSAAV: TwndMSAAV
       Height = 705
       Align = alRight
       Caption = 'Collapse TreeView'
-      TabOrder = 1
+      TabOrder = 0
       TabStop = True
       OnClick = acTVcolExecute
       Picture.Data = {07544269746D617000000000}
@@ -2661,32 +2661,74 @@ object wndMSAAV: TwndMSAAV
       CtrlRight = PB2
       CtrlLeft = TreeView1
     end
-    object TreeView1: TAccTreeView
+    object PageControl1: TPageControl
       Left = 0
       Top = 0
       Width = 327
       Height = 705
+      ActivePage = TabSheet2
       Align = alClient
-      DoubleBuffered = True
-      HideSelection = False
-      Images = ImageList3
-      Indent = 19
-      MultiSelect = True
-      MultiSelectStyle = [msControlSelect, msShiftSelect]
-      ParentDoubleBuffered = False
-      PopupMenu = PopupMenu2
-      ReadOnly = True
-      RowSelect = True
-      TabOrder = 0
-      OnAddition = TreeView1Addition
-      OnChange = TreeView1Change
-      OnDeletion = TreeView1Deletion
-      OnExpanding = TreeView1Expanding
-      OnHint = TreeView1Hint
-      CtrlNext = PB1
-      CtrlPrev = Toolbar1
-      CtrlRight = PB1
-      CtrlUp = Toolbar1
+      TabOrder = 1
+      OnChange = PageControl1Change
+      object TabSheet1: TTabSheet
+        Caption = 'MSAA'
+        object TreeView1: TAccTreeView
+          Left = 0
+          Top = 0
+          Width = 319
+          Height = 676
+          Align = alClient
+          DoubleBuffered = True
+          HideSelection = False
+          Images = ImageList3
+          Indent = 19
+          MultiSelect = True
+          MultiSelectStyle = [msControlSelect, msShiftSelect]
+          ParentDoubleBuffered = False
+          PopupMenu = PopupMenu2
+          ReadOnly = True
+          RowSelect = True
+          TabOrder = 0
+          OnAddition = TreeView1Addition
+          OnChange = TreeView1Change
+          OnDeletion = TreeView1Deletion
+          OnExpanding = TreeView1Expanding
+          OnHint = TreeView1Hint
+          CtrlNext = PB1
+          CtrlPrev = Toolbar1
+          CtrlRight = PB1
+          CtrlUp = Toolbar1
+        end
+      end
+      object TabSheet2: TTabSheet
+        Caption = 'UIA'
+        ImageIndex = 1
+        object tbUIA: TAccTreeView
+          Left = 0
+          Top = 0
+          Width = 319
+          Height = 676
+          Align = alClient
+          DoubleBuffered = True
+          HideSelection = False
+          Images = ImageList3
+          Indent = 19
+          MultiSelect = True
+          MultiSelectStyle = [msControlSelect, msShiftSelect]
+          ParentDoubleBuffered = False
+          PopupMenu = PopupMenu2
+          ReadOnly = True
+          RowSelect = True
+          TabOrder = 0
+          OnAddition = tbUIAAddition
+          OnChange = tbUIAChange
+          OnDeletion = tbUIADeletion
+          CtrlNext = PB1
+          CtrlPrev = Toolbar1
+          CtrlRight = PB1
+          CtrlUp = Toolbar1
+        end
+      end
     end
   end
   object Panel5: TPanel
@@ -2834,7 +2876,7 @@ object wndMSAAV: TwndMSAAV
     Left = 176
     Top = 400
     Bitmap = {
-      494C01010E008C01900910001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010E008C01A40910001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000004000000001002000000000000040
       0000000000000000000000000000000000000000000000000000BDBDBD007A7A
       7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A
@@ -3632,7 +3674,7 @@ object wndMSAAV: TwndMSAAV
     Left = 256
     Top = 200
     Bitmap = {
-      494C01013E005000A0030F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01013E005000B4030F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       00000000000036000000280000003C000000F0000000010020000000000000E1
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000

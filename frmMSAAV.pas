@@ -188,6 +188,10 @@ type
     ImageList4: TImageList;
     Memo1: TAccSynEdit;
     SynHTMLSyn1: TSynHTMLSyn;
+    PageControl1: TPageControl;
+    TabSheet1: TTabSheet;
+    TabSheet2: TTabSheet;
+    tbUIA: TAccTreeView;
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure acFocusExecute(Sender: TObject);
     procedure acCursorExecute(Sender: TObject);
@@ -246,6 +250,10 @@ type
     procedure acMemoFocusExecute(Sender: TObject);
     procedure ac3ctrlsExecute(Sender: TObject);
     procedure TreeList1FreeNode(Sender: TBaseVirtualTree; Node: PVirtualNode);
+    procedure tbUIADeletion(Sender: TObject; Node: TTreeNode);
+    procedure tbUIAChange(Sender: TObject; Node: TTreeNode);
+    procedure tbUIAAddition(Sender: TObject; Node: TTreeNode);
+    procedure PageControl1Change(Sender: TObject);
   private
     { Private declarations }
 
@@ -279,7 +287,7 @@ type
     Treemode, bPFunc: boolean;
     //UIA: IUIAutomation;
     P2W, P4H: integer;
-    cDPI: integer;
+    cDPI, iTHCnt: integer;
     bFirstTime: boolean;
     TipText, TipTextIA2, sFilter: string;
     sNode: TTreeNode;
@@ -364,7 +372,7 @@ var
   bTer: boolean;
   refNode, LoopNode, sNode: TTreeNode;
   refVNode: PVirtualNode;
-  TBList: TIntegerList;
+  TBList, uTBList: TIntegerList;
   lMSAA: array[0..11] of string;
   lIA2: array [0..15] of string;
   lUIA: array [0..61] of string;
@@ -511,14 +519,7 @@ var
 	pAcc: IAccessible;
 	iDis: iDispatch;
   hr: HResult;
-	function SetiAcc: boolean;
-	begin
-  	result := False;
-		hr := AccessibleObjectFromEvent(HWND, idObject, idChild, @pAcc, vChild);
-    if (hr = 0) and (Assigned(pAcc)) then
-    	Result := True;
-		wndMSAAV.UIAuto.GetFocusedElement(wndMSAAV.uiEle);
-	end;
+
 
 begin
 	if wndMSAAV.bPFunc then Exit;
@@ -526,6 +527,7 @@ begin
 	hr := AccessibleObjectFromEvent(HWND, idObject, idChild, @pAcc, vChild);
   if (hr = 0) and (Assigned(pAcc)) and (event = EVENT_OBJECT_FOCUS) and (wndMSAAV.dEventTime < dwmsEventTime) then
   begin
+  	wndMSAAV.UIAuto.ElementFromiAccessible(pAcc, vChild, wndMSAAV.uiEle);
   	try
 			wndMSAAV.dEventTime := dwmsEventTime;
 
@@ -601,10 +603,9 @@ var
 	pAcc: IAccessible;
 	v: variant;
 	iDis: iDispatch;
-	tagPT: UIAutomationClient_TLB.tagPoint;
 	hr: HResult;
   icPID: integer;
-
+  tagPT: UIAutomationClient_TLB.tagPoint;
 begin
 	if (not acCursor.Checked) or bPFunc then
 		Exit;
@@ -631,6 +632,7 @@ begin
 					begin
 
 
+						//hr := UIAuto.ElementFromiAccessible(pAcc, v, uiEle);
             tagPT.X := arPT[0].X;
 						tagPT.Y := arPT[0].Y;
 						hr := UIAuto.ElementFromPoint(tagPT, uiEle);
@@ -659,8 +661,21 @@ begin
 							if (hr = 0) and (Assigned(accRoot)) then
 								accRoot := iDis as IAccessible;
 						end;
-
-						ShowMSAAText;
+            iTHCnt := 0;
+            if not acMSAAMode.Checked then
+            begin
+							PageControl1.ActivePageIndex := 0;
+              pagecontrol1.Pages[1].Enabled := False;
+              acShowTip.Enabled := True;
+							ShowMSAAText;
+            end
+            else
+            begin
+              PageControl1.ActivePageIndex := 1;
+              pagecontrol1.Pages[0].Enabled := False;
+              acShowTip.Enabled := False;
+            	ShowText4UIA;
+            end;
           end
           else
           	iAcc := nil;
@@ -681,7 +696,21 @@ begin
 
 	if (not acOnlyFocus.Checked) and (acFocus.Checked) then
 	begin
-    ShowMSAAText;
+  	iTHCnt := 0;
+		if not acMSAAMode.Checked then
+		begin
+			PageControl1.ActivePageIndex := 0;
+			PageControl1.Pages[1].Enabled := false;
+			acShowTip.Enabled := True;
+			ShowMSAAText;
+		end
+		else
+		begin
+			PageControl1.ActivePageIndex := 1;
+			PageControl1.Pages[0].Enabled := false;
+			acShowTip.Enabled := false;
+			ShowText4UIA;
+		end;
 	end;
 end;
 
@@ -1321,11 +1350,11 @@ var
   begin
     bSame := false;
     try
-        if TBList.Count > 0 then
+        if uTBList.Count > 0 then
         begin
-          for i := 0 to TBList.Count - 1 do
+          for i := 0 to uTBList.Count - 1 do
           begin
-            rNode := TreeView1.Items.GetNode(HTreeItem(TBList.Items[i]));
+            rNode := TreeView1.Items.GetNode(HTreeItem(uTBList.Items[i]));
             if (Assigned(rNode)) and (SUCCEEDED(UIAuto.CompareElements(uiEle, TTreeData(rNode.Data^).uiEle, iSame))) then
             begin
               if iSame <> 0 then
@@ -1352,20 +1381,34 @@ var
     end;
   end;
 begin
-  TreeList1.BeginUpdate;
-  TreeList1.Clear;
-  TreeList1.EndUpdate;
-  mnuTVSAll.Enabled := false;
-  mnuTVOAll.Enabled := false;
-  mnuTVSSel.Enabled := false;
-  mnuTVOSel.Enabled := false;
+
+  if (acMSAAMode.Checked) then
+  begin
+  	TreeList1.BeginUpdate;
+		TreeList1.Clear;
+		TreeList1.EndUpdate;
+		mnuTVSAll.Enabled := false;
+		mnuTVOAll.Enabled := false;
+		mnuTVSSel.Enabled := false;
+		mnuTVOSel.Enabled := false;
+    Memo1.ClearAll;
+  end
+  else
+  begin
+  	if TreeMode then
+    begin
+    	TreeList1.BeginUpdate;
+		TreeList1.Clear;
+		TreeList1.EndUpdate;
+    Memo1.ClearAll;
+    end;
+  end;
+
   iDefIndex := -1;
-  Memo1.ClearAll;
+
   bSame := False;
   pEle := nil;
   try
-    if acMSAAMode.Checked then
-    begin
 
       if Assigned(UIATH) then
       begin
@@ -1375,7 +1418,8 @@ begin
         UIATH.Free;
         UIATH := nil;
       end;
-      UIAText;
+      if (acMSAAMode.Checked) or (TreeMode) then
+      	UIAText;
 
       hr := GetiLegacy;
       if (hr = 0) and (Assigned(iLeg)) then
@@ -1383,13 +1427,12 @@ begin
       	hr := iLeg.GetIAccessible(tAcc);
         if (hr = 0) and (Assigned(tAcc))then
         begin
-        	iAcc := tAcc;
-          if (mnuAll.Checked) and (SUCCEEDED(WindowFromAccessibleObject(iAcc, eleHWND))) then
+          if (mnuAll.Checked) and (SUCCEEDED(WindowFromAccessibleObject(tAcc, eleHWND))) then
           begin
           	paHWND := GetAncestor(eleHWND, GA_ROOT);
             UIAuto.ElementFromHandle(pointer(paHWND), pEle);
           end;
-          if mnuMSAA.Checked then
+          if (mnuMSAA.Checked) and (acMSAAMode.Checked) then
           	sMSAATxt := MSAAText(tAcc);
           hr := iAcc.QueryInterface(IID_IServiceProvider, iSP);
 					if SUCCEEDED(hr) and Assigned(iSP) then
@@ -1401,14 +1444,17 @@ begin
 							if SUCCEEDED(hr) and Assigned(iDom) then
 							begin
 								CEle := iEle;
-								if mnuARIA.Checked then
+                if (acMSAAMode.Checked)  or (TreeMode) then
 								begin
-									ARIAText;
-								end;
-								if mnuHTML.Checked then
-								begin
+									if mnuARIA.Checked then
+									begin
+										ARIAText;
+									end;
+									if mnuHTML.Checked then
+									begin
 
-									HTMLText;
+										HTMLText;
+									end;
 								end;
               end;
             end
@@ -1420,26 +1466,32 @@ begin
 							begin
 								SDom := isEle;
 								// GetNaviState;
-								if mnuARIA.Checked then
-									ARIAText;
-								if mnuHTML.Checked then
-									HTMLText4FF;
+                if (acMSAAMode.Checked) or (TreeMode) then
+								begin
+									if mnuARIA.Checked then
+										ARIAText;
+									if mnuHTML.Checked then
+										HTMLText4FF;
+								end;
 							end;
 
 						end;
           end;
-          if mnuIA2.Checked then
-						SetIA2Text;
+          if (acMSAAMode.Checked) or (TreeMode) then
+          begin
+          	if (mnuIA2.Checked) then
+							SetIA2Text;
+          end;
         end
         else
         begin
-        	if mnuMSAA.Checked then
-        		sMSAATxt := MSAAText4UIA;
+        	if (acMSAAMode.Checked) or (TreeMode) then
+          begin
+        		if (mnuMSAA.Checked) then
+        			sMSAATxt := MSAAText4UIA;
+          end;
         end;
       end;
-      CEle := nil;
-      iAcc := nil;
-      SDom := nil;
       //if mnuMSAA.Checked then
       //sMSAATxt := MSAAText4UIA;
       //if mnuUIA.Checked then
@@ -1447,7 +1499,7 @@ begin
 
       if (not Treemode) and (Splitter1.Enabled = True) then
       begin
-        if (TreeView1.Items.Count > 0) then
+        if (tbUIA.Items.Count > 0) then
         begin
           Timer1.Enabled := false;
           try
@@ -1459,8 +1511,8 @@ begin
 
         if not bSame then
         begin
-          TBList.Clear;
-          TreeView1.Items.Clear;
+          uTBList.Clear;
+          tbUIA.Items.Clear;
           if not Assigned(pEle) then
             pEle := uiEle;
 
@@ -1472,16 +1524,19 @@ begin
           UIATH.Start;
         end;
       end;
-      if TreeList1.ChildCount[TreeList1.RootNode] > 0 then
-      begin
-        TreeList1.Expanded[TreeList1.RootNode];
-        TreeList1.OffsetX := 0;
-        TreeList1.OffsetY := 0;
-        TreeList1.Selected[TreeList1.RootNode] := True;
+      if acMSAAMode.Checked then
+			begin
+				if TreeList1.ChildCount[TreeList1.RootNode] > 0 then
+				begin
+					TreeList1.Expanded[TreeList1.RootNode];
+					TreeList1.OffsetX := 0;
+					TreeList1.OffsetY := 0;
+					TreeList1.Selected[TreeList1.RootNode] := True;
 
-      end;
-      GetNaviState;
-    end;
+				end;
+				if Treemode then
+					GetNaviState;
+			end;
   except
     on E: Exception do
       ShowErr(E.Message);
@@ -1494,7 +1549,6 @@ var
     Wnd: hwnd;
     iSP: IServiceProvider;
     iEle, paEle: IHTMLElement;
-    iDom: IHTMLDOMNode;
     Path, cAccRole: string;
     ws: widestring;
     iSEle: ISimpleDOMNode;
@@ -1544,24 +1598,39 @@ Example:
 <p><strong>element</strong> under cursor</p>
 *)
     Result := false;
+
 	if not Assigned(iAcc) then
 		Exit;
-  nSelected := False;
-	TreeList1.BeginUpdate;
-	TreeList1.Clear;
-	TreeList1.EndUpdate;
-	mnuTVSAll.Enabled := false;
-	mnuTVOAll.Enabled := false;
-	mnuTVSSel.Enabled := false;
-	mnuTVOSel.Enabled := false;
+  if (not acMSAAMode.Checked) then
+  begin
+		TreeList1.BeginUpdate;
+		TreeList1.Clear;
+		TreeList1.EndUpdate;
+		mnuTVSAll.Enabled := false;
+		mnuTVOAll.Enabled := false;
+		mnuTVSSel.Enabled := false;
+		mnuTVOSel.Enabled := false;
+    Memo1.ClearAll;
+  end
+  else
+  begin
+  	if TreeMode then
+    begin
+    	TreeList1.BeginUpdate;
+		TreeList1.Clear;
+		TreeList1.EndUpdate;
+    Memo1.ClearAll;
+    end;
+  end;
 	iDefIndex := -1;
 	LoopNode := nil;
-	Memo1.ClearAll;
+
   sMSAAtxt := '';
   sHTMLtxt := '';
   sUIATxt := '';
   sARIATxt := '';
   sIA2Txt := '';
+  nSelected := False;
 	if SUCCEEDED(WindowFromAccessibleObject(iAcc, Wnd)) then
 	begin
 
@@ -1584,9 +1653,8 @@ Example:
 			TreeTH := nil;
 		end;
 
-		if not acMSAAMode.Checked then
-		begin
-			if mnuMSAA.Checked then
+
+			if (mnuMSAA.Checked) and ((not acMSAAMode.Checked) or (TreeMode)) then
 				sMSAAtxt := MSAAText;
 
 			iRes := iAcc.QueryInterface(IID_IServiceProvider, iSP);
@@ -1595,18 +1663,20 @@ Example:
 				iRes := iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement, iEle);
 				if SUCCEEDED(iRes) and Assigned(iEle) then
 				begin
-					iRes := iEle.QueryInterface(IID_IHTMLDOMNode, iDom);
-					if SUCCEEDED(iRes) and Assigned(iDom) then
-					begin
+
 						CEle := iEle;
-						if mnuARIA.Checked then
+            if (not acMSAAMode.Checked) or (TreeMode) then
 						begin
-							sARIATxt := ARIAText;
+							if mnuARIA.Checked then
+							begin
+								sARIATxt := ARIAText;
+							end;
+							if mnuHTML.Checked then
+							begin
+								HTMLText;
+							end;
 						end;
-						if mnuHTML.Checked then
-						begin
-							HTMLText;
-						end;
+
 						if (not Treemode) and (Splitter1.Enabled = True) then
 						begin
 							iDoc := iEle.Document as IHTMLDocument2;
@@ -1651,6 +1721,7 @@ Example:
                       GetAccTxt;
 											WindowFromAccessibleObject(iAcc, AWnd);
 											TBList.Clear;
+
 											TreeView1.Items.Clear;
 											TreeTH := TreeThread.Create(iAcc, pAcc, AWnd, 0, None,
 												True, mnuAll.Checked, nil, VarParent);
@@ -1663,7 +1734,6 @@ Example:
 
 							end;
 						end;
-					end;
 				end
 				else
 				begin
@@ -1673,10 +1743,13 @@ Example:
 					begin
 						SDom := isEle;
 						// GetNaviState;
-						if mnuARIA.Checked then
-							sARIATxt := ARIAText;
-						if mnuHTML.Checked then
-							sHTMLTxt := HTMLText4FF;
+            if (not acMSAAMode.Checked) or (TreeMode) then
+						begin
+							if mnuARIA.Checked then
+								sARIATxt := ARIAText;
+							if mnuHTML.Checked then
+								sHTMLtxt := HTMLText4FF;
+						end;
 						if (not Treemode) and (Splitter1.Enabled = True) then
 						begin
 							iRes := iSP.QueryService(IID_ISIMPLEDOMNODE,
@@ -1735,7 +1808,8 @@ Example:
 												DocAcc := pAcc;
 												iAcc.accLocation(sRC.left, sRC.top, sRC.right,
 													sRC.bottom, 0);
-                        GetAccTxt;
+                        if not acMSAAMode.Checked then
+                        	GetAccTxt;
 												WindowFromAccessibleObject(iAcc, AWnd);
 												TreeView1.Items.Clear;
 												TreeTH := TreeThread.Create(iAcc, pAcc, AWnd, 0,
@@ -1762,7 +1836,6 @@ Example:
 						begin
 							iAcc.accLocation(sRC.left, sRC.top, sRC.right, sRC.bottom, 0);
 							WindowFromAccessibleObject(iAcc, AWnd);
-              GetAccTxt;
 							TBList.Clear;
 							TreeView1.Items.Clear;
 							TreeTH := TreeThread.Create(iAcc, iAcc, AWnd, 0, None, True,
@@ -1773,28 +1846,24 @@ Example:
 					end;
 				end;
 			end;
-			if mnuIA2.Checked then
-				sIA2Txt := SetIA2Text;
-			if mnuUIA.Checked then
-				sUIATxt := UIAText;
-			if Treemode then
-				GetNaviState;
-		end
-		else
-		begin
-			ShowText4UIA;
-			if Treemode then
-				GetNaviState;
+      if (not acMSAAMode.Checked) or (TreeMode) then
+  		begin
+				if mnuIA2.Checked then
+					sIA2Txt := SetIA2Text;
+				if mnuUIA.Checked then
+					sUIATxt := UIAText;
+				if Treemode then
+					GetNaviState;
+        if TreeList1.ChildCount[TreeList1.RootNode] > 0 then
+				begin
+					TreeList1.Expanded[TreeList1.RootNode];
+					TreeList1.OffsetX := 0;
+					TreeList1.OffsetY := 0;
+					TreeList1.Selected[TreeList1.RootNode] := True;
+					// GetNaviState;
+				end;
+      end;
 
-		end;
-		if TreeList1.ChildCount[TreeList1.RootNode] > 0 then
-		begin
-			TreeList1.Expanded[TreeList1.RootNode];
-			TreeList1.OffsetX := 0;
-			TreeList1.OffsetY := 0;
-			TreeList1.Selected[TreeList1.RootNode] := True;
-			// GetNaviState;
-		end;
 		Result := True;
 	end;
 end;
@@ -5438,6 +5507,7 @@ begin
 
 		ClsNames.Free;
 		TBList.Free;
+    uTBList.Free;
 		LangList.Free;
 		CoUnInitialize;
 		if hWndTip <> 0 then
@@ -5471,7 +5541,7 @@ begin
     TransDir := IncludeTrailingPathDelimiter(AppDir + 'Languages');
     if not DirectoryExists(TransDir) then
       TransDir := IncludeTrailingPathDelimiter(AppDir + 'Lang');
-
+    PageControl1.TabIndex := 0;
     mnuLang.Visible := FileExists(TransDir + 'Default.ini');
     if mnuLang.Visible then
         Transpath := TransDir + 'Default.ini'
@@ -5490,6 +5560,7 @@ begin
     end;
     //DoubleBuffered := True;
     TBList := TIntegerList.Create;
+    uTBList := TIntegerList.Create;
     LangList := TStringList.Create;
     Created := True;
     SPath := IncludeTrailingPathDelimiter(GetMyDocPath) + 'MSAAV.ini';
@@ -5676,15 +5747,18 @@ var
     b: boolean;
     RC: Tagrect;
 begin
+
     if Assigned(TTreeData(pNode.Data^).Acc) then
     begin
-      VarParent := TTreeData(pNode.Data^).iID;
-      iAcc :=  TTreeData(pNode.Data^).Acc;
-      // TreeView1.Enabled := false;
-      Treemode := True;
-      if (not acMSAAMode.Checked) then
+
+      if pageControl1.ActivePageIndex = 0 then
       begin
+      	TreeMode := True;
+      	VarParent := TTreeData(pNode.Data^).iID;
+      	iAcc :=  TTreeData(pNode.Data^).Acc;
+
           b := ShowMSAAText;
+          GetNaviState;
           if (acRect.Checked) then
           begin
             ShowRectWnd(clRed);
@@ -5696,29 +5770,17 @@ begin
               ShowTipWnd;
             end;
           end
-      end
-      else
-      begin
-        b := ShowMSAAText;
-        if (acRect.Checked) then
-        begin
-          ShowRectWnd(clRed);
-        end;
-        if b then
-        begin
-          if (acShowTip.Checked) then
-          begin
-            ShowTipWnd;
-          end;
-        end;
       end;
     end
     else if Assigned(TTreeData(pNode.Data^).uiEle) then
     begin
+    	if pageControl1.ActivePageIndex = 1 then
+      begin
       TreeMode := True;
       UIEle := TTreeData(pNode.Data^).uiEle;
-      //ShowMSAAText;
+
       ShowText4UIA;
+      GetNaviState;
       if (acRect.Checked) then
       begin
         UIEle.Get_CurrentBoundingRectangle(RC);
@@ -5727,6 +5789,7 @@ begin
       if (acShowTip.Checked) then
       begin
         ShowTipWnd;
+      end;
       end;
     end;
 
@@ -5811,10 +5874,8 @@ begin
   Node.ImageIndex := 7;
   Node.ExpandedImageIndex := 7;
   Node.SelectedIndex := 7;
-	if not acMSAAMode.Checked then
-	begin
 
-		TTreeData(Node.Data^).Acc.Get_accName(TTreeData(Node.Data^).iID, ws);
+  TTreeData(Node.Data^).Acc.Get_accName(TTreeData(Node.Data^).iID, ws);
 		if ws = '' then
 			ws := None;
 
@@ -5843,33 +5904,8 @@ begin
 				end;
 			end;
 		end;
-	end
-  else
-	begin
-		TTreeData(Node.Data^).uiEle.Get_CurrentName(ws);
-		if ws = '' then
-			ws := None;
-    ws := StringReplace(ws, #13, ' ', [rfReplaceAll]);
-		ws := StringReplace(ws, #10, ' ', [rfReplaceAll]);
-    Node.Text := ws;
-		if SUCCEEDED(TTreeData(Node.Data^).uiEle.GetCurrentPropertyValue
-			(UIA_LegacyIAccessibleRolePropertyId, ovRole)) then
-		begin
-			if VarHaveValue(ovRole) then
-			begin
-				if VarIsType(ovRole, VT_I4) and (TVarData(ovRole).VInteger <= 61) then
-				begin
-					Node.ImageIndex := TVarData(ovRole).VInteger - 1;
-					Node.ExpandedImageIndex := Node.ImageIndex;
-					Node.SelectedIndex := Node.ImageIndex;
-					PC := StrAlloc(255);
-					GetRoleTextW(ovRole, PC, StrBufSize(PC));
-					Node.Text := ws + ' - ' + PC;
-					StrDispose(PC);
-				end;
-			end;
-		end;
-	end;
+
+
 
 end;
 
@@ -5896,13 +5932,84 @@ begin
 			SetTreeMode(Node);
 		end;
 	finally
-		// TreeView1.Enabled := True;
 	end;
 end;
 
 procedure TwndMSAAV.TreeView1Deletion(Sender: TObject; Node: TTreeNode);
 begin
     Dispose(Node.Data);
+end;
+
+procedure TwndMSAAV.tbUIAAddition(Sender: TObject; Node: TTreeNode);
+var
+	Role: string;
+	ovChild, ovRole: OleVariant;
+	ws: WideString;
+	PC: PChar;
+begin
+	if not Assigned(Node.Data) then
+		Exit;
+	mnuTVSAll.Enabled := True;
+	mnuTVOAll.Enabled := True;
+
+  Node.ImageIndex := 7;
+  Node.ExpandedImageIndex := 7;
+  Node.SelectedIndex := 7;
+
+  TTreeData(Node.Data^).uiEle.Get_CurrentName(ws);
+		if ws = '' then
+			ws := None;
+    ws := StringReplace(ws, #13, ' ', [rfReplaceAll]);
+		ws := StringReplace(ws, #10, ' ', [rfReplaceAll]);
+    Node.Text := ws;
+		if SUCCEEDED(TTreeData(Node.Data^).uiEle.GetCurrentPropertyValue
+			(UIA_LegacyIAccessibleRolePropertyId, ovRole)) then
+		begin
+			if VarHaveValue(ovRole) then
+			begin
+				if VarIsType(ovRole, VT_I4) and (TVarData(ovRole).VInteger <= 61) then
+				begin
+					Node.ImageIndex := TVarData(ovRole).VInteger - 1;
+					Node.ExpandedImageIndex := Node.ImageIndex;
+					Node.SelectedIndex := Node.ImageIndex;
+					PC := StrAlloc(255);
+					GetRoleTextW(ovRole, PC, StrBufSize(PC));
+					Node.Text := ws + ' - ' + PC;
+					StrDispose(PC);
+				end;
+			end;
+		end;
+end;
+
+procedure TwndMSAAV.tbUIAChange(Sender: TObject; Node: TTreeNode);
+begin
+	if tbUIA.SelectionCount = 0 then
+	begin
+		mnuTVSSel.Enabled := false;
+		mnuTVOSel.Enabled := false;
+	end
+	else
+	begin
+		mnuTVSSel.Enabled := True;
+		mnuTVOSel.Enabled := True;
+	end;
+	if bSelMode then
+		Exit;
+
+	try
+		if (((not Assigned(TreeTH)) or (TreeTH.Finished)) and (not acMSAAMode.Checked)) or
+			(((not Assigned(UIATH)) or (UIATH.Finished)) and (acMSAAMode.Checked)) then
+		begin
+			SetTreeMode(Node);
+
+		end;
+	finally
+	end;
+end;
+
+procedure TwndMSAAV.tbUIADeletion(Sender: TObject; Node: TTreeNode);
+begin
+	Dispose(Node.Data);
 end;
 
 
@@ -5957,7 +6064,7 @@ procedure TwndMSAAV.acMSAAModeExecute(Sender: TObject);
 begin
 	acMSAAMode.Checked := not acMSAAMode.Checked;
 	// mnuSelD.Enabled := not acMSAAMode.Checked;
-	acShowTip.Enabled := not acMSAAMode.Checked;
+
   if Assigned(TreeTH) then
 	begin
 		TreeTH.Terminate;
@@ -5965,11 +6072,7 @@ begin
 		TreeTH.Free;
 		TreeTH := nil;
 	end;
-	TreeList1.BeginUpdate;
-	TreeList1.Clear;
-	TreeList1.EndUpdate;
-	TBList.Clear;
-	TreeView1.Items.Clear;
+
 	if Assigned(WndFocus) then
 	begin
 		WndFocus.Visible := false;
@@ -5978,227 +6081,105 @@ begin
 	begin
 		WndTip.Visible := false;
 	end;
-	{ if acMSAAMode.Checked then
-		begin
-		mnuMSAA.Checked := True;
-		mnuARIA.Checked := false;
-		mnuHTML.Checked := false;
-		end; }
 end;
 
-procedure TwndMSAAV.ExecMSAAMode(sender: TObject);
+procedure TwndMSAAV.ExecMSAAMode(Sender: TObject);
 var
-    pAcc: IAccessible;
-    s: string;
-    tc: TComponent;
-    iDis: iDispatch;
-    iRes, iDir: integer;
-    ov:OleVariant;
-    sNode: TTreeNode;
+	pAcc: IAccessible;
+	s: string;
+	tc: TComponent;
+	iDis: iDispatch;
+	iRes, iDir: integer;
+	ov: OleVariant;
+	sNode: TTreeNode;
+  tTB: TAccTreeView;
 begin
 
-    if (Sender is TComponent) then
-    begin
-        tc := Sender as TComponent;
-    end
-    else
-        Exit;
-    pAcc := nil;
-    sNode := nil;
-    s := LowerCase(tc.Name);
-    if (s = 'tbparent') or (s = 'acparent') then
-    begin
-        try
-        if TreeView1.Items.Count > 0 then
-        begin
-        if (TreeView1.SelectionCount > 0) then
-        begin
-            if TreeView1.Selected.Parent <> nil then
-            begin
-                sNode := TreeView1.Selected.Parent;
-                {if TTreeData(sNode.Data^).Acc <> nil then
-                begin
-                    pAcc := TTreeData(sNode.Data^).Acc;
-                    varParent := TreeView_MapHTREEITEMtoAccID(TreeView1.Handle, sNode.ItemId); //TTreeData(sNode.Data^).iID;
-                end; }
-            end;
-        end;
-        end
-        else
-        begin
-            if (Assigned(iAcc))  then
-            begin
-                iRes := iAcc.Get_accParent(iDis);
-                if (iRes = S_OK) and (iDis <> nil) then
-                begin
-                    varParent := 0;
-                    if not SUCCEEDED(iDis.QueryInterface(IID_IACCESSIBLE, pACC)) then
-                        pAcc := nil
-                    else
-                    begin
+	if (Sender is TComponent) then
+	begin
+		tc := Sender as TComponent;
+	end
+	else
+		Exit;
+	pAcc := nil;
+	sNode := nil;
+	s := LowerCase(tc.Name);
+  if PageControl1.ActivePageIndex = 0 then
+  	tTB := TreeView1
+  else
+  	tTB := tbUIA;
+	if (s = 'tbparent') or (s = 'acparent') then
+	begin
+		try
+			if tTB.Items.Count > 0 then
+			begin
+				if (tTB.SelectionCount > 0) then
+				begin
+					if tTB.Selected.Parent <> nil then
+					begin
+						sNode := tTB.Selected.Parent;
+					end;
+				end;
+			end;
+		except
+			on E: Exception do
+				ShowErr(E.Message);
+		end;
+	end
+	else if (s = 'tbchild') or (s = 'acchild') then
+	begin
+		if tTB.Items.Count > 0 then
+		begin
+			if (tTB.SelectionCount > 0) then
+			begin
+				if tTB.Selected.HasChildren then
+				begin
+					sNode := tTB.Selected.getFirstChild;
 
-                        if SUCCEEDED(pAcc.Get_accParent(iDis)) then
-                        	accRoot := iDis as IAccessible;
-                    end;
-                end
-                else
-                    pAcc := nil;
+				end;
+			end;
+		end;
+	end
+	else if (s = 'tbprevs') or (s = 'acprevs') or (s = 'tbnexts') or
+		(s = 'acnexts') then
+	begin
+		if tTB.Items.Count > 0 then
+		begin
+			if (tTB.SelectionCount > 0) then
+			begin
+				if (s = 'tbprevs') or (s = 'acprevs') then
+				begin
+					if tTB.Selected.getPrevSibling <> nil then
+					begin
+						sNode := tTB.Selected.getPrevSibling;
 
-            end;
-        end;
-        except
-            on E:Exception do
-                ShowErr(E.Message);
-        end;
-    end
-    else if (s = 'tbchild') or (s = 'acchild') then
-    begin
-        if TreeView1.Items.Count > 0 then
-        begin
-            if (TreeView1.SelectionCount > 0) then
-            begin
-                if TreeView1.Selected.HasChildren then
-                begin
-                    sNode := TreeView1.Selected.getFirstChild;
-                    {if TTreeData(sNode.Data^).Acc <> nil then
-                    begin
-                        pAcc := TTreeData(sNode.Data^).Acc;
-                        varParent := TreeView_MapHTREEITEMtoAccID(TreeView1.Handle, sNode.ItemId); //TTreeData(sNode.Data^).iID;
-                    end; }
-                end;
-            end;
-        end
-        else
-        begin
-            if  (Assigned(iAcc)) then
-            begin
-                iDir := NAVDIR_FIRSTCHILD;
+					end;
+				end
+				else
+				begin
+					if tTB.Selected.getNextSibling <> nil then
+					begin
+						sNode := tTB.Selected.getNextSibling;
 
-                iRes := iAcc.accNavigate(iDir, varParent, ov);
-                if (SUCCEEDED(iRes)) and (not VarIsType(ov, varNull)) then
-                begin
-                    if VarIsType(ov, varInteger) then
-                    begin
-
-                        pAcc := iAcc;//iDis as IACCESSIBLE;
-                        varParent := TVarData(ov).VInteger;
-                    end
-                    else if VarIsType(ov, varDispatch) then
-                    begin
-                        pAcc := IAccessible(TVarData(ov).VDispatch);
-                        varParent := 0;
-                    end;
-                    if SUCCEEDED(pAcc.Get_accParent(iDis)) then
-                        accRoot := iDis as IAccessible;
-                end;
-            end;
-        end;
-    end
-    else if  (s = 'tbprevs') or (s = 'acprevs') or (s = 'tbnexts') or (s = 'acnexts') then
-    begin
-        if TreeView1.Items.Count > 0 then
-        begin
-        if (TreeView1.SelectionCount > 0) then
-        begin
-            if (s = 'tbprevs') or (s = 'acprevs') then
-            begin
-                if TreeView1.Selected.getPrevSibling <> nil then
-                begin
-                    sNode := TreeView1.Selected.getPrevSibling;
-                    {if TTreeData(sNode.Data^).Acc <> nil then
-                    begin
-                        pAcc := TTreeData(sNode.Data^).Acc;
-                        varParent := TreeView_MapHTREEITEMtoAccID(TreeView1.Handle, sNode.ItemId); //TTreeData(sNode.Data^).iID;
-                    end;}
-                end;
-            end
-            else
-            begin
-                if TreeView1.Selected.getNextSibling <> nil then
-                begin
-                    sNode := TreeView1.Selected.getNextSibling;
-                    {if TTreeData(sNode.Data^).Acc <> nil then
-                    begin
-                        pAcc := TTreeData(sNode.Data^).Acc;
-                        varParent := TreeView_MapHTREEITEMtoAccID(TreeView1.Handle, sNode.ItemId); //TTreeData(sNode.Data^).iID;
-                    end; }
-                end;
-            end;
-        end;
-        end
-        else
-        begin
-        if  (Assigned(iAcc)) then
-        begin
-        if (s = 'tbprevs') or (s = 'acprevs') then
-        begin
-            iDir := NAVDIR_PREVIOUS;
-        end
-        else
-            iDir := NAVDIR_NEXT;
-        VariantInit(ov);
-        iRes := iAcc.accNavigate(iDir, varParent, ov);
-        if (SUCCEEDED(iRes))  then
-        begin
-            if VarIsType(ov, varInteger) then
-            begin
-                pAcc := accRoot;//iDis as IACCESSIBLE;
-                varParent := TVarData(ov).VInteger;
-            end
-            else if (VarIsType(ov, varDispatch))  then
-            begin
-
-                pAcc := IAccessible(TVarData(ov).VDispatch);
-                varParent := 0;
-            end
-            else
-                pAcc := nil;
-        end
-        else
-        begin
-
-        end;
-        end;
-        end;
-    end
-    else
-        pAcc := nil;
-    try
-    if Assigned(sNode) then
-    begin
-      TreeMode := True;
-      sNode.Selected := true;
-    end
-    else if Assigned(pAcc) {or (VarParent <> 0)} then
-    begin
-        iAcc := pAcc;
-
-            TreeMode := False;
-            if (not acMSAAMode.Checked) then
-            begin
-
-                if (acRect.Checked) then
-                begin
-                  ShowRectWnd(clRed);
-                end;
-                ShowMSAAText;
-            end
-            else
-            begin
-              if (acRect.Checked) then
-              begin
-                ShowRectWnd(clRed);
-              end;
-              ShowMSAAText;
-            end;
-
-    end;
-    except
-        on E:Exception do
-        begin
-            ShowErr(E.Message);
-        end;
-    end;
+					end;
+				end;
+			end;
+		end;
+	end
+	else
+		pAcc := nil;
+	try
+		if Assigned(sNode) then
+		begin
+			Treemode := True;
+			sNode.Selected := True;
+		end;
+	except
+		on E: Exception do
+		begin
+			ShowErr(E.Message);
+		end;
+	end;
 end;
 
 procedure TwndMSAAV.acNextSExecute(Sender: TObject);
@@ -6780,7 +6761,7 @@ begin
     else
     begin
         GetNaviState(True);
-        if TreeView1.Items.Count > 0 then
+        if (TreeView1.Items.Count > 0) and (Pagecontrol1.ActivePageIndex = 0) then
         begin
             if (TreeView1.SelectionCount > 0) then
             begin
@@ -6802,45 +6783,29 @@ begin
                 end;
             end;
 
-        end
-        else
+        end;
+        if (tbUIA.Items.Count > 0) and (Pagecontrol1.ActivePageIndex = 1) then
         begin
-            if Assigned(iAcc) then
+            if (tbUIA.SelectionCount > 0) then
             begin
-
-
-                iRes := iAcc.Get_accParent(iDis);
-                if (SUCCEEDED(iRes)) and (Assigned(iDis)) then
+                if tbUIA.Selected.Parent <> nil then
+                begin
                     tbParent.Enabled := true;
-
-                iAcc.Get_accChildCount(ich);
-                if ich > 0 then
+                end;
+                if tbUIA.Selected.HasChildren then
                 begin
                     tbChild.Enabled := true;
                 end;
-                iRes := iAcc.accNavigate(NAVDIR_PREVIOUS, VarParent, ov);
-                if (SUCCEEDED(iRes)) then
-                //ov := iAcc.accNavigate(NAVDIR_PREVIOUS, varParent);
-                if (not VarIsType(ov, varNull)) then
+                if tbUIA.Selected.getNextSibling <> nil then
                 begin
-                    if VarisType(ov, varInteger) or VarisType(ov, varDispatch) then
-                    begin
-                        if (not VarIsEmpty(ov)) and (not VarIsClear(ov)) then
-                            tbPrevS.Enabled := true;
-                    end;
+                    tbNextS.Enabled := true;
                 end;
-                iRes := iAcc.accNavigate(NAVDIR_NEXT, VarParent, ov);
-                if (SUCCEEDED(iRes)) then
-                if (not VarIsType(ov, varNull)) then
+                if tbUIA.Selected.getPrevSibling<> nil then
                 begin
-                    if VarisType(ov, varInteger) or VarisType(ov, varDispatch) then
-                    begin
-                        if (not VarIsEmpty(ov)) and (not VarIsClear(ov)) then
-                            tbNextS.Enabled := true;
-                    end;
+                    tbPrevS.Enabled := true;
                 end;
-
             end;
+
         end;
         acParent.Enabled := tbParent.Enabled;
         acChild.Enabled := tbChild.Enabled;
@@ -8378,6 +8343,21 @@ begin
 end;
 
 
+procedure TwndMSAAV.PageControl1Change(Sender: TObject);
+begin
+	if PageControl1.ActivePageIndex = 0 then
+  	acShowTip.Enabled := True
+  else
+  begin
+  	acShowTip.Enabled := False;
+  	if Assigned(WndTip) then
+		begin
+			WndTip.Visible := false;
+		end;
+  end;
+  GetNaviState;
+end;
+
 procedure TwndMSAAV.PopupMenu2Popup(Sender: TObject);
 begin
 
@@ -8414,32 +8394,31 @@ end;
 
 procedure TwndMSAAV.ThDone(Sender: TObject);
 begin
-
+  inc(iTHCnt);
 	if not bTer then
 	begin
+
 		if (not acMSAAMode.Checked) then
 		begin
 			if (acShowTip.Checked) then
 				begin
 					ShowTipWnd;
 				end;
+      if iTHCnt = 1 then
+      begin
+      	ShowText4UIA;
+        pagecontrol1.Pages[1].Enabled := True;
+      end;
 		end
 		else
 		begin
 
-			if (acShowTip.Checked) then
-			begin
-				ShowTipWnd;
-			end;
+      if iTHCnt = 1 then
+      begin
+      	ShowMSAAText;
+        pagecontrol1.Pages[0].Enabled := True;
+      end;
 		end;
-    if TreeList1.ChildCount[TreeList1.RootNode] > 0 then
-			begin
-				TreeList1.Expanded[TreeList1.RootNode];
-				TreeList1.OffsetX := 0;
-				TreeList1.OffsetY := 0;
-				TreeList1.Selected[TreeList1.RootNode] := True;
-				//GetNaviState;
-			end;
 
     if Assigned(LoopNode) then
     begin
@@ -8447,15 +8426,15 @@ begin
 
   	end;
     GetNaviState;
-    //if Assigned(TreeView1.Selected) and (not TreeView1.Selected.Expanded) then
-    	//TreeView1.Selected.Expanded := True;
 
 	end
   else
   begin
     treeview1.Items.Clear;
     TBList.Clear;
+    uTBList.Clear;
   end;
+
 end;
 
 procedure  TwndMSAAV.WMDPIChanged(var Message: TMessage);

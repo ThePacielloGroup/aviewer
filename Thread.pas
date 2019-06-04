@@ -805,7 +805,7 @@ begin
 	GetNodeD := procedure
   begin
   	cEle := nil;
-    cNode := wndMSAAV.TreeView1.Items.GetNode(HTreeItem(DList.Items[iTarg]));
+    cNode := wndMSAAV.tbUIA.Items.GetNode(HTreeItem(DList.Items[iTarg]));
     if (Assigned(cNode)) then
     begin
     	cEle := TTreeData(cNode.Data^).uiEle;
@@ -912,16 +912,16 @@ begin
       TD^.dummy := false;
       if NewNode then
       begin
-      	resNode := wndMSAAV.TreeView1.Items.AddChildObject(ParentItem, '', Pointer(TD));
+      	resNode := wndMSAAV.tbUIA.Items.AddChildObject(ParentItem, '', Pointer(TD));
       end
       else
       begin
       	ParentItem.Text := '';
         ParentItem.Data := Pointer(TD);
         resNode := ParentItem;
-        wndMSAAV.TreeView1.OnAddition(wndMSAAV.TreeView1, resNode);
+        wndMSAAV.tbUIA.OnAddition(wndMSAAV.tbUIA, resNode);
       end;
-      TBList.Add(integer(resNode.ItemId));
+      uTBList.Add(integer(resNode.ItemId));
       if (resNode.Level >= 300) and not Assigned(frmMSAAV.LoopNode) then
       begin
       	frmMSAAV.Loopnode := ParentItem;
@@ -988,7 +988,7 @@ begin
   cNode := currentNode;
   Synchronize(GetValue);
   if not bDummy then
-  		TBList.Insert(0, integer(currentNode.ItemId))
+  		uTBList.Insert(0, integer(currentNode.ItemId))
   	else
   		DList.Insert(0, integer(currentNode.ItemId));
   if currentNode.HasChildren then
@@ -1004,7 +1004,7 @@ begin
       	cNode := currentNode.Item[i];
   			Synchronize(GetValue);
         if not bDummy then
-  				TBList.Insert(0, integer(currentNode.Item[i].ItemId))
+  				uTBList.Insert(0, integer(currentNode.Item[i].ItemId))
   			else
   				DList.Insert(0, integer(currentNode.Item[i].ItemId));
       end;
@@ -1042,12 +1042,12 @@ begin
       TD^.iID := 0;
       TD^.dummy := true;
       pNode := cNode;
-      dNode := wndMSAAV.TreeView1.Items.AddChildObject(pNode, '', Pointer(TD));
+      dNode := wndMSAAV.tbUIA.Items.AddChildObject(pNode, '', Pointer(TD));
       if (dNode.Level >= 300) and not Assigned(frmMSAAV.LoopNode) then
       begin
       	frmMSAAV.Loopnode := dNode;
       end;
-      TBList.Add(integer(dNode.ItemId));
+      uTBList.Add(integer(dNode.ItemId));
       DList.Add(integer(dNode.ItemId));
   end;
 
