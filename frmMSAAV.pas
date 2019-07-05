@@ -288,7 +288,7 @@ type
     //UIA: IUIAutomation;
     P2W, P4H: integer;
     cDPI, iTHCnt: integer;
-    bFirstTime: boolean;
+    bFirstTime, bTabEvt: boolean;
     TipText, TipTextIA2, sFilter: string;
     sNode: TTreeNode;
     pNode: TTreeNode;
@@ -662,17 +662,20 @@ begin
 								accRoot := iDis as IAccessible;
 						end;
             iTHCnt := 0;
+            bTabEvt := false;
             if not acMSAAMode.Checked then
             begin
 							PageControl1.ActivePageIndex := 0;
-              pagecontrol1.Pages[1].Enabled := False;
+              TabSheet1.TabVisible := True;
+              TabSheet2.TabVisible := False;
               acShowTip.Enabled := True;
 							ShowMSAAText;
             end
             else
             begin
               PageControl1.ActivePageIndex := 1;
-              pagecontrol1.Pages[0].Enabled := False;
+              TabSheet1.TabVisible := False;
+              TabSheet2.TabVisible := True;
               acShowTip.Enabled := False;
             	ShowText4UIA;
             end;
@@ -697,17 +700,20 @@ begin
 	if (not acOnlyFocus.Checked) and (acFocus.Checked) then
 	begin
   	iTHCnt := 0;
+    bTabEvt := True;
 		if not acMSAAMode.Checked then
 		begin
 			PageControl1.ActivePageIndex := 0;
-			PageControl1.Pages[1].Enabled := false;
+			TabSheet1.TabVisible := True;
+      TabSheet2.TabVisible := False;
 			acShowTip.Enabled := True;
 			ShowMSAAText;
 		end
 		else
 		begin
 			PageControl1.ActivePageIndex := 1;
-			PageControl1.Pages[0].Enabled := false;
+			TabSheet1.TabVisible := False;
+      TabSheet2.TabVisible := True;
 			acShowTip.Enabled := false;
 			ShowText4UIA;
 		end;
@@ -1333,6 +1339,7 @@ var
   iDom: IHTMLDomNode;
   iSEle: ISimpleDOMNode;
   eleHWND, paHWND: HWND;
+  gtcStart, gtcStop: cardinal;
 	function GetiLegacy: HResult;
 	begin
   	result := S_FALSE;
@@ -1354,15 +1361,15 @@ var
         begin
           for i := 0 to uTBList.Count - 1 do
           begin
-            rNode := TreeView1.Items.GetNode(HTreeItem(uTBList.Items[i]));
+            rNode := tbUIA.Items.GetNode(HTreeItem(uTBList.Items[i]));
             if (Assigned(rNode)) and (SUCCEEDED(UIAuto.CompareElements(uiEle, TTreeData(rNode.Data^).uiEle, iSame))) then
             begin
               if iSame <> 0 then
               begin
                 bSame := True;
-                TreeView1.OnChange := nil;
-                TreeView1.SetFocus;
-                TreeView1.TopItem := rNode;
+                tbUIA.OnChange := nil;
+                tbUIA.SetFocus;
+                tbUIA.TopItem := rNode;
                 rNode.Expanded := True;
                 rNode.Selected := True;
                 // GetNaviState;
@@ -1377,7 +1384,7 @@ var
           end;
         end;
     finally
-      TreeView1.OnChange := TreeView1Change;
+      tbUIA.OnChange := tbUIAChange;
     end;
   end;
 begin
@@ -1412,7 +1419,6 @@ begin
 
       if Assigned(UIATH) then
       begin
-        // UIATH: TreeThread4UIA;
         UIATH.Terminate;
         UIATH.WaitFor;
         UIATH.Free;
@@ -1513,9 +1519,18 @@ begin
         begin
           uTBList.Clear;
           tbUIA.Items.Clear;
+          if bTabEvt then
+					begin
+						gtcStart := GetTickCount;
+						gtcStop := GetTickCount;
+						while ((gtcStop - gtcStart) < 2000) do
+						begin
+							Application.ProcessMessages;
+							gtcStop := GetTickCount;
+						end;
+					end;
           if not Assigned(pEle) then
             pEle := uiEle;
-
           if mnuAll.Checked then
           	UIATH := TreeThread4UIA.Create(UIAuto, uiEle, pEle, None, True, true, nil)
           else
@@ -1543,9 +1558,9 @@ begin
   end;
 end;
 
+
 function TwndMSAAV.ShowMSAAText:boolean;
 var
-    s: string;
     Wnd: hwnd;
     iSP: IServiceProvider;
     iEle, paEle: IHTMLElement;
@@ -1563,6 +1578,7 @@ var
     i: integer;
     AWnd: HWND;
     bSame: boolean;
+    gtcStart, gtcStop: cardinal;
     procedure GetAccTxt;
 		begin
 			iAcc.Get_accName(VarParent, ws);
@@ -1631,11 +1647,9 @@ Example:
   sARIATxt := '';
   sIA2Txt := '';
   nSelected := False;
-	if SUCCEEDED(WindowFromAccessibleObject(iAcc, Wnd)) then
-	begin
+
 
 		GetNaviState(True);
-		s := GetWindowNameLC(Wnd);
 		CEle := nil;
 		SDom := nil;
 		Path := IncludeTrailingPathDelimiter(ExtractFileDir(Application.ExeName));
@@ -1722,8 +1736,18 @@ Example:
 											WindowFromAccessibleObject(iAcc, AWnd);
 											TBList.Clear;
 
+                      if bTabEvt then
+                      begin
+                      	gtcStart := GetTickCount;
+                        gtcStop := GetTickCount;
+                        while ((gtcStop - gtcStart) < 2000) do
+                        begin
+                        	application.ProcessMessages;
+                          gtcStop := GetTickCount;
+                        end;
+                      end;
 											TreeView1.Items.Clear;
-											TreeTH := TreeThread.Create(iAcc, pAcc, AWnd, 0, None,
+											TreeTH := TreeThread.Create(iAcc, pAcc, None,
 												True, mnuAll.Checked, nil, VarParent);
 											TreeTH.OnTerminate := ThDone;
 											TreeTH.Start;
@@ -1812,7 +1836,17 @@ Example:
                         	GetAccTxt;
 												WindowFromAccessibleObject(iAcc, AWnd);
 												TreeView1.Items.Clear;
-												TreeTH := TreeThread.Create(iAcc, pAcc, AWnd, 0,
+                        if bTabEvt then
+												begin
+													gtcStart := GetTickCount;
+													gtcStop := GetTickCount;
+													while ((gtcStop - gtcStart) < 2000) do
+													begin
+														Application.ProcessMessages;
+														gtcStop := GetTickCount;
+													end;
+												end;
+												TreeTH := TreeThread.Create(iAcc, pAcc,
 													None, True, mnuAll.Checked, nil, 0);
 												TreeTH.OnTerminate := ThDone;
 												TreeTH.Start;
@@ -1838,7 +1872,17 @@ Example:
 							WindowFromAccessibleObject(iAcc, AWnd);
 							TBList.Clear;
 							TreeView1.Items.Clear;
-							TreeTH := TreeThread.Create(iAcc, iAcc, AWnd, 0, None, True,
+              if bTabEvt then
+							begin
+								gtcStart := GetTickCount;
+								gtcStop := GetTickCount;
+								while ((gtcStop - gtcStart) < 2000) do
+								begin
+									Application.ProcessMessages;
+									gtcStop := GetTickCount;
+								end;
+							end;
+							TreeTH := TreeThread.Create(iAcc, iAcc, None, True,
 								false, nil, VarParent);
 							TreeTH.OnTerminate := ThDone;
 							TreeTH.Start;
@@ -1865,7 +1909,6 @@ Example:
       end;
 
 		Result := True;
-	end;
 end;
 
 
@@ -5947,6 +5990,7 @@ var
 	ws: WideString;
 	PC: PChar;
 begin
+
 	if not Assigned(Node.Data) then
 		Exit;
 	mnuTVSAll.Enabled := True;
@@ -7741,7 +7785,7 @@ begin
   else
 	begin
 
-		if not acMSAAMode.Checked then
+		if Pagecontrol1.ActivePageIndex = 0 then
 			HTML := HTML + GetLIContents(TTreeData(cNode.Data^).Acc,
 				TTreeData(cNode.Data^).iID, cNode)
 		else
@@ -7779,7 +7823,7 @@ begin
         end
   			else
 				begin
-					if not acMSAAMode.Checked then
+					if Pagecontrol1.ActivePageIndex = 0 then
 						temp := temp + #13#10 + tab + #9 +
 							GetLIContents(TTreeData(cNode.item[i].Data^).Acc,
 							TTreeData(cNode.item[i].Data^).iID, cNode.item[i]) + '</li>'
@@ -7873,11 +7917,16 @@ var
   aPC : pWidechar;
   iEle: IHTMLElement;
   iDoc2: IHTMLDocument2;
+  tTreeV: TAccTreeView;
 begin
-	if acMSAAMode.Checked then
-		sTitle := 'aViewer UIA Tree'
+	if PageControl1.ActivePageIndex = 1 then
+  begin
+		sTitle := 'aViewer UIA Tree';
+    tTreeV := tbUIA;
+  end
 	else
 	begin
+  	tTreeV := TreeView1;
 		hr := iAcc.QueryInterface(IID_IServiceProvider, iSP);
 		if (hr = 0) and Assigned(iSP) then
 		begin
@@ -7921,9 +7970,9 @@ begin
 	end;
 
   i := 0;
-  RecursiveTV(TreeView1.Items.Item[0], d, i);
+  RecursiveTV(tTreeV.Items.Item[0], d, i);
   d := '<ul>' + d  + #13#10 + '</li>' + #13#10 + '</ul>';
-  if acMSAAMode.Checked then
+  if PageControl1.ActivePageIndex = 1 then
   	d := '<h1>UIAutomation Tree</h1>' + #13#10 + d
   else
   	d := '<h1>Accessibility Tree</h1>' + #13#10 + d;
@@ -8047,7 +8096,7 @@ var
   isEle, pEle: ISimpleDOMNode;
   isDoc: ISimpleDOMDocument;
   aPC : pWidechar;
-
+  tTreeV: TAccTreeView;
   function GetLIContents(Acc: IAccessible; Child: integer; pNode: TTreeNode ): string;
   var
   	Res: string;
@@ -8137,10 +8186,14 @@ var
   end;
 begin
   Result := '';
-  if acMSAAMode.Checked then
-		sTitle := 'aViewer UIA Tree'
+  if Pagecontrol1.ActivePageIndex = 1 then
+  begin
+		sTitle := 'aViewer UIA Tree' ;
+    tTreeV := tbUIA;
+  end
 	else
 	begin
+  	tTreeV := TreeView1;
 		hr := iAcc.QueryInterface(IID_IServiceProvider, iSP);
 		if (hr = 0) and Assigned(iSP) then
 		begin
@@ -8182,16 +8235,16 @@ begin
 			end;
 		end;
 	end;
-  if (TreeView1.SelectionCount > 0) and (TreeView1.Items.Count > 0) then
+  if (tTreeV.SelectionCount > 0) and (tTreeV.Items.Count > 0) then
     begin
 
       iCnt := 0;
-      for i := 0 to TreeView1.SelectionCount - 1 do
+      for i := 0 to tTreeV.SelectionCount - 1 do
       begin
-      	if not acMSAAMode.Checked then
-					d := d + GetLIContents(TTreeData(TreeView1.Selections[i].Data^).Acc, TTreeData(TreeView1.Selections[i].Data^).iID, TreeView1.Selections[i]) + '</li>' + #13#10
+      	if Pagecontrol1.ActivePageIndex = 0 then
+					d := d + GetLIContents(TTreeData(tTreeV.Selections[i].Data^).Acc, TTreeData(tTreeV.Selections[i].Data^).iID, tTreeV.Selections[i]) + '</li>' + #13#10
       	else
-          d := d + GetLIC_UIA(TreeView1.Selections[i]) + '</li>' + #13#10;
+          d := d + GetLIC_UIA(tTreeV.Selections[i]) + '</li>' + #13#10;
       end;
       d := '<ul>' + d + '</ul>';
       sList := TStringList.Create;
@@ -8407,8 +8460,9 @@ begin
       if iTHCnt = 1 then
       begin
       	ShowText4UIA;
-        pagecontrol1.Pages[1].Enabled := True;
+        TabSheet2.TabVisible := true;
       end;
+
 		end
 		else
 		begin
@@ -8416,8 +8470,9 @@ begin
       if iTHCnt = 1 then
       begin
       	ShowMSAAText;
-        pagecontrol1.Pages[0].Enabled := True;
+        TabSheet1.TabVisible := True;
       end;
+
 		end;
 
     if Assigned(LoopNode) then

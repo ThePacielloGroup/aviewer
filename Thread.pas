@@ -13,8 +13,6 @@ type
     { Private êÈåæ }
 
     bRecursive: boolean;
-    UIAuto       : IUIAutomation;
-    UIEle: IUIAutomationElement;
     ipaID: integer;
     DList : TIntegerList;
     procedure GetSelNode;
@@ -35,7 +33,7 @@ type
     Wnd: hwnd;
     procedure Execute; override;
   public
-    constructor Create(IA: IAccessible; PA: IAccessible; AWnd: HWND; Mode: Integer; NoneText: string; bCreateSuspended: boolean = True; bRecur : boolean = True; pNode: TTreenode = nil; accID: integer = 0); virtual;
+    constructor Create(IA: IAccessible; PA: IAccessible; NoneText: string; bCreateSuspended: boolean = True; bRecur : boolean = True; pNode: TTreenode = nil; accID: integer = 0); virtual;
   end;
 
   TreeThread4UIA = class(TThread)
@@ -245,13 +243,12 @@ end;
 
 
 { TreeThread }
-constructor TreeThread.Create(IA: IAccessible; PA: IAccessible; AWnd: HWND; Mode: Integer; NoneText: string; bCreateSuspended: boolean = True; bRecur: boolean = True; pNode: TTreenode = nil; accID: integer = 0);
+constructor TreeThread.Create(IA: IAccessible; PA: IAccessible; NoneText: string; bCreateSuspended: boolean = True; bRecur: boolean = True; pNode: TTreenode = nil; accID: integer = 0);
 begin
     IAcc := IA;
     pac := PA;
     RootNode := pNode;
     bRecursive := bRecur;
-    Imode := Mode;
     None := NoneText;
     ipaID := accID;
     DList := TIntegerList.Create;
@@ -294,16 +291,13 @@ end;
 
 procedure TreeThread.Execute;
 var
-	GetAcc, GetNodeD: TThreadProcedure;
+	GetNodeD: TThreadProcedure;
 	hr: HResult;
   i, cID, iTarg: integer;
   cAcc: iAccessible;
   cNode: TTreeNode;
 begin
-	GetAcc := procedure
-  begin
-    UIAuto.ElementFromIAccessible(iAcc, ipaID, UIEle);
-  end;
+	
   GetNodeD := procedure
   begin
   	cAcc := nil;
@@ -316,25 +310,16 @@ begin
   end;
 
   try
-    CoInitializeEx(nil, COINIT_APARTMENTTHREADED);
     SelNode := nil;
     frmMSAAV.bTer := false;
-    hr := CoCreateInstance(CLASS_CUIAutomation, nil, CLSCTX_INPROC_SERVER,
-      IID_IUIAutomation, UIAuto);
-
-    if (UIAuto = nil) or (hr <> S_OK) then
-    begin
-      Exit;
-    end;
+   
 
     try
       sNode := nil;
-			Synchronize(GetAcc);
 			frmMSAAV.LoopNode := nil;
       GetSelNode;
       if Assigned(SelNode) then
 			begin
-				//RecurACC(RootNode, pac, 0);
         SetParentTree;
 				if Terminated then
 				begin
@@ -347,6 +332,7 @@ begin
 
           for i := 0 to DList.Count - 1 do
           begin
+          	if Terminated then break;
           	iTarg := i;
           	Synchronize(GetNodeD);
             if Assigned(cAcc) then
@@ -364,7 +350,6 @@ begin
 		end;
 	finally
   	DList.Free;
-    CoUninitialize;
   end;
 end;
 
@@ -431,19 +416,11 @@ begin
       hr := ia2.accLocation(cRC2.Left, cRC2.Top, cRC2.Right, cRC2.Bottom, iID2);
     end;
 	Result := false;
-	if Assigned(UIAuto) and Assigned(ia1) and Assigned(ia2) then
+	if Assigned(ia1) and Assigned(ia2) then
 	begin
 
 		Synchronize(GetValue);
-		{ if SUCCEEDED(UIAuto.ElementFromIAccessible(ia1, iID1, UIEle1)) then
-			//begin
-
-			{if SUCCEEDED(UIAuto.ElementFromIAccessible(ia2, iID2, UIEle2))  then
-			begin
-			hr := UIAuto.CompareElements(UIEle1, UIEle2, iSame);
-			if SUCCEEDED(hr) and (iSame <> 0) then
-			Result := True;
-			end; }
+	
 		if (wsValue1 = wsValue2) and (sRole1 = sRole2) and (cRC.Left = cRC2.Left)
 			and (cRC.Top = cRC2.Top) and (cRC.Right = cRC2.Right) and
 			(cRC.Bottom = cRC2.Bottom) then
@@ -831,50 +808,52 @@ begin
         Synchronize(GetTWalker);
         GetSelNode;
       	if Assigned(SelNode) then
-        begin
-        try
-          sNode := nil;
-          TVariantArg(ov).vt := VT_BOOL;
-      		TVariantArg(ov).vbool := True;
-      		hr := UIAuto.CreatePropertyCondition(UIA_IsControlElementPropertyId, ov, uiCondi);
-          if (hr = 0) and (Assigned(uiCondi)) then
-          begin
-          	SetParentTree(uiCondi);
-          	//RecurACC(RootNode, UIpEle, uiCondi);
-						if Terminated then
+				begin
+					try
+						sNode := nil;
+						TVariantArg(ov).vt := VT_BOOL;
+						TVariantArg(ov).vbool := true;
+						hr := UIAuto.CreatePropertyCondition(UIA_IsControlElementPropertyId,
+							ov, uiCondi);
+						if (hr = 0) and (Assigned(uiCondi)) then
 						begin
-							frmMSAAV.bTer := True;
-						end
-						else
-						begin
-        			if bRecursive then
-        				RecursiveGetTreeitemID(Selpanode);
+							SetParentTree(uiCondi);
+							if Terminated then
+							begin
+								frmMSAAV.bTer := true;
+							end
+							else
+							begin
+								if bRecursive then
+									RecursiveGetTreeitemID(SelPaNode);
 
-          		for i := 0 to DList.Count - 1 do
-          		begin
-          			iTarg := i;
-          			Synchronize(GetNodeD);
-            		if Assigned(cEle) then
-            		begin
+								for i := 0 to DList.Count - 1 do
+								begin
+									if Terminated then
+										break;
+									iTarg := i;
+									Synchronize(GetNodeD);
+									if Assigned(cEle) then
+									begin
 
-									RecurACC(cNode, cEle, uiCondi);
+										RecurACC(cNode, cEle, uiCondi);
 
-            		end;
-            		Sleep(1);
-          		end;
-							Synchronize(ExpandNode);
-          	end;
-          end;
-        except
-        end;
+									end;
+									sleep(1);
+								end;
+								Synchronize(ExpandNode);
+							end;
+						end;
+					except
+					end;
 
-        if Terminated then
-        begin
-            frmMSAAV.bTer := True;
-            snode := nil;
-        end;
-        end;
-    finally
+					if Terminated then
+					begin
+						frmMSAAV.bTer := true;
+						sNode := nil;
+					end;
+				end;
+			finally
         CoUninitialize;
         DList.Free;
     end;
@@ -1117,7 +1096,7 @@ begin
 			end;
 		end;
 
-	if bRecursive then
+	if bRecursive and (not Terminated) then
   begin
 
     SSelNode := Selnode;
