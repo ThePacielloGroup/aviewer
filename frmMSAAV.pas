@@ -192,6 +192,10 @@ type
     TabSheet1: TTabSheet;
     TabSheet2: TTabSheet;
     tbUIA: TAccTreeView;
+    PopupMenu3: TPopupMenu;
+    mnutvMSAA: TMenuItem;
+    mnutvUIA: TMenuItem;
+    mnutvBoth: TMenuItem;
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure acFocusExecute(Sender: TObject);
     procedure acCursorExecute(Sender: TObject);
@@ -254,6 +258,7 @@ type
     procedure tbUIAChange(Sender: TObject; Node: TTreeNode);
     procedure tbUIAAddition(Sender: TObject; Node: TTreeNode);
     procedure PageControl1Change(Sender: TObject);
+    procedure mnutvUIAClick(Sender: TObject);
   private
     { Private declarations }
 
@@ -574,7 +579,7 @@ begin
     	exit;
   end;
 
-  if (acMSAAMode.Checked) then
+  if (mnutvUIA.Checked) then
   begin
   	if (wndMSAAV.acOnlyFocus.Checked) then
 		begin
@@ -609,8 +614,7 @@ var
 begin
 	if (not acCursor.Checked) or bPFunc then
 		Exit;
-  {if not acMSAAMode.Checked then
-  	Exit; }
+
 
 	arPT[2] := arPT[1];
 	arPT[1] := arPT[0];
@@ -663,7 +667,7 @@ begin
 						end;
             iTHCnt := 0;
             bTabEvt := false;
-            if not acMSAAMode.Checked then
+            if not mnutvUIA.Checked then
             begin
 							PageControl1.ActivePageIndex := 0;
               TabSheet1.TabVisible := True;
@@ -701,7 +705,7 @@ begin
 	begin
   	iTHCnt := 0;
     bTabEvt := True;
-		if not acMSAAMode.Checked then
+		if not mnutvUIA.Checked then
 		begin
 			PageControl1.ActivePageIndex := 0;
 			TabSheet1.TabVisible := True;
@@ -1389,7 +1393,7 @@ var
   end;
 begin
 
-  if (acMSAAMode.Checked) then
+  if (mnutvUIA.Checked) then
   begin
   	TreeList1.BeginUpdate;
 		TreeList1.Clear;
@@ -1424,7 +1428,7 @@ begin
         UIATH.Free;
         UIATH := nil;
       end;
-      if (acMSAAMode.Checked) or (TreeMode) then
+      if (mnutvUIA.Checked) or (TreeMode) then
       	UIAText;
 
       hr := GetiLegacy;
@@ -1438,7 +1442,7 @@ begin
           	paHWND := GetAncestor(eleHWND, GA_ROOT);
             UIAuto.ElementFromHandle(pointer(paHWND), pEle);
           end;
-          if (mnuMSAA.Checked) and (acMSAAMode.Checked) then
+          if (mnuMSAA.Checked) and (mnutvUIA.Checked) then
           	sMSAATxt := MSAAText(tAcc);
           hr := iAcc.QueryInterface(IID_IServiceProvider, iSP);
 					if SUCCEEDED(hr) and Assigned(iSP) then
@@ -1450,7 +1454,7 @@ begin
 							if SUCCEEDED(hr) and Assigned(iDom) then
 							begin
 								CEle := iEle;
-                if (acMSAAMode.Checked)  or (TreeMode) then
+                if (mnutvUIA.Checked)  or (TreeMode) then
 								begin
 									if mnuARIA.Checked then
 									begin
@@ -1472,7 +1476,7 @@ begin
 							begin
 								SDom := isEle;
 								// GetNaviState;
-                if (acMSAAMode.Checked) or (TreeMode) then
+                if (mnutvUIA.Checked) or (TreeMode) then
 								begin
 									if mnuARIA.Checked then
 										ARIAText;
@@ -1483,7 +1487,7 @@ begin
 
 						end;
           end;
-          if (acMSAAMode.Checked) or (TreeMode) then
+          if (mnutvUIA.Checked) or (TreeMode) then
           begin
           	if (mnuIA2.Checked) then
 							SetIA2Text;
@@ -1491,7 +1495,7 @@ begin
         end
         else
         begin
-        	if (acMSAAMode.Checked) or (TreeMode) then
+        	if (mnutvUIA.Checked) or (TreeMode) then
           begin
         		if (mnuMSAA.Checked) then
         			sMSAATxt := MSAAText4UIA;
@@ -1539,7 +1543,7 @@ begin
           UIATH.Start;
         end;
       end;
-      if acMSAAMode.Checked then
+      if mnutvUIA.Checked then
 			begin
 				if TreeList1.ChildCount[TreeList1.RootNode] > 0 then
 				begin
@@ -1617,7 +1621,7 @@ Example:
 
 	if not Assigned(iAcc) then
 		Exit;
-  if (not acMSAAMode.Checked) then
+  if (not mnutvUIA.Checked) then
   begin
 		TreeList1.BeginUpdate;
 		TreeList1.Clear;
@@ -1668,7 +1672,7 @@ Example:
 		end;
 
 
-			if (mnuMSAA.Checked) and ((not acMSAAMode.Checked) or (TreeMode)) then
+			if (mnuMSAA.Checked) and ((not mnutvUIA.Checked) or (TreeMode)) then
 				sMSAAtxt := MSAAText;
 
 			iRes := iAcc.QueryInterface(IID_IServiceProvider, iSP);
@@ -1679,7 +1683,7 @@ Example:
 				begin
 
 						CEle := iEle;
-            if (not acMSAAMode.Checked) or (TreeMode) then
+            if (not mnutvUIA.Checked) or (TreeMode) then
 						begin
 							if mnuARIA.Checked then
 							begin
@@ -1767,7 +1771,7 @@ Example:
 					begin
 						SDom := isEle;
 						// GetNaviState;
-            if (not acMSAAMode.Checked) or (TreeMode) then
+            if (not mnutvUIA.Checked) or (TreeMode) then
 						begin
 							if mnuARIA.Checked then
 								sARIATxt := ARIAText;
@@ -1832,7 +1836,7 @@ Example:
 												DocAcc := pAcc;
 												iAcc.accLocation(sRC.left, sRC.top, sRC.right,
 													sRC.bottom, 0);
-                        if not acMSAAMode.Checked then
+                        if not mnutvUIA.Checked then
                         	GetAccTxt;
 												WindowFromAccessibleObject(iAcc, AWnd);
 												TreeView1.Items.Clear;
@@ -1890,7 +1894,7 @@ Example:
 					end;
 				end;
 			end;
-      if (not acMSAAMode.Checked) or (TreeMode) then
+      if (not mnutvUIA.Checked) or (TreeMode) then
   		begin
 				if mnuIA2.Checked then
 					sIA2Txt := SetIA2Text;
@@ -4344,7 +4348,7 @@ const
 begin
 	if not Assigned(UIAuto) then
 		Exit;
-	if not acMSAAMode.Checked then
+	if not mnutvUIA.Checked then
 	begin
 		uiEle := nil;
     iAcc.accLocation(cRC.Left, cRC.Top, cRC.Right, cRC.Bottom, varParent);
@@ -4855,7 +4859,7 @@ begin
 											if Assigned(ResEle) then
 											begin
 												ws := None;
-												if (not acMSAAMode.Checked) and (not HTMLOut) then
+												if (not mnutvUIA.Checked) and (not HTMLOut) then
 												begin
 													iaTarg := GetMSAA;
 													if Assigned(iaTarg) then
@@ -4935,7 +4939,7 @@ begin
                   if not HTMLout then
 									begin
 										ND.Value2 := ws;
-										if not acMSAAMode.Checked then
+										if not mnutvUIA.Checked then
 										begin
 											ND.Acc := GetMSAA;
 											ND.iID := 0;
@@ -5137,17 +5141,17 @@ var
     pEle, cEle: IUIAutomationElement;
     hr: HResult;
 begin
-    if not Assigned(iAcc) and (not acMSAAMode.Checked) then Exit;
-    if (acMSAAMode.Checked) then Exit;
+    if not Assigned(iAcc) and (not mnutvUIA.Checked) then Exit;
+    if (mnutvUIA.Checked) then Exit;
     try
 
 
 
         if mnublnMSAA.Checked then
             s := s + sMSAATxt;//MSAAText4Tip;
-        if mnublnIA2.Checked  and (not acMSAAMode.Checked) then
+        if mnublnIA2.Checked  and (not mnutvUIA.Checked) then
             s := s + SetIA2Text(iacc, false);
-        if mnublnCode.Checked and (not acMSAAMode.Checked) then
+        if mnublnCode.Checked and (not mnutvUIA.Checked) then
 					begin
 						c := sHTML;
 						inner := sTypeFF;
@@ -5198,7 +5202,7 @@ begin
 						// s := s + Src;
 					end;
 
-        if not acMSAAMode.Checked then
+        if not mnutvUIA.Checked then
         begin
           vChild := varParent;//CHILDID_SELF;
           iAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, vChild);
@@ -5221,7 +5225,7 @@ begin
         end;
             ShowBalloonTip(self, 1, 'Aviewer', s, rc, sLeft, sTop, True);
             SetBalloonPos(sLeft, sTop);
-            if not acMSAAMode.Checked then
+            if not mnutvUIA.Checked then
               WindowFromAccessibleObject(iAcc, Wnd)
             else
             begin
@@ -5568,7 +5572,6 @@ procedure TwndMSAAV.FormCreate(Sender: TObject);
 var
     Rec     : TSearchRec;
     i: integer;
-
 begin
 	scList := nil;
 		bFirstTime := True;
@@ -5641,6 +5644,7 @@ begin
     cDPI := DoubleToInt(DefY * ScaleY);
 
     bFirstTime := False;
+
 end;
 
 
@@ -5969,8 +5973,8 @@ begin
 		Exit;
 
 	try
-		if (((not Assigned(TreeTH)) or (TreeTH.Finished)) and (not acMSAAMode.Checked)) or
-			(((not Assigned(UIATH)) or (UIATH.Finished)) and (acMSAAMode.Checked)) then
+		if (((not Assigned(TreeTH)) or (TreeTH.Finished)) and (not mnutvUIA.Checked)) or
+			(((not Assigned(UIATH)) or (UIATH.Finished)) and (mnutvUIA.Checked)) then
 		begin
 			SetTreeMode(Node);
 		end;
@@ -6041,8 +6045,8 @@ begin
 		Exit;
 
 	try
-		if (((not Assigned(TreeTH)) or (TreeTH.Finished)) and (not acMSAAMode.Checked)) or
-			(((not Assigned(UIATH)) or (UIATH.Finished)) and (acMSAAMode.Checked)) then
+		if (((not Assigned(TreeTH)) or (TreeTH.Finished)) and (not mnutvUIA.Checked)) or
+			(((not Assigned(UIATH)) or (UIATH.Finished)) and (mnutvUIA.Checked)) then
 		begin
 			SetTreeMode(Node);
 
@@ -6089,12 +6093,10 @@ end;
 
 procedure TwndMSAAV.acHelpExecute(Sender: TObject);
 begin
-    if HelpURL = '' then
-        Exit
-    else
-    begin
-        ShellExecuteW(Handle, 'open', PWideChar(HelpURL), nil, nil, SW_SHOW);
-    end;
+	if HelpURL <> '' then
+	begin
+		ShellExecuteW(Handle, 'open', pWidechar(HelpURL), nil, nil, SW_SHOW);
+	end;
 end;
 
 
@@ -6106,9 +6108,12 @@ end;
 
 procedure TwndMSAAV.acMSAAModeExecute(Sender: TObject);
 begin
-	acMSAAMode.Checked := not acMSAAMode.Checked;
-	// mnuSelD.Enabled := not acMSAAMode.Checked;
+	mnutvMSAA.Checked := True;
+  mnutvUIA.Checked := False;
+  mnutvBoth.Checked := False;
 
+  TabSheet1.TabVisible := true;
+  TabSheet2.TabVisible := False;
   if Assigned(TreeTH) then
 	begin
 		TreeTH.Terminate;
@@ -6125,6 +6130,49 @@ begin
 	begin
 		WndTip.Visible := false;
 	end;
+end;
+
+procedure TwndMSAAV.mnutvUIAClick(Sender: TObject);
+begin
+
+	mnutvMSAA.Checked := False;
+  mnutvUIA.Checked := False;
+  mnutvBoth.Checked := False;
+  TabSheet1.TabVisible := true;
+  TabSheet2.TabVisible := true;
+	if Sender = mnutvMSAA then
+  begin
+  	mnutvMSAA.Checked := True;
+    TabSheet2.TabVisible := False;
+  end
+  else if Sender = mnutvUIA then
+  begin
+  	mnutvUIA.Checked := True;
+    TabSheet1.TabVisible := False;
+  end
+  else
+  begin
+    mnutvBoth.Checked := True;
+    Pagecontrol1.ActivePageIndex := 0;
+  end;
+
+	if Assigned(TreeTH) then
+	begin
+		TreeTH.Terminate;
+		TreeTH.WaitFor;
+		TreeTH.Free;
+		TreeTH := nil;
+	end;
+
+	if Assigned(WndFocus) then
+	begin
+		WndFocus.Visible := false;
+	end;
+	if Assigned(WndTip) then
+	begin
+		WndTip.Visible := false;
+	end;
+
 end;
 
 procedure TwndMSAAV.ExecMSAAMode(Sender: TObject);
@@ -6244,7 +6292,7 @@ procedure TwndMSAAV.acOnlyFocusExecute(Sender: TObject);
 begin
     acOnlyFOcus.Checked := not acOnlyFOcus.Checked;
     if acOnlyFocus.Checked then
-        acMSAAMode.Checked := false;
+        mnutvUIA.Checked := false;
     ExecOnlyFocus;
 end;
 
@@ -6274,7 +6322,7 @@ begin
     begin
         if not Assigned(WndFocus) then
             WndFocus := TWndFocusRect.Create(self);
-        if not acMSAAMode.Checked then
+        if not mnutvUIA.Checked then
           ShowRectWnd(clRed)
         else
         begin
@@ -7652,8 +7700,6 @@ begin
 		mnuTarget.Checked := True;
 end;
 
-
-
 procedure TwndMSAAV.RecursiveTV(cNode: TTreeNode; var HTML: string; var iCnt: integer; ForSel: boolean = false);
 var
 	i: integer;
@@ -7776,7 +7822,7 @@ begin
   begin
   	if cNode.Selected then
     begin
-			if not acMSAAMode.Checked then
+			if not mnutvUIA.Checked then
       	HTML := HTML + GetLIContents(TTreeData(cNode.Data^).Acc, TTreeData(cNode.Data^).iID, cNode)
       else
        	HTML := HTML + GetLIC_UIA(cNode);
@@ -7815,7 +7861,7 @@ begin
   			begin
   				if cNode.Item[i].Selected then
           begin
-          	if not acMSAAMode.Checked then
+          	if not mnutvUIA.Checked then
        				temp := temp + #13#10 + tab + #9 + GetLIContents(TTreeData(cNode.Item[i].Data^).Acc, TTreeData(cNode.Item[i].Data^).iID, cNode.Item[i]) + '</li>'
             else
             	temp := temp + #13#10 + tab + #9 + GetLIC_UIA(cNode.Item[i]) + '</li>';
@@ -8319,6 +8365,7 @@ begin
 
 end;
 
+
 procedure TwndMSAAV.SizeChange;
 var
 	SZ: TSize;
@@ -8450,30 +8497,17 @@ begin
   inc(iTHCnt);
 	if not bTer then
 	begin
-
-		if (not acMSAAMode.Checked) then
+  	if mnutvBoth.Checked then
 		begin
-			if (acShowTip.Checked) then
-				begin
-					ShowTipWnd;
-				end;
-      if iTHCnt = 1 then
-      begin
-      	ShowText4UIA;
-        TabSheet2.TabVisible := true;
-      end;
-
-		end
-		else
-		begin
-
-      if iTHCnt = 1 then
-      begin
-      	ShowMSAAText;
-        TabSheet1.TabVisible := True;
-      end;
-
+			ShowText4UIA;
+			TabSheet2.TabVisible := True;
 		end;
+
+		if (acShowTip.Checked) then
+		begin
+			ShowTipWnd;
+		end;
+
 
     if Assigned(LoopNode) then
     begin
