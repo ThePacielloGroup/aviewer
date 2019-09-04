@@ -2494,6 +2494,7 @@ object wndMSAAV: TwndMSAAV
       Top = 0
       Width = 924
       Height = 22
+      AutoSize = True
       Caption = 'Toolbar'
       Font.Charset = DEFAULT_CHARSET
       Font.Color = clWindowText
@@ -2666,7 +2667,7 @@ object wndMSAAV: TwndMSAAV
       Top = 0
       Width = 327
       Height = 705
-      ActivePage = TabSheet1
+      ActivePage = TabSheet2
       Align = alClient
       TabOrder = 1
       OnChange = PageControl1Change
@@ -2704,10 +2705,6 @@ object wndMSAAV: TwndMSAAV
         Caption = 'UIA'
         ImageIndex = 1
         TabVisible = False
-        ExplicitLeft = 0
-        ExplicitTop = 0
-        ExplicitWidth = 0
-        ExplicitHeight = 0
         object tbUIA: TAccTreeView
           Left = 0
           Top = 0
@@ -2881,7 +2878,7 @@ object wndMSAAV: TwndMSAAV
     Left = 176
     Top = 400
     Bitmap = {
-      494C01010F008C01CC0910001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010F008C01DC0910001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000004000000001002000000000000040
       0000000000000000000000000000000000000000000000000000BDBDBD007A7A
       7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A
@@ -3679,7 +3676,7 @@ object wndMSAAV: TwndMSAAV
     Left = 256
     Top = 200
     Bitmap = {
-      494C01013E005000D0030F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01013E005000E0030F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       00000000000036000000280000003C000000F0000000010020000000000000E1
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000
@@ -5569,7 +5566,6 @@ object wndMSAAV: TwndMSAAV
       end
       object mnuOSel: TMenuItem
         Caption = '&Selected Items'
-        OnClick = mnuOSelClick
       end
     end
     object mnuSelMode: TMenuItem
@@ -5607,5 +5603,13 @@ object wndMSAAV: TwndMSAAV
       RadioItem = True
       OnClick = mnutvUIAClick
     end
+  end
+  object Taskbar1: TTaskbar
+    TaskBarButtons = <>
+    ProgressState = Normal
+    ProgressMaxValue = 100
+    TabProperties = []
+    Left = 100
+    Top = 103
   end
 end

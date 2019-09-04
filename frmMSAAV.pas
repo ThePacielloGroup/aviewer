@@ -28,7 +28,8 @@ uses
   iAccessible2Lib_tlb, ISimpleDOM, Actions,
   Menus, Thread, TipWnd, UIAutomationClient_TLB, AccCTRLs,
   frmSet, Math, IntList, StrUtils, PermonitorApi, Multimon, VirtualTrees,
-  System.ImageList, UIA_TLB, SynEdit, SynEditHighlighter, SynHighlighterHtml, CommDlg;
+  System.ImageList, UIA_TLB, SynEdit, SynEditHighlighter, SynHighlighterHtml, CommDlg, System.Win.TaskbarCore,
+  Vcl.Taskbar;
 
 const
     IID_IServiceProvider: TGUID = '{6D5140C1-7436-11CE-8034-00AA006009FA}';
@@ -88,7 +89,7 @@ type
         Value: OleVariant;
     end;
 
-  TwndMSAAV = class(TForm, IUIAutomationFocusChangedEventHandler)
+  TwndMSAAV = class(TForm)//, IUIAutomationFocusChangedEventHandler)
     ImageList1: TImageList;
     ActionList1: TActionList;
     acFocus: TAction;
@@ -196,6 +197,7 @@ type
     mnutvMSAA: TMenuItem;
     mnutvUIA: TMenuItem;
     mnutvBoth: TMenuItem;
+    Taskbar1: TTaskbar;
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure acFocusExecute(Sender: TObject);
     procedure acCursorExecute(Sender: TObject);
@@ -246,7 +248,6 @@ type
     procedure mnuTVOAllClick(Sender: TObject);
     procedure mnuOAllClick(Sender: TObject);
     procedure mnuTVOSelClick(Sender: TObject);
-    procedure mnuOSelClick(Sender: TObject);
     procedure mnuSelModeClick(Sender: TObject);
     procedure TreeList1GetText(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex; TextType: TVSTTextType; var CellText: string);
     procedure acTreeFocusExecute(Sender: TObject);
@@ -268,7 +269,7 @@ type
     QSFailed: string;
     sHTML, sTxt, sTypeIE, sTypeFF, sARIA, NodeTxt, Err_Inter: string;
     bSelMode: Boolean;
-    iFocus, iRefCnt, ShowSrcLen, iPID: integer;
+    iFocus, iRefCnt, ShowSrcLen, iPID, iProg: integer;
     hHook: THandle;
     LangList, ClsNames: TStringList;
     rType, rTarg: string;
@@ -288,7 +289,7 @@ type
     TreeTH: TreeThread;
     UIATH: TreeThread4UIA;
     HTMLTh: HTMLThread;
-
+    ActTV: TAccTreeview;
     Treemode, bPFunc: boolean;
     //UIA: IUIAutomation;
     P2W, P4H: integer;
@@ -315,14 +316,14 @@ type
     function MSAAText(pAcc: IAccessible = nil; TextOnly: boolean = false): string;
     function MSAAText4UIA(TextOnly: boolean = false): string;
     function MSAAText4Tip(pAcc: IAccessible = nil): string;
-    function MSAAText4HTML(pAcc: IAccessible = nil; tab: string = ''): string;
-    function IA2Text4HTML(pAcc: IAccessible = nil; tab: string = ''): string;
+
+
     function HTMLText: string;
     function HTMLText4FF: string;
     function ARIAText: string;
     function SetNodeData(pNode: PVirtualNode; Text1, Text2: string; Acc: iAccessible; iID: integer): PVirtualNode;
     function SetIA2Text(pAcc: IAccessible = nil; SetTL: boolean = True): string;
-    function UIAText(HTMLout: boolean = false; tab: string = ''): string;
+
     function GetEleName(Acc: IAccessible): string;
     procedure SizeChange;
     procedure ExecMSAAMode(sender: TObject);
@@ -346,6 +347,7 @@ type
     function GetTVAllItems: string;
     function GetTVSelItems: string;
     procedure WMDPIChanged(var Message: TMessage); message WM_DPICHANGED;
+    procedure TreeDataSave(bAll, bSave: boolean);
   protected
     { Protected declarations  }
 
@@ -366,8 +368,9 @@ type
     procedure WMCopyData(var Msg: TWMCopyData); Message WM_COPYDATA;
     Procedure SetAbsoluteForegroundWindow(HWND: hWnd);
     function GetWindowNameLC(Wnd: HWND): string;
-
-    function HandleFocusChangedEvent(const sender: IUIAutomationElement): HResult; stdcall;
+    function MSAAText4HTML(pAcc: IAccessible = nil; tab: string = ''): string;
+    function IA2Text4HTML(pAcc: IAccessible = nil; tab: string = ''): string;
+    function UIAText(tEle: IUIAutomationElement = nil; HTMLout: boolean = false; tab: string = ''): string;
   end;
 
 var
@@ -560,47 +563,6 @@ begin
   end;
 
 end;
-
-function TwndMSAAV.HandleFocusChangedEvent(const sender: IUIAutomationElement): HResult;
-var
-    hr: HResult;
-    icPID: integer;
-    rc: UIAutomationClient_tlb.tagRECT;
-
-begin
-  Result := S_OK;
-  if bPFunc then Exit;
-
-  UIEle := sender;
-  if (Assigned(uiEle)) then
-  begin
-  	hr := uiEle.Get_CurrentProcessId(icPID);
-    if (hr = S_OK) and (icPID = wndMSAAV.iPID) then
-    	exit;
-  end;
-
-  if (mnutvUIA.Checked) then
-  begin
-  	if (wndMSAAV.acOnlyFocus.Checked) then
-		begin
-			uiEle.Get_CurrentBoundingRectangle(RC);
-			ShowRectWnd2(clYellow, Rect(RC.left, RC.top, RC.right - RC.left,
-				RC.bottom - RC.top));
-		end
-		else if (wndMSAAV.acFocus.Checked) then
-		begin
-      if wndMSAAV.acRect.Checked then
-      begin
-				uiEle.Get_CurrentBoundingRectangle(RC);
-				ShowRectWnd2(clRed, Rect(RC.left, RC.top, RC.right - RC.left,
-					RC.bottom - RC.top));
-      end;
-			Timer2.Enabled := false;
-			Timer2.Enabled := True;
-		end;
-  end;
-end;
-
 
 procedure TwndMSAAV.Timer1Timer(Sender: TObject);
 var
@@ -4251,7 +4213,7 @@ begin
 end;
 
 
-function TwndMSAAV.UIAText(HTMLout: boolean = false; tab: string = ''): string;
+function TwndMSAAV.UIAText(tEle: IUIAutomationElement = nil; HTMLout: boolean = false; tab: string = ''): string;
 var
 	iRes, i, t, iLen, iBool, iStyleID: integer;
 	dblRV: double;
@@ -4355,12 +4317,14 @@ begin
     tagPT.X := cRC.Location.X;
 		tagPT.Y := cRC.Location.Y;
 		UIAuto.ElementFromPoint(tagPT, uiEle);
+
 	end;
-	if (not Assigned(uiEle)) then
+  if tEle = nil then tEle := uiEle;
+	if (not Assigned(tEle)) then
 		Exit;
 
 	try
-		// iRes := UIA.ElementFromIAccessible(iAcc, 0, UIEle);
+		// iRes := UIA.ElementFromIAccessible(iAcc, 0, tEle);
 		if { (iRes = S_OK) and } (Assigned(uiEle)) then
 		begin
 			for i := 0 to 32 do
@@ -4369,7 +4333,7 @@ begin
 			if (flgUIA and TruncPow(2, 0)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentAcceleratorKey(ws)) then
+					if SUCCEEDED(tEle.Get_CurrentAcceleratorKey(ws)) then
 					begin
 						UIAs[0] := ws;
 					end;
@@ -4381,7 +4345,7 @@ begin
 			if (flgUIA and TruncPow(2, 1)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentAccessKey(ws)) then
+					if SUCCEEDED(tEle.Get_CurrentAccessKey(ws)) then
 					begin
 						UIAs[1] := ws;
 					end;
@@ -4394,7 +4358,7 @@ begin
 			begin
 				try
 
-					if SUCCEEDED(uiEle.Get_CurrentAriaProperties(ws)) then
+					if SUCCEEDED(tEle.Get_CurrentAriaProperties(ws)) then
 					begin
 						UIAs[2] := ws;
 					end;
@@ -4409,7 +4373,7 @@ begin
 				try
 					VarClear(oVal);
 					TVarData(oVal).VType := varString;
-					uiEle.Get_CurrentAriaRole(ws);
+					tEle.Get_CurrentAriaRole(ws);
 					if ws <> '' then
 						UIAs[3] := ws;
 				except
@@ -4420,7 +4384,7 @@ begin
 			if (flgUIA and TruncPow(2, 4)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentAutomationId(ws)) then
+					if SUCCEEDED(tEle.Get_CurrentAutomationId(ws)) then
 					begin
 						UIAs[4] := ws;
 					end;
@@ -4432,7 +4396,7 @@ begin
 			if (flgUIA and TruncPow(2, 5)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentBoundingRectangle(RC)) then
+					if SUCCEEDED(tEle.Get_CurrentBoundingRectangle(RC)) then
 					begin
 						UIAs[5] := inttostr(RC.left) + ',' + inttostr(RC.top) + ',' +
 							inttostr(RC.right) + ',' + inttostr(RC.bottom);
@@ -4445,7 +4409,7 @@ begin
 			if (flgUIA and TruncPow(2, 6)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentClassName(ws)) then
+					if SUCCEEDED(tEle.Get_CurrentClassName(ws)) then
 					begin
 						UIAs[6] := ws;
 					end;
@@ -4457,7 +4421,7 @@ begin
 			if (flgUIA and TruncPow(2, 7)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentControlType(i)) then
+					if SUCCEEDED(tEle.Get_CurrentControlType(i)) then
 					begin
 						UIAs[7] := GetCID(i);
 					end;
@@ -4469,7 +4433,7 @@ begin
 			if (flgUIA and TruncPow(2, 8)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentCulture(i)) then
+					if SUCCEEDED(tEle.Get_CurrentCulture(i)) then
 					begin
 						UIAs[8] := inttostr(i);
 					end;
@@ -4481,7 +4445,7 @@ begin
 			if (flgUIA and TruncPow(2, 9)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentFrameWorkID(ws)) then
+					if SUCCEEDED(tEle.Get_CurrentFrameWorkID(ws)) then
 					begin
 						UIAs[9] := ws;
 					end;
@@ -4493,7 +4457,7 @@ begin
 			if (flgUIA and TruncPow(2, 10)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentHasKeyboardFocus(i)) then
+					if SUCCEEDED(tEle.Get_CurrentHasKeyboardFocus(i)) then
 					begin
 						UIAs[10] := IntToBoolStr(i);
 					end;
@@ -4505,7 +4469,7 @@ begin
 			if (flgUIA and TruncPow(2, 11)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentHelpText(ws)) then
+					if SUCCEEDED(tEle.Get_CurrentHelpText(ws)) then
 					begin
 						UIAs[11] := ws;
 					end;
@@ -4517,7 +4481,7 @@ begin
 			if (flgUIA and TruncPow(2, 12)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentIsControlElement(i)) then
+					if SUCCEEDED(tEle.Get_CurrentIsControlElement(i)) then
 					begin
 						UIAs[12] := IntToBoolStr(i);
 					end;
@@ -4529,7 +4493,7 @@ begin
 			if (flgUIA and TruncPow(2, 13)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentIsContentElement(i)) then
+					if SUCCEEDED(tEle.Get_CurrentIsContentElement(i)) then
 					begin
 						UIAs[13] := IntToBoolStr(i);
 					end;
@@ -4541,7 +4505,7 @@ begin
 			if (flgUIA and TruncPow(2, 14)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentIsDataValidForForm(i)) then
+					if SUCCEEDED(tEle.Get_CurrentIsDataValidForForm(i)) then
 					begin
 						UIAs[14] := IntToBoolStr(i);
 					end;
@@ -4553,7 +4517,7 @@ begin
 			if (flgUIA and TruncPow(2, 15)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentIsEnabled(i)) then
+					if SUCCEEDED(tEle.Get_CurrentIsEnabled(i)) then
 					begin
 						UIAs[15] := IntToBoolStr(i);
 					end;
@@ -4565,7 +4529,7 @@ begin
 			if (flgUIA and TruncPow(2, 16)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentIsKeyboardFocusable(i)) then
+					if SUCCEEDED(tEle.Get_CurrentIsKeyboardFocusable(i)) then
 					begin
 						UIAs[16] := IntToBoolStr(i);
 					end;
@@ -4577,7 +4541,7 @@ begin
 			if (flgUIA and TruncPow(2, 17)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentIsOffscreen(i)) then
+					if SUCCEEDED(tEle.Get_CurrentIsOffscreen(i)) then
 					begin
 						UIAs[17] := IntToBoolStr(i);
 					end;
@@ -4589,7 +4553,7 @@ begin
 			if (flgUIA and TruncPow(2, 18)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentIsPassword(i)) then
+					if SUCCEEDED(tEle.Get_CurrentIsPassword(i)) then
 					begin
 						UIAs[18] := IntToBoolStr(i);
 					end;
@@ -4601,7 +4565,7 @@ begin
 			if (flgUIA and TruncPow(2, 19)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentIsRequiredForForm(i)) then
+					if SUCCEEDED(tEle.Get_CurrentIsRequiredForForm(i)) then
 					begin
 						UIAs[19] := IntToBoolStr(i);
 					end;
@@ -4613,7 +4577,7 @@ begin
 			if (flgUIA and TruncPow(2, 20)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentItemStatus(ws)) then
+					if SUCCEEDED(tEle.Get_CurrentItemStatus(ws)) then
 					begin
 						UIAs[20] := ws;
 					end;
@@ -4625,7 +4589,7 @@ begin
 			if (flgUIA and TruncPow(2, 21)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentItemType(ws)) then
+					if SUCCEEDED(tEle.Get_CurrentItemType(ws)) then
 					begin
 						UIAs[21] := ws;
 					end;
@@ -4637,7 +4601,7 @@ begin
 			if (flgUIA and TruncPow(2, 22)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentLocalizedControlType(ws)) then
+					if SUCCEEDED(tEle.Get_CurrentLocalizedControlType(ws)) then
 					begin
 						UIAs[22] := ws;
 					end;
@@ -4649,7 +4613,7 @@ begin
 			if (flgUIA and TruncPow(2, 23)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentName(ws)) then
+					if SUCCEEDED(tEle.Get_CurrentName(ws)) then
 					begin
 						UIAs[23] := ws;
 					end;
@@ -4661,7 +4625,7 @@ begin
 			if (flgUIA and TruncPow(2, 24)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentNativeWindowHandle(p)) then
+					if SUCCEEDED(tEle.Get_CurrentNativeWindowHandle(p)) then
 					begin
 						UIAs[24] := inttostr(integer(p));
 					end;
@@ -4673,7 +4637,7 @@ begin
 			if (flgUIA and TruncPow(2, 25)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentOrientation(OT)) then
+					if SUCCEEDED(tEle.Get_CurrentOrientation(OT)) then
 					begin
 
 						UIAs[25] := GetOT;
@@ -4686,7 +4650,7 @@ begin
 			if (flgUIA and TruncPow(2, 26)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentProcessId(i)) then
+					if SUCCEEDED(tEle.Get_CurrentProcessId(i)) then
 					begin
 						UIAs[26] := inttostr(i);
 					end;
@@ -4698,7 +4662,7 @@ begin
 			if (flgUIA and TruncPow(2, 27)) <> 0 then
 			begin
 				try
-					if SUCCEEDED(uiEle.Get_CurrentProviderDescription(ws)) then
+					if SUCCEEDED(tEle.Get_CurrentProviderDescription(ws)) then
 					begin
 						UIAs[27] := ws;
 					end;
@@ -4713,7 +4677,7 @@ begin
 			if (flgUIA2 and TruncPow(2, 1)) <> 0 then
 			begin
 				try // LiveSetting
-					if SUCCEEDED(uiEle.GetCurrentPropertyValue(30135, oVal)) then
+					if SUCCEEDED(tEle.GetCurrentPropertyValue(30135, oVal)) then
 					begin
 						if VarHaveValue(oVal) then
 						begin
@@ -4732,7 +4696,7 @@ begin
 				if (flgUIA2 and TruncPow(2, i + 2)) <> 0 then
 				begin
 					try // LiveSetting
-						if SUCCEEDED(uiEle.GetCurrentPropertyValue(IsProps[i], oVal)) then
+						if SUCCEEDED(tEle.GetCurrentPropertyValue(IsProps[i], oVal)) then
 						begin
 							if VarHaveValue(oVal) then
 							begin
@@ -4755,7 +4719,7 @@ begin
 				// GetCurrentPatternAs http://msdn.microsoft.com/en-us/library/windows/desktop/ee696039(v=vs.85).aspx
 				// UIA_RangeValuePatternId 10003
 				try
-					hr := uiEle.GetCurrentPattern(UIA_RangeValuePatternId, iIface);
+					hr := tEle.GetCurrentPattern(UIA_RangeValuePatternId, iIface);
 					if hr = S_OK then
 					begin
 						if Assigned(iIface) then
@@ -4787,7 +4751,7 @@ begin
 			if (flgUIA2 and TruncPow(2, 23)) <> 0 then
 			begin
 				try
-					hr := uiEle.GetCurrentPattern(UIA_StylesPatternId, iIface);
+					hr := tEle.GetCurrentPattern(UIA_StylesPatternId, iIface);
 					if (hr = S_OK) and Assigned(iIface) then
 					begin
 						hr := iIface.QueryInterface(IID_IUIAutomationStylesPattern, iSID);
@@ -4834,15 +4798,15 @@ begin
 							iRes := E_FAIL;
 							if i = 28 then
 							begin
-								iRes := uiEle.Get_CurrentControllerFor(UIArray);
+								iRes := tEle.Get_CurrentControllerFor(UIArray);
 							end
 							else if i = 29 then
 							begin
-								iRes := uiEle.Get_CurrentDescribedBy(UIArray);
+								iRes := tEle.Get_CurrentDescribedBy(UIArray);
 							end
 							else if i = 30 then
 							begin
-								iRes := uiEle.Get_CurrentFlowsTo(UIArray);
+								iRes := tEle.Get_CurrentFlowsTo(UIArray);
 							end;
 							if Assigned(UIArray) and SUCCEEDED(iRes) then
 							begin
@@ -4929,7 +4893,7 @@ begin
 								ND := TreeList1.GetNodeData(Node);
               end;
 							try
-								iRes := uiEle.Get_CurrentLabeledBy(ResEle);
+								iRes := tEle.Get_CurrentLabeledBy(ResEle);
 								if SUCCEEDED(iRes) then
 								begin
 
@@ -5573,6 +5537,7 @@ var
     Rec     : TSearchRec;
     i: integer;
 begin
+
 	scList := nil;
 		bFirstTime := True;
     bPFunc := False;
@@ -5587,7 +5552,8 @@ begin
     TransDir := IncludeTrailingPathDelimiter(AppDir + 'Languages');
     if not DirectoryExists(TransDir) then
       TransDir := IncludeTrailingPathDelimiter(AppDir + 'Lang');
-    PageControl1.TabIndex := 0;
+    PageControl1.ActivePageIndex := 0;
+    ActTV := Treeview1;
     mnuLang.Visible := FileExists(TransDir + 'Default.ini');
     if mnuLang.Visible then
         Transpath := TransDir + 'Default.ini'
@@ -5644,7 +5610,6 @@ begin
     cDPI := DoubleToInt(DefY * ScaleY);
 
     bFirstTime := False;
-
 end;
 
 
@@ -5968,6 +5933,7 @@ begin
 	begin
 		mnuTVSSel.Enabled := True;
 		mnuTVOSel.Enabled := True;
+    if TreeView1.SelectionCount > 1 then Exit;
 	end;
 	if bSelMode then
 		Exit;
@@ -6040,6 +6006,7 @@ begin
 	begin
 		mnuTVSSel.Enabled := True;
 		mnuTVOSel.Enabled := True;
+    if tbUIA.SelectionCount > 1 then Exit;
 	end;
 	if bSelMode then
 		Exit;
@@ -7633,7 +7600,7 @@ begin
     end
     else
     begin
-      UIAuto.AddFocusChangedEventHandler(nil, self);
+      //UIAuto.AddFocusChangedEventHandler(nil, self);
       hr := UIAuto.ElementFromHandle(pointer(handle), uiEle);
       if (hr = 0) and (Assigned(uiEle)) then
       	uiEle.Get_CurrentProcessId(iPID);
@@ -7799,7 +7766,7 @@ var
 				inttostr(iCnt) + '">';
 			Res := Res + #13#10 + tab + '<ul>' + #13#10 + tab + #9 +
 				'<li class="API">';
-			Res := Res + UIAText(True, tab + #9) + #13#10 + tab + #9 + '</li>';
+			Res := Res + UIAText(tempEle, True, tab + #9) + #13#10 + tab + #9 + '</li>';
       Res := Res + #13#10 + #9 + '</ul>' + #13#10 + tab + '</section>';
 		finally
       Result := Res;
@@ -7843,7 +7810,8 @@ begin
     for i := 0 to cNode.Count - 1 do
     begin
     	Application.ProcessMessages;
-
+      Inc(iProg);
+      TaskBar1.ProgressValue := Round((iProg / actTV.Items.Count) * 100);
       if cNode.Item[i].HasChildren then
       begin
         if ForSel then
@@ -8076,53 +8044,6 @@ begin
   end;
 end;
 
-procedure TwndMSAAV.mnuTVOAllClick(Sender: TObject);
-var
-  temp: string;
-  sList: TStringList;
-begin
-  if TreeView1.Items.Count > 0 then
-  begin
-    if GetTemp(temp) then
-    begin
-      sList := TStringList.Create;
-      try
-        sList.Text := GetTVAllItems;
-        sList.SaveToFile(temp+'aviewer.html', TEncoding.UTF8);
-        ShellExecute(Handle, 'open', PWideChar(temp+'aviewer.html'), nil, nil, SW_SHOW);
-      finally
-        sList.Free;
-      end;
-    end;
-  end;
-end;
-
-
-procedure TwndMSAAV.mnuTVSAllClick(Sender: TObject);
-var
-  sList: TStringList;
-  FName: string;
-begin
-    if TreeView1.Items.Count > 0 then
-    begin
-      sList := TStringList.Create;
-      bPFunc := True;
-      try
-
-        sList.Text := GetTVAllItems;
-        if SaveHTMLDLG('', FName) then
-        begin
-        	sList.SaveToFile(FName, TEncoding.UTF8);
-        end;
-
-      finally
-        sList.Free;
-        bPFunc := False;
-      end;
-    end;
-
-end;
-
 function TwndMSAAV.GetTVSelItems: string;
 var
 	d, temp, sTitle: string;
@@ -8222,7 +8143,7 @@ var
 				inttostr(iCnt) + '">';
 			Res := Res + #13#10 + tab + '<ul>' + #13#10 + tab + #9 +
 				'<li class="API">';
-			Res := Res + UIAText(True, tab + #9) + #13#10 + tab + #9 + '</li>';
+			Res := Res + UIAText(tempEle, True, tab + #9) + #13#10 + tab + #9 + '</li>';
       Res := Res + #13#10 + #9 + '</ul>' + #13#10 + tab + '</section>';
 		finally
       Result := Res;
@@ -8287,6 +8208,7 @@ begin
       iCnt := 0;
       for i := 0 to tTreeV.SelectionCount - 1 do
       begin
+      	TaskBar1.ProgressValue := Round(((i + 1) / tTreeV.SelectionCount) * 100);
       	if Pagecontrol1.ActivePageIndex = 0 then
 					d := d + GetLIContents(TTreeData(tTreeV.Selections[i].Data^).Acc, TTreeData(tTreeV.Selections[i].Data^).iID, tTreeV.Selections[i]) + '</li>' + #13#10
       	else
@@ -8311,9 +8233,62 @@ begin
     end;
 end;
 
-procedure TwndMSAAV.mnuOSelClick(Sender: TObject);
+procedure TwndMSAAV.TreeDataSave(bAll, bSave: boolean);
+var
+  temp: string;
+  sList: TStringList;
+  FName: string;
 begin
-  mnuTVOSelClick(self);
+  sList := TStringList.Create;
+  try
+  	bPFunc := True;
+    TaskBar1.ProgressValue := 0;
+    iProg := 0;
+    if bSave then //file save
+    begin
+    	if SaveHTMLDLG('', FName) then
+      begin
+      	if bAll then
+        	sList.Text := GetTVAllItems
+        else
+          sList.Text := GetTVSelItems;
+        	sList.SaveToFile(FName, TEncoding.UTF8);
+      end;
+		end
+    else
+    begin
+    	if bAll then
+      	sList.Text := GetTVAllItems
+      else
+      	sList.Text := GetTVSelItems;
+      if GetTemp(temp) then
+      begin
+      	sList.SaveToFile(temp+'aviewer.html', TEncoding.UTF8);
+        ShellExecute(Handle, 'open', PWideChar(temp+'aviewer.html'), nil, nil, SW_SHOW);
+      end;
+    end;
+  finally
+  	sList.Free;
+    TaskBar1.ProgressValue := 0;
+    bPFunc := False;
+  end;
+end;
+
+procedure TwndMSAAV.mnuTVOAllClick(Sender: TObject);
+begin
+  if ActTV.Items.Count > 0 then
+  	TreeDataSave(true, false);
+end;
+
+
+procedure TwndMSAAV.mnuTVSAllClick(Sender: TObject);
+var
+  sList: TStringList;
+  FName: string;
+begin
+    if ActTV.Items.Count > 0 then
+      TreeDataSave(true, true);
+
 end;
 
 procedure TwndMSAAV.mnuTVOSelClick(Sender: TObject);
@@ -8321,21 +8296,8 @@ var
   temp: string;
   sList: TStringList;
 begin
-  if (TreeView1.SelectionCount > 0) and (TreeView1.Items.Count > 0) then
-  begin
-    if GetTemp(temp) then
-    begin
-      sList := TStringList.Create;
-      try
-
-        sList.Text := GetTVSelItems;
-        sList.SaveToFile(temp+'aviewer.html', TEncoding.UTF8);
-        ShellExecute(Handle, 'open', PWideChar(temp+'aviewer.html'), nil, nil, SW_SHOW);
-      finally
-        sList.Free;
-      end;
-    end;
-  end;
+  if (ActTV.SelectionCount > 0) and (ActTV.Items.Count > 0) then
+  	TreeDataSave(false, false);
 
 end;
 
@@ -8345,24 +8307,8 @@ var
   FName: string;
 begin
 		//Save Treeview contents
-    if (TreeView1.SelectionCount > 0) and (TreeView1.Items.Count > 0) then
-    begin
-      sList := TStringList.Create;
-      bPFunc := True;
-      try
-
-      	sList.Text := GetTVSelItems;
-        if SaveHTMLDLG('', FName) then
-        begin
-        	sList.SaveToFile(FName, TEncoding.UTF8);
-        end;
-
-      finally
-        sList.Free;
-        bPFunc := False;
-      end;
-    end;
-
+    if (ActTV.SelectionCount > 0) and (ActTV.Items.Count > 0) then
+    	TreeDataSave(false, true);
 end;
 
 
@@ -8418,6 +8364,8 @@ begin
     toolbar1.Images := ImageList4;
     toolbar1.ButtonHeight := iHeight + 5;
     toolbar1.ButtonWidth := iHeight + 5;
+    panel1.Height := iHeight + 5;
+
 end;
 
 procedure TwndMSAAV.Splitter1Moved(Sender: TObject);
@@ -8446,9 +8394,13 @@ end;
 procedure TwndMSAAV.PageControl1Change(Sender: TObject);
 begin
 	if PageControl1.ActivePageIndex = 0 then
-  	acShowTip.Enabled := True
+  begin
+    ActTV := TreeView1;
+  	acShowTip.Enabled := True;
+  end
   else
   begin
+  	ActTV := tbUIA;
   	acShowTip.Enabled := False;
   	if Assigned(WndTip) then
 		begin
@@ -8461,7 +8413,7 @@ end;
 procedure TwndMSAAV.PopupMenu2Popup(Sender: TObject);
 begin
 
-  if (TreeView1.Items.Count = 0) then
+  if ActTV.Items.Count = 0 then
   begin
   	mnuSave.Enabled := false;
     mnuOpenB.Enabled := false;
