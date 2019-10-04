@@ -7354,23 +7354,6 @@ begin
             IA2Sts[16] := ini.ReadString('IA2', 'IA2_STATE_TRANSIENT', 'Transient');
             IA2Sts[17] := ini.ReadString('IA2', 'IA2_STATE_VERTICAL', 'Vertical');
 
-            {acFocus.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbFocus', 'F4'));
-            acCursor.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbCursor', 'F5'));
-            acRect.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbRectAngle', 'F6'));
-            acShowtip.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbBalloon', 'F3'));
-            acCopy.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbCopy', 'F7'));
-            acOnlyfocus.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbFocusOnly', 'F8'));
-            acParent.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbParent', 'F9'));
-            acChild.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbChild', 'F10'));
-            acPrevS.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbPrevS', 'F11'));
-            acNextS.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbNextS', 'F12'));
-            acHelp.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbHelp', 'F1'));
-            acMSAAMode.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbMSAAMode', ''));
-            acSetting.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'tbSetting', ''));
-            acTreeFocus.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'sfTreeView', 'Shift+F1'));
-            acListFocus.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'sfListView', 'Shift+F2'));
-            acMemoFocus.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'sfTextBox', 'Shift+F3'));
-            acTriFocus.ShortCut := TextToShortcut(ini.ReadString('Shortcut', 'sf3ctrls', 'Shift+F4')); }
 
             QSFailed := ini.ReadString('IA2', 'QS_Failed', 'Query Service Failed');
             Err_Inter := ini.ReadString('General', 'Error_Interface', 'Interface not available');
@@ -7565,23 +7548,7 @@ begin
         Splitter2.Enabled := false
     else
         Splitter2.Enabled := True;
-    //CoInitializeEx(nil, COINIT_APARTMENTTHREADED);
     CoInitialize(nil);
-    {UIAuto := TCUIAutomation.Create(Self);
-    if not Assigned(UIAuto) then
-    begin
-        Showmessage(UIA_fail);
-        //UIA := nil;
-        UIAuto := nil;
-        mnuView.Enabled := False;
-        Toolbar1.Enabled := False;
-        Panel1.Enabled := False;
-        Panel2.Enabled := False;
-        Panel5.Enabled := False;
-        //mnuUIA.Checked := false;
-        //mnuUIA.Enabled := false;
-
-    end;  }
     hr := CoCreateInstance(CLASS_CUIAutomation, nil, CLSCTX_INPROC_SERVER, IID_IUIAutomation, UIAuto);
 
     if (UIAuto = nil) or (hr <> S_OK) then
@@ -7594,8 +7561,6 @@ begin
         Panel1.Enabled := False;
         Panel2.Enabled := False;
         Panel5.Enabled := False;
-        //mnuUIA.Checked := false;
-        //mnuUIA.Enabled := false;
 
     end
     else

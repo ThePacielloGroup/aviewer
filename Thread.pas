@@ -4,7 +4,7 @@ interface
 
 uses
   Classes, windows, SysUtils, Forms, ActiveX, Variants, ComCtrls, dialogs, WinAPI.Oleacc, iAccessible2Lib_tlb, MSHTML_tlb,
-  UIAutomationClient_TLB, ISimpleDOM, IntList, winapi.commctrl, VirtualTrees, UIA_TLB, System.Math;
+  UIAutomationClient_TLB, ISimpleDOM, IntList, winapi.commctrl, VirtualTrees, UIA_TLB, System.Math, System.RegularExpressions, StrUtils;
 
 type
 
@@ -118,15 +118,16 @@ procedure HTMLThread.GetHTMLItem;
 var
   ND: PNodeData;
   ResNode, pNode: PVirtualNode;
-  SetNodeData, SetMemoText, GetTagName, GetCollection, GetAttrSpec, GetAttrs, TreeExpand: TThreadProcedure;
-  bSpecify: wordbool;
-	s, Text1, Text2, nName: string;
+  SetNodeData, SetMemoText, GetTagName, TreeExpand: TThreadProcedure;
+	Text1, Text2: string;
   hAttrs: String;
-	i, ColLen: integer;
+	i: integer;
 	sNode: PVirtualNode;
-	iAttrCol: IHTMLATTRIBUTECOLLECTION;
-	iDomAttr: IHTMLDOMATTRIBUTE;
-	ovValue, nValue: OleVariant;
+
+  match: TMatch;
+  matches: TMatchCollection;
+  iPos: integer;
+  atname, atValue, q: string;
 begin
 
 	SetNodeData := procedure
@@ -159,23 +160,6 @@ begin
   	HTMLs[0, 1] := CEle.tagName;
   end;
 
-  GetCollection := procedure
-  begin
-  	iAttrCol := (CEle as IHTMLDOMNode).attributes as IHTMLATTRIBUTECOLLECTION;
-    ColLen := iAttrCol.Length;
-  end;
-
-  GetAttrSpec := procedure
-  begin
-  	iDomAttr := iAttrCol.item(ovValue) as IHTMLDOMATTRIBUTE;
-    bSpecify := iDomAttr.specified;
-  end;
-
-  GetAttrs := Procedure
-  begin
-    nName := iDomAttr.nodeName;
-    nValue := iDomAttr.nodeValue;
-  end;
   Synchronize(SetMemoText);
   Synchronize(GetTagName);
   pNode := RootNode;
@@ -183,60 +167,45 @@ begin
   Text2 := HTMLs[0, 1];
   Synchronize(SetNodeData);
 
-  Synchronize(GetCollection);
+  sNode := nil;
+  match := TRegEx.Match(HTMLs[2, 1], '<("[^"]*"|''[^'']*''|[^''">])*>');
+  if match.Success then
+  begin
+  	matches := TRegEx.matches(match.Value, '(\S+)=[""'']?((?:.(?![""'']?\s+(?:\S+)=|[>""'']))+.)[""'']?');
 
-		sNode := nil;
-		for i := 0 to ColLen - 1 do
+    for i := 0 to matches.Count - 1 do
 		begin
-    	if Terminated then
-				break;
-			sleep(1);
-			ovValue := i;
-      Synchronize(GetAttrSpec);
-			if bSpecify then
+    	if sNode = nil then
 			begin
-      	Synchronize(GetAttrs);
-				s := LowerCase(nName);
-				if (s <> 'role') and (copy(s, 1, 4) <> 'aria') then
-				begin
-					try
-						if sNode = nil then
-						begin
-            	pNode := RootNode;
-              Text1 := HTMLs[1, 0];
-              Text2 := '';
-              Synchronize(SetNodeData);
-							sNode := ResNode;
-						end;
-
-						if VarHaveValue(nValue) then
-						begin
-            	pNode := sNode;
-              Text1 := nName;
-              Text2 := VarToStr(nValue);
-              hAttrs := hAttrs + Text1 + '=' + Text2 + #13#10;
-              Synchronize(SetNodeData);
-						end
-						else
-						begin
-            	pNode := sNode;
-              Text1 := nName;
-              Text2 := '';
-              Synchronize(SetNodeData);
-						end;
-					except
-						on E: Exception do
-						begin
-            	MessageDlg(E.Message , mtError, [mbOK], 0);
-						end;
-					end;
-				end;
+				pNode := RootNode;
+				Text1 := HTMLs[1, 0];
+				Text2 := '';
+				Synchronize(SetNodeData);
+				sNode := ResNode;
 			end;
+			iPos := Pos('=', matches.Item[i].Value);
+			atname := Copy(matches.Item[i].Value, 1, iPos - 1);
+			atValue := Copy(matches.Item[i].Value, iPos + 1,
+				Length(matches.Item[i].Value));
+			q := Copy(atValue, 1, 1);
+			if (q = '''') or (q = '"') then
+			begin
+				atValue := Copy(atValue, 2, Length(atValue));
+				atValue := Copy(atValue, 1, Length(atValue) - 1);
+			end;
+      pNode := sNode;
+      Text1 := atname;
+      Text2 := atValue;
+      hAttrs := hAttrs + Text1 + '=' + Text2 + #13#10;
+      Synchronize(SetNodeData);
+
 		end;
-    if hAttrs = '' then
-			HTMLs[1, 1] := None
-		else
-			HTMLs[1, 1] := hAttrs;
+  end;
+
+  if hAttrs = '' then
+  	HTMLs[1, 1] := None
+  else
+  	HTMLs[1, 1] := hAttrs;
 
   Synchronize(TreeExpand);
 end;
@@ -297,7 +266,7 @@ var
   cAcc: iAccessible;
   cNode: TTreeNode;
 begin
-	
+
   GetNodeD := procedure
   begin
   	cAcc := nil;
@@ -312,7 +281,7 @@ begin
   try
     SelNode := nil;
     frmMSAAV.bTer := false;
-   
+
 
     try
       sNode := nil;
@@ -420,7 +389,7 @@ begin
 	begin
 
 		Synchronize(GetValue);
-	
+
 		if (wsValue1 = wsValue2) and (sRole1 = sRole2) and (cRC.Left = cRC2.Left)
 			and (cRC.Top = cRC2.Top) and (cRC.Right = cRC2.Right) and
 			(cRC.Bottom = cRC2.Bottom) then
