@@ -14,16 +14,16 @@ type
 
     bRecursive: boolean;
     ipaID: integer;
-    DList : TIntegerList;
     procedure GetSelNode;
     procedure RecurACC(ParentNode: TTreeNode; ParentAcc: iAccessible; iID: integer);
     procedure ExpandNode;
     function Get_RoleText(Acc: IAccessible; Child: integer): string;
     function IsSameUIElement(ia1, ia2: IAccessible; iID1, iID2: integer): boolean;
-    function AddTreeItem(AccItem: iAccessible; AccID: integer; ParentItem: TTreeNode; NewNode: boolean = true): TTreenode;
+    function AddTreeItem(AccItem: iAccessible; AccID: integer; ParentItem: TTreeNode; NewNode: boolean = true; DummyNode: boolean = false): TTreenode;
     procedure SetParentTree;
     procedure RecursiveGetTreeitemID(currentNode: TTreenode);
   protected
+  	dMode, bAllEx: boolean;
     iAcc, pac, getcAcc, tAcc: IAccessible;
     pNode, rNode, sNode, RootNode, SelNode, SelPaNode: TTreeNode;
     None, cAccRole: string;
@@ -33,7 +33,7 @@ type
     Wnd: hwnd;
     procedure Execute; override;
   public
-    constructor Create(IA: IAccessible; PA: IAccessible; NoneText: string; bCreateSuspended: boolean = True; bRecur : boolean = True; pNode: TTreenode = nil; accID: integer = 0); virtual;
+    constructor Create(IA: IAccessible; PA: IAccessible; NoneText: string; bCreateSuspended: boolean = True; bRecur : boolean = True; pNode: TTreenode = nil; accID: integer = 0; DummyMode : boolean = false; AllEx : boolean = false); virtual;
   end;
 
   TreeThread4UIA = class(TThread)
@@ -44,7 +44,6 @@ type
     iLvl: integer;
     UIAuto       : IUIAutomation;
     UIEle, UIpEle: IUIAutomationElement;
-    DList : TIntegerList;
     procedure RecurACC(ParentNode: TTreeNode; ParentEle: IUIAutomationElement; uiCondition: IUIAutomationCondition);
     procedure ExpandNode;
     function AddTreeItem(iUIEle: IUIAutomationElement; ParentItem: TTreeNode; NewNode: boolean = true): TTreenode;
@@ -64,6 +63,16 @@ type
     constructor Create(UIA: IUIAutomation; iEle, pEle: IUIAutomationElement; NoneText: string; bCreateSuspended: boolean = True; bRecur: boolean = True; pNode: TTreenode = nil); virtual;
   end;
 
+  MSAAExTh = class(TThread)
+  private
+    { Private éŒ¾ }
+    function AddTreeItem(AccItem: iAccessible; AccID: integer; ParentItem: TTreeNode; NewNode: boolean = true; DummyNode: boolean = false): TTreenode;
+    procedure RecurACC(ParentNode: TTreeNode; ParentAcc: iAccessible; iID: integer);
+  protected
+    procedure Execute; override;
+  public
+    constructor Create(bCreateSuspended: boolean = True); virtual;
+  end;
 
   HTMLThread = class(TThread)
   private
@@ -89,6 +98,7 @@ begin
     if VarIsClear(v) then result := false;
 
 end;
+
 
 {HTMLThread}
 constructor HTMLThread.Create(iEle: IHTMLElement; pNode: PVirtualNode = nil; bCreateSuspended: boolean = True);
@@ -210,9 +220,177 @@ begin
   Synchronize(TreeExpand);
 end;
 
+{ MSAA Expose Thread }
+
+function MSAAExTh.AddTreeItem(AccItem: iAccessible; AccID: integer; ParentItem: TTreeNode; NewNode: boolean = true; DummyNode: boolean = false): TTreenode;
+var
+	AddItem: TThreadProcedure;
+  TD: PTreeData;
+  resNode: TTreeNode;
+begin
+  AddItem := procedure
+  begin
+      New(TD);
+      TD^.Acc := AccItem;
+      TD^.UIEle := nil;
+      TD^.iID := AccID;
+      TD^.dummy := DummyNode;
+      if NewNode then
+      begin
+      	resNode := wndMSAAV.TreeView1.Items.AddChildObject(ParentItem, '', Pointer(TD));
+      end
+      else
+      begin
+      	ParentItem.Text := '';
+        ParentItem.Data := Pointer(TD);
+        resNode := ParentItem;
+        wndMSAAV.TreeView1.OnAddition(wndMSAAV.TreeView1, resNode);
+      end;
+      TBList.Add(integer(resNode.ItemId));
+      if (resNode.Level >= 300) and not Assigned(frmMSAAV.LoopNode) then
+      begin
+      	frmMSAAV.Loopnode := ParentItem;
+      end;
+  end;
+  Synchronize(AddItem);
+  Result := resNode;
+end;
+
+constructor MSAAExTh.Create(bCreateSuspended: boolean = True);
+begin
+	FreeOnTerminate :=  false;
+	inherited Create(bCreateSuspended);
+end;
+
+procedure MSAAExTh.Execute;
+var
+	GetNodeD, SetPBar: TThreadProcedure;
+	hr: HResult;
+  i, cID, iTarg, iProg: integer;
+  cAcc: iAccessible;
+  cNode: TTreeNode;
+  bDummy: boolean;
+begin
+		GetNodeD := procedure
+		begin
+			cAcc := nil;
+      bDummy := False;
+			cNode := wndMSAAV.TreeView1.Items.GetNode(HTreeItem(DList.Items[iTarg]));
+			if (Assigned(cNode)) and Assigned(cNode.Data) then
+			begin
+				cAcc := TTreeData(cNode.Data^).Acc;
+				cID := TTreeData(cNode.Data^).iID;
+        bDummy := TTreeData(cNode.Data^).dummy;
+        if (bDummy) and (cNode.HasChildren) and  (cNode.Item[0].Text = 'avwr_dummy') then
+        	cNode.DeleteChildren;
+			end;
+		end;
+    SetPBar := procedure
+    begin
+    	wndMSAAV.Taskbar1.ProgressValue := iProg;
+    end;
+	try
+  	iProg := 0;
+    Synchronize(SetPBar);
+  	for i := 0 to DList.Count - 1 do
+    begin
+    	if Terminated then
+      	break;
+      iProg := Round((i / DList.Count) * 100);
+    	Synchronize(SetPBar);
+      iTarg := i;
+      Synchronize(GetNodeD);
+      if bDummy then
+      begin
+      	RecurACC(cNode, cAcc, cID);
+        TTreeData(cNode.Data^).dummy := False;
+      end;
+    end;
+	finally
+  end;
+end;
+
+procedure MSAAExTh.RecurACC(ParentNode: TTreeNode; ParentAcc: iAccessible; iID: integer);
+var
+    cAcc, tAcc: iAccessible;
+    iChild, iCH, i: integer;
+    iObtain: plongint;
+    cNode, Recurnode: TTreeNode;
+    SCnt, SCld, GetCld: TThreadProcedure;
+    hr, hr_SCld: HResult;
+    aChildren   : array of TVariantArg;
+begin
+
+
+
+  SCnt := procedure
+  begin
+    cAcc.Get_accChildCount(iChild);
+  end;
+
+
+  SCld := procedure
+  var
+  	i: integer;
+  begin
+  	cAcc.Get_accChildCount(iChild);
+    SetLength(aChildren, iChild);
+
+    for i := 0 to iChild - 1 do
+    begin
+      VariantInit(OleVariant(aChildren[i]));
+    end;
+    hr_SCld := AccessibleChildren(cAcc, 0, iChild, @aChildren[0], iObtain);
+  end;
+
+  GetCld := procedure
+  begin
+  	hr := IDispatch(aChildren[i].pdispVal)
+				.QueryInterface(IID_IACCESSIBLE, tAcc);
+  end;
+
+  if Terminated then
+    Exit;
+  cNode := ParentNode;
+  cAcc := ParentAcc;
+  if Assigned(cNode) and (cNode.Level >= 300) and Assigned(frmMSAAV.LoopNode) then
+  	exit;
+
+
+  Synchronize(SCld);
+
+  if hr_SCld = 0 then
+	begin
+		for i := 0 to integer(iObtain) - 1 do
+		begin
+
+			if Terminated then
+				break;
+      sleep(1);
+			if aChildren[i].vt = VT_DISPATCH then
+			begin
+				Synchronize(GetCld);
+
+				if Assigned(tAcc) and (hr = S_OK) then
+				begin
+        	RecurNode := AddTreeItem(tAcc, 0, cNode, true, true);
+
+					RecurACC(RecurNode, tAcc, 0);
+				end;
+			end
+			else if aChildren[i].vt = VT_I4 then
+			begin
+				iCH := aChildren[i].lVal;
+				AddTreeItem(cAcc, iCH, cNode, true, true);
+			end;
+		end;
+	end;
+end;
+
+
 
 { TreeThread }
-constructor TreeThread.Create(IA: IAccessible; PA: IAccessible; NoneText: string; bCreateSuspended: boolean = True; bRecur: boolean = True; pNode: TTreenode = nil; accID: integer = 0);
+constructor TreeThread.Create(IA: IAccessible; PA: IAccessible; NoneText: string; bCreateSuspended: boolean = True; bRecur: boolean = True; pNode: TTreenode = nil; accID: integer = 0; DummyMode: boolean = false; AllEx : boolean = false);
 begin
     IAcc := IA;
     pac := PA;
@@ -220,7 +398,8 @@ begin
     bRecursive := bRecur;
     None := NoneText;
     ipaID := accID;
-    DList := TIntegerList.Create;
+    DMode := Dummymode;
+    bAllEx := AllEx;
     FreeOnTerminate :=  false;
     inherited Create(bCreateSuspended);
 
@@ -268,58 +447,62 @@ var
 begin
 
   GetNodeD := procedure
-  begin
-  	cAcc := nil;
-    cNode := wndMSAAV.TreeView1.Items.GetNode(HTreeItem(DList.Items[iTarg]));
-    if (Assigned(cNode)) then
-    begin
-    	cAcc := TTreeData(cNode.Data^).Acc;
-      cID := TTreeData(cNode.Data^).iID;
-    end;
-  end;
-
-  try
-    SelNode := nil;
-    frmMSAAV.bTer := false;
-
-
-    try
-      sNode := nil;
-			frmMSAAV.LoopNode := nil;
-      GetSelNode;
-      if Assigned(SelNode) then
+		begin
+			cAcc := nil;
+			cNode := wndMSAAV.TreeView1.Items.GetNode(HTreeItem(DList.Items[iTarg]));
+			if (Assigned(cNode)) then
 			begin
-        SetParentTree;
-				if Terminated then
+				cAcc := TTreeData(cNode.Data^).Acc;
+				cID := TTreeData(cNode.Data^).iID;
+				wndMSAAV.TreeView1.Items.AddChild(cNode, 'avwr_dummy');
+			end;
+		end;
+
+	try
+		SelNode := nil;
+
+		try
+			sNode := nil;
+			frmMSAAV.LoopNode := nil;
+			if not dMode then
+			begin
+				GetSelNode;
+				if Assigned(SelNode) then
 				begin
-					frmMSAAV.bTer := True;
-				end
-				else
-				begin
-        	if bRecursive then
-        		RecursiveGetTreeitemID(Selpanode);
+					SetParentTree;
 
-          for i := 0 to DList.Count - 1 do
-          begin
-          	if Terminated then break;
-          	iTarg := i;
-          	Synchronize(GetNodeD);
-            if Assigned(cAcc) then
-            begin
+					if bRecursive then
+						RecursiveGetTreeitemID(SelPaNode);
 
-							RecurACC(cNode, cAcc, cID);
+					for i := 0 to DList.Count - 1 do
+					begin
+						if Terminated then
+							break;
+						iTarg := i;
+						Synchronize(GetNodeD);
 
-            end;
-            Sleep(1);
-          end;
+						sleep(1);
+					end;
 					Synchronize(ExpandNode);
 				end;
-			end;
+			end
+			else
+      begin
+      	if Assigned(iAcc) then
+        begin
+          if bAllEx then
+						RecurACC(RootNode, iAcc, ipaID)
+          else
+          begin
+          	SelNode := pNode;
+          end;
+
+        end;
+      end;
 		except
 		end;
 	finally
-  	DList.Free;
-  end;
+	end;
 end;
 
 procedure TreeThread.RecursiveGetTreeitemID(currentNode: TTreenode);
@@ -405,7 +588,7 @@ begin
   Selnode.Selected := True;
 end;
 
-function TreeThread.AddTreeItem(AccItem: iAccessible; AccID: integer; ParentItem: TTreeNode; NewNode: boolean = true): TTreenode;
+function TreeThread.AddTreeItem(AccItem: iAccessible; AccID: integer; ParentItem: TTreeNode; NewNode: boolean = true; DummyNode: boolean = false): TTreenode;
 var
 	AddItem: TThreadProcedure;
   TD: PTreeData;
@@ -417,7 +600,7 @@ begin
       TD^.Acc := AccItem;
       TD^.UIEle := nil;
       TD^.iID := AccID;
-      TD^.dummy := false;
+      TD^.dummy := DummyNode;
       if NewNode then
       begin
       	resNode := wndMSAAV.TreeView1.Items.AddChildObject(ParentItem, '', Pointer(TD));
@@ -442,21 +625,21 @@ end;
 procedure TreeThread.GetSelNode;
 begin
   SelNode := AddTreeItem(iAcc, ipaID, RootNode);
-  Selnode.Expanded := True;
+  Selnode.Expand(True);
   Selnode.Selected := True;
 end;
 
 procedure TreeThread.SetParentTree;
 var
     cAcc, tAcc, SyncAcc, pAcc, compAcc: iAccessible;
-    iChild, iCH, i, itarg, iComp: integer;
+    iChild, iCH, i, itarg, iComp, dChild: integer;
     iObtain: plongint;
     cNode,dNode, SSelNode: TTreeNode;
     TD: PTreeData;
-    SCnt, SCld, GetCld, AddDummyNode, GetPaAcc, NodeMove: TThreadProcedure;
+    SCnt, SCld, GetCld, AddDummyNode, GetPaAcc, NodeMove, paExpand: TThreadProcedure;
     hr, hr_SCld: HResult;
     aChildren   : array of TVariantArg;
-    bFSame: boolean;
+    bFSame, bAddDL: boolean;
     iDis: IDispatch;
 begin
 
@@ -471,12 +654,21 @@ begin
       TD^.dummy := true;
       pNode := cNode;
       dNode := wndMSAAV.TreeView1.Items.AddChildObject(pNode, '', Pointer(TD));
+
       if (dNode.Level >= 300) and not Assigned(frmMSAAV.LoopNode) then
       begin
       	frmMSAAV.Loopnode := dNode;
       end;
       TBList.Add(integer(dNode.ItemId));
-      DList.Add(integer(dNode.ItemId));
+      if bAddDL then
+      begin
+      	tAcc.Get_accChildCount(dChild);
+      	if (dChild > 0)  then
+      	begin
+					DList.Add(integer(dNode.ItemId));
+
+      	end;
+      end;
   end;
 
   SCnt := procedure
@@ -537,6 +729,7 @@ begin
   pNode := SelNode;
   cNode := pNode;
   iCH := ipaID;
+  bAddDL := false;
   if ipaID = 0 then
 	begin
 
@@ -548,29 +741,31 @@ begin
 				if Terminated then
 					break;
 				sleep(1);
-				if aChildren[i].vt = VT_I4 then
-				begin
-					iCH := aChildren[i].lVal;
-					rNode := AddTreeItem(SyncAcc, iCH, pNode);
-				end
-				else if aChildren[i].vt = VT_DISPATCH then
+
+				if aChildren[i].vt = VT_DISPATCH then
 				begin
         	itarg := i;
 					Synchronize(GetCld);
 					if Assigned(tAcc) and (hr = S_OK) then
 					begin
 						iCH := 0;
+            if not bRecursive then bAddDL := true;
 						Synchronize(AddDummyNode);
 					end;
-				end;
+				end
+        else
+        begin
+        	iCH := aChildren[i].lVal;
+					rNode := AddTreeItem(SyncAcc, iCH, pNode, true, false);
+        end;
         Sleep(1);
 			end;
 		end;
 	end;
-
+  Synchronize(ExpandNode);
 	if bRecursive then
   begin
-
+    bAddDL := true;
     Synchronize(GetPaAcc);
     SSelNode := Selnode;
     compAcc := iAcc;
@@ -584,6 +779,7 @@ begin
       iCH := 0;
       cNode := nil;
       rNode := AddTreeItem(SyncAcc, iCH, cNode);
+
       bFSame := False;
       cNode := rNode;
 
@@ -624,17 +820,18 @@ begin
 						begin
 							iCH := 0;
 							Synchronize(AddDummyNode);
+
 						end
 						else
 						begin
 							iCH := aChildren[i].lVal;
-							rNode := AddTreeItem(SyncAcc, iCH, cNode);
+							rNode := AddTreeItem(SyncAcc, iCH, cNode, true, false);
 						end;
           end;
           sleep(1);
+          rNode.Expand(true);
 				end;   //for end
 			end;
-
 
       if (IsSameUIElement(pAcc, pac, 0, 0)) then  break;
       iCH := 0;
@@ -708,7 +905,7 @@ begin
 
 				if Assigned(tAcc) and (hr = S_OK) then
 				begin
-        	RecurNode := AddTreeItem(tAcc, 0, cNode);
+        	RecurNode := AddTreeItem(tAcc, 0, cNode, true, true);
 
 					RecurACC(RecurNode, tAcc, 0);
 				end;
@@ -716,7 +913,7 @@ begin
 			else if aChildren[i].vt = VT_I4 then
 			begin
 				iCH := aChildren[i].lVal;
-				AddTreeItem(cAcc, iCH, cNode);
+				AddTreeItem(cAcc, iCH, cNode, true, true);
 			end;
 		end;
 	end;
@@ -732,7 +929,6 @@ begin
     //UIAuto := UIA;
     None := NoneText;
     FreeOnTerminate :=  false;
-    DList := TIntegerList.Create;
     inherited Create(bCreateSuspended);
 
 end;
@@ -751,7 +947,7 @@ begin
 	GetNodeD := procedure
   begin
   	cEle := nil;
-    cNode := wndMSAAV.tbUIA.Items.GetNode(HTreeItem(DList.Items[iTarg]));
+    cNode := wndMSAAV.tbUIA.Items.GetNode(HTreeItem(uDList.Items[iTarg]));
     if (Assigned(cNode)) then
     begin
     	cEle := TTreeData(cNode.Data^).uiEle;
@@ -763,7 +959,7 @@ begin
   	UIAuto.Get_ControlViewWalker(iVW);
   end;
     try
-        frmMSAAV.bTer := false;
+
 
         CoInitializeEx(nil, {COINIT_APARTMENTTHREADED}COINIT_MULTITHREADED);
         hr := CoCreateInstance(CLASS_CUIAutomation, nil, CLSCTX_INPROC_SERVER, IID_IUIAutomation, UIAuto);
@@ -787,44 +983,37 @@ begin
 						if (hr = 0) and (Assigned(uiCondi)) then
 						begin
 							SetParentTree(uiCondi);
-							if Terminated then
-							begin
-								frmMSAAV.bTer := true;
-							end
-							else
-							begin
-								if bRecursive then
-									RecursiveGetTreeitemID(SelPaNode);
 
-								for i := 0 to DList.Count - 1 do
+							if bRecursive then
+								RecursiveGetTreeitemID(SelPaNode);
+
+							for i := 0 to uDList.Count - 1 do
+							begin
+								if Terminated then
+									break;
+								iTarg := i;
+								Synchronize(GetNodeD);
+								if Assigned(cEle) then
 								begin
-									if Terminated then
-										break;
-									iTarg := i;
-									Synchronize(GetNodeD);
-									if Assigned(cEle) then
-									begin
 
-										RecurACC(cNode, cEle, uiCondi);
+									RecurACC(cNode, cEle, uiCondi);
 
-									end;
-									sleep(1);
 								end;
-								Synchronize(ExpandNode);
+								sleep(1);
 							end;
+							Synchronize(ExpandNode);
 						end;
 					except
 					end;
 
 					if Terminated then
 					begin
-						frmMSAAV.bTer := true;
+
 						sNode := nil;
 					end;
 				end;
 			finally
         CoUninitialize;
-        DList.Free;
     end;
 end;
 
@@ -938,7 +1127,7 @@ begin
   if not bDummy then
   		uTBList.Insert(0, integer(currentNode.ItemId))
   	else
-  		DList.Insert(0, integer(currentNode.ItemId));
+  		uDList.Insert(0, integer(currentNode.ItemId));
   if currentNode.HasChildren then
   begin
   	for i := 0 to currentNode.Count - 1 do
@@ -954,7 +1143,7 @@ begin
         if not bDummy then
   				uTBList.Insert(0, integer(currentNode.Item[i].ItemId))
   			else
-  				DList.Insert(0, integer(currentNode.Item[i].ItemId));
+  				uDList.Insert(0, integer(currentNode.Item[i].ItemId));
       end;
       Sleep(1);
     end;
@@ -996,7 +1185,7 @@ begin
       	frmMSAAV.Loopnode := dNode;
       end;
       uTBList.Add(integer(dNode.ItemId));
-      DList.Add(integer(dNode.ItemId));
+      uDList.Add(integer(dNode.ItemId));
   end;
 
   SCld := procedure
