@@ -262,6 +262,7 @@ type
     procedure PageControl1Change(Sender: TObject);
     procedure mnutvUIAClick(Sender: TObject);
     procedure TaskDlgVerificationClicked(Sender: TObject);
+    procedure tbUIAExpanding(Sender: TObject; Node: TTreeNode; var AllowExpansion: Boolean);
   private
     { Private declarations }
     bTer: boolean;
@@ -292,6 +293,7 @@ type
     UIATH: TreeThread4UIA;
     HTMLTh: HTMLThread;
     thMSEx: MSAAExTh;
+    thUIAEx: UIAExTh;
     ActTV: TAccTreeview;
     Treemode, bPFunc, bAllSave: boolean;
     //UIA: IUIAutomation;
@@ -1543,7 +1545,6 @@ end;
 
 function TwndMSAAV.ShowMSAAText:boolean;
 var
-    Wnd: hwnd;
     iSP: IServiceProvider;
     iEle, paEle: IHTMLElement;
     Path, cAccRole: string;
@@ -5848,87 +5849,11 @@ begin
 
 end;
 
-procedure TwndMSAAV.TreeView1Expanding(Sender: TObject; Node: TTreeNode;
-  var AllowExpansion: Boolean);
-var
-    Role: string;
-    ovChild, ovRole: OleVariant;
-    ws: widestring;
-    i, iChild, dChild: integer;
-    iObtain: plongint;
-    aChildren   : array of TVariantArg;
-    hr, hr_SCld: hResult;
-    tAcc: iAccessible;
-    TD: PTreeData;
-    eNode: TTreeNode;
-begin
-
-	try
-    if Assigned(Node.Data) and (TTreeData(Node.Data^).dummy) then
-    begin
-      if (Node.HasChildren) and (Node.Item[0].Text = 'avwr_dummy') then
-      begin
-        Node.DeleteChildren;
-        TTreeData(Node.Data^).dummy := False;
-        TTreeData(Node.Data^).Acc.Get_accChildCount(iChild);
-    		SetLength(aChildren, iChild);
-    		for i := 0 to iChild - 1 do
-    		begin
-      		VariantInit(OleVariant(aChildren[i]));
-    		end;
-    		hr_SCld := AccessibleChildren(TTreeData(Node.Data^).Acc, 0, iChild, @aChildren[0], iObtain);
-        if hr_SCld = 0 then
-				begin
-					for i := 0 to integer(iObtain) - 1 do
-					begin
-          	if aChildren[i].vt = VT_DISPATCH then
-						begin
-            	hr := IDispatch(aChildren[i].pdispVal).QueryInterface(IID_IACCESSIBLE, tAcc);
-							if Assigned(tAcc) and (hr = S_OK) then
-							begin
-              	New(TD);
-      					TD^.Acc := tAcc;
-      					TD^.UIEle := nil;
-      					TD^.iID := 0;
-      					TD^.dummy := true;
-
-                eNode := TreeView1.Items.AddChildObject(Node, '', Pointer(TD));
-								TBList.Add(integer(eNode.ItemId));
-                tAcc.Get_accChildCount(dChild);
-      					if (dChild > 0)  then
-      					begin
-									DList.Add(integer(eNode.ItemId));
-                  TreeView1.Items.AddChild(eNode, 'avwr_dummy');
-                end;
-              end;
-						end
-        		else
-        		begin
-            	New(TD);
-              TD^.Acc := TTreeData(Node.Data^).Acc;
-              TD^.UIEle := nil;
-              TD^.iID := aChildren[i].lVal;
-              TD^.dummy := false;
-							eNode := TreeView1.Items.AddChildObject(Node, '', Pointer(TD));
-              TBList.Add(integer(eNode.ItemId));
-        		end;
-            Application.ProcessMessages;
-          end;
-        end;
-      end;
-    end;
-
-    finally
-        AllowExpansion := True;
-    end;
-end;
-
 procedure TwndMSAAV.TreeView1Addition(Sender: TObject; Node: TTreeNode);
 var
 	Role: string;
 	ovChild, ovRole: OleVariant;
 	ws: WideString;
-	PC: PChar;
 begin
 	if not Assigned(Node.Data) then
 		Exit;
@@ -6010,8 +5935,7 @@ end;
 
 procedure TwndMSAAV.tbUIAAddition(Sender: TObject; Node: TTreeNode);
 var
-	Role: string;
-	ovChild, ovRole: OleVariant;
+	ovRole: OleVariant;
 	ws: WideString;
 	PC: PChar;
 begin
@@ -6048,6 +5972,199 @@ begin
 				end;
 			end;
 		end;
+end;
+
+procedure TwndMSAAV.TreeView1Expanding(Sender: TObject; Node: TTreeNode;
+  var AllowExpansion: Boolean);
+var
+    i, iChild, dChild: integer;
+    iObtain: plongint;
+    aChildren   : array of TVariantArg;
+    hr, hr_SCld: hResult;
+    tAcc: iAccessible;
+    TD: PTreeData;
+    eNode: TTreeNode;
+begin
+
+	try
+    if Assigned(Node.Data) and (TTreeData(Node.Data^).dummy) then
+    begin
+      if (Node.HasChildren) and (Node.Item[0].Text = 'avwr_dummy') then
+      begin
+        Node.DeleteChildren;
+        TTreeData(Node.Data^).dummy := False;
+        TTreeData(Node.Data^).Acc.Get_accChildCount(iChild);
+    		SetLength(aChildren, iChild);
+    		for i := 0 to iChild - 1 do
+    		begin
+      		VariantInit(OleVariant(aChildren[i]));
+    		end;
+    		hr_SCld := AccessibleChildren(TTreeData(Node.Data^).Acc, 0, iChild, @aChildren[0], iObtain);
+        if hr_SCld = 0 then
+				begin
+					for i := 0 to integer(iObtain) - 1 do
+					begin
+          	if aChildren[i].vt = VT_DISPATCH then
+						begin
+            	hr := IDispatch(aChildren[i].pdispVal).QueryInterface(IID_IACCESSIBLE, tAcc);
+							if Assigned(tAcc) and (hr = S_OK) then
+							begin
+              	New(TD);
+      					TD^.Acc := tAcc;
+      					TD^.UIEle := nil;
+      					TD^.iID := 0;
+      					TD^.dummy := true;
+
+                eNode := TreeView1.Items.AddChildObject(Node, '', Pointer(TD));
+								TBList.Add(integer(eNode.ItemId));
+                tAcc.Get_accChildCount(dChild);
+      					if (dChild > 0)  then
+      					begin
+									DList.Add(integer(eNode.ItemId));
+                  TreeView1.Items.AddChild(eNode, 'avwr_dummy');
+                end;
+              end;
+						end
+        		else
+        		begin
+            	New(TD);
+              TD^.Acc := TTreeData(Node.Data^).Acc;
+              TD^.UIEle := nil;
+              TD^.iID := aChildren[i].lVal;
+              TD^.dummy := false;
+							eNode := TreeView1.Items.AddChildObject(Node, '', Pointer(TD));
+              TBList.Add(integer(eNode.ItemId));
+        		end;
+            Application.ProcessMessages;
+          end;
+        end;
+      end;
+    end;
+
+    finally
+        AllowExpansion := True;
+    end;
+end;
+
+procedure TwndMSAAV.tbUIAExpanding(Sender: TObject; Node: TTreeNode; var AllowExpansion: Boolean);
+var
+    TD: PTreeData;
+
+
+    arElement: IUIAutomationElementArray;
+    Scope: TreeScope;
+    hr, hr_SCld: HResult;
+    uiCondition: IUIAutomationCondition;
+    iLen, i: integer;
+    tEle, fcldEle: IUIAutomationElement;
+    eNode: TTreeNode;
+    ov: OleVariant;
+begin
+
+	try
+    if Assigned(Node.Data) and (TTreeData(Node.Data^).dummy) then
+    begin
+      if (Node.HasChildren) and (Node.item[0].Text = 'avwr_dummy') then
+			begin
+				TVariantArg(ov).vt := VT_BOOL;
+				TVariantArg(ov).vbool := True;
+				hr := UIAuto.CreatePropertyCondition(UIA_IsControlElementPropertyId, ov,
+					uiCondition);
+				if (hr = 0) and (Assigned(uiCondition)) then
+				begin
+					Node.DeleteChildren;
+					TTreeData(Node.Data^).dummy := false;
+					Scope := TreeScope_Children;
+					hr_SCld := TTreeData(Node.Data^).uiEle.FindAll(Scope, uiCondition,
+						arElement);
+					arElement.Get_Length(iLen);
+
+					if hr_SCld = 0 then
+					begin
+						for i := 0 to integer(iLen) - 1 do
+						begin
+							tEle := nil;
+							hr := arElement.GetElement(i, tEle);
+							if (hr = 0) and (Assigned(tEle)) then
+							begin
+								fcldEle := nil;
+								Scope := TreeScope_Children;
+								hr := tEle.FindFirst(Scope, uiCondition, fcldEle);
+								New(TD);
+								TD^.Acc := nil;
+								TD^.uiEle := tEle;
+								TD^.iID := 0;
+								if Assigned(fcldEle) then
+								begin
+									TD^.dummy := True;
+									eNode := tbUIA.Items.AddChildObject(Node, '', Pointer(TD));
+									uTBList.Add(integer(eNode.ItemId));
+									uDList.Add(integer(eNode.ItemId));
+									tbUIA.Items.AddChild(eNode, 'avwr_dummy');
+								end
+								else
+								begin
+									TD^.dummy := false;
+									eNode := tbUIA.Items.AddChildObject(Node, '', Pointer(TD));
+									uTBList.Add(integer(eNode.ItemId));
+								end;
+							end;
+						end;
+					end;
+				end;
+
+        {TTreeData(Node.Data^).Acc.Get_accChildCount(iChild);
+    		SetLength(aChildren, iChild);
+    		for i := 0 to iChild - 1 do
+    		begin
+      		VariantInit(OleVariant(aChildren[i]));
+    		end;
+    		hr_SCld := AccessibleChildren(TTreeData(Node.Data^).Acc, 0, iChild, @aChildren[0], iObtain);
+        if hr_SCld = 0 then
+				begin
+					for i := 0 to integer(iObtain) - 1 do
+					begin
+          	if aChildren[i].vt = VT_DISPATCH then
+						begin
+            	hr := IDispatch(aChildren[i].pdispVal).QueryInterface(IID_IACCESSIBLE, tAcc);
+							if Assigned(tAcc) and (hr = S_OK) then
+							begin
+              	New(TD);
+      					TD^.Acc := tAcc;
+      					TD^.UIEle := nil;
+      					TD^.iID := 0;
+      					TD^.dummy := true;
+
+                eNode := TreeView1.Items.AddChildObject(Node, '', Pointer(TD));
+								TBList.Add(integer(eNode.ItemId));
+                tAcc.Get_accChildCount(dChild);
+      					if (dChild > 0)  then
+      					begin
+									DList.Add(integer(eNode.ItemId));
+                  TreeView1.Items.AddChild(eNode, 'avwr_dummy');
+                end;
+              end;
+						end
+        		else
+        		begin
+            	New(TD);
+              TD^.Acc := TTreeData(Node.Data^).Acc;
+              TD^.UIEle := nil;
+              TD^.iID := aChildren[i].lVal;
+              TD^.dummy := false;
+							eNode := TreeView1.Items.AddChildObject(Node, '', Pointer(TD));
+              TBList.Add(integer(eNode.ItemId));
+        		end;
+            Application.ProcessMessages;
+          end;
+        end;  }
+      end;
+    end;
+
+    finally
+        AllowExpansion := True;
+    end;
+
 end;
 
 procedure TwndMSAAV.tbUIAChange(Sender: TObject; Node: TTreeNode);
@@ -6175,16 +6292,19 @@ begin
   begin
   	mnutvMSAA.Checked := True;
     TabSheet2.TabVisible := False;
+    ActTV := TreeView1;
   end
   else if Sender = mnutvUIA then
   begin
   	mnutvUIA.Checked := True;
     TabSheet1.TabVisible := False;
+    ActTV := tbUIA;
   end
   else
   begin
     mnutvBoth.Checked := True;
     Pagecontrol1.ActivePageIndex := 0;
+    ActTV := TreeView1;
   end;
 
 	if Assigned(TreeTH) then
@@ -6219,9 +6339,6 @@ var
 	pAcc: IAccessible;
 	s: string;
 	tc: TComponent;
-	iDis: iDispatch;
-	iRes, iDir: integer;
-	ov: OleVariant;
 	sNode: TTreeNode;
   tTB: TAccTreeView;
 begin
@@ -6388,8 +6505,7 @@ procedure TwndMSAAV.acSettingExecute(Sender: TObject);
 var
     WndSet: TWndSet;
     i, b:integer;
-    d, lbtb, lbmf, mfTV, mfLV, mfST, mf3ctrl: string;
-    sc: word;
+    lbtb, lbmf, mfTV, mfLV, mfST, mf3ctrl: string;
     ini: TMemINiFile;
     SCD: PSCData;
     cNode, rNode: PVirtualNode;
@@ -6873,10 +6989,6 @@ end;
 
 
 procedure TwndMSAAV.GetNaviState(AllFalse: boolean = false);
-var
-    iDis: IDispatch;
-    ich, iRes:integer;
-    ov: OleVariant;
 begin
     if AllFalse then
     begin
@@ -7429,6 +7541,10 @@ begin
 
             QSFailed := ini.ReadString('IA2', 'QS_Failed', 'Query Service Failed');
             Err_Inter := ini.ReadString('General', 'Error_Interface', 'Interface not available');
+
+            TaskDLG.Title := ini.ReadString('TaskDLG', 'title', 'This function may take some time, do you want to continue?');
+            TaskDLG.Text := ini.ReadString('TaskDLG', 'text', 'Click "OK" to acquires tree view items that are not exposed');
+            TaskDLG.VerificationText := ini.ReadString('TaskDLG', 'showagainmsg', 'Don''t show this message again');
         finally
             Result := UIA_fail;
             ini.Free;
@@ -8370,12 +8486,28 @@ begin
 			thMSEx.Free;
 			thMSEx := nil;
 		end;
+    if Assigned(thUIAEx) then
+		begin
+    	bter := True;
+			thUIAEx.Terminate;
+			thUIAEx.WaitFor;
+			thUIAEx.Free;
+			thUIAEx := nil;
+		end;
     bAllSave := False;
     bTer := False;
-    thMSEx :=  MSAAExTH.Create(True);
-    thMSEx.OnTerminate := ThMSAAExDone;
-    thMSEx.Start;
-
+		if ActTV = TreeView1 then
+    begin
+    	thMSEx :=  MSAAExTH.Create(True);
+    	thMSEx.OnTerminate := ThMSAAExDone;
+    	thMSEx.Start;
+    end
+    else if ActTV = tbUIA then
+    begin
+    	thUIAEx :=  UIAExTH.Create(True);
+    	thUIAEx.OnTerminate := ThMSAAExDone;
+    	thUIAEx.Start;
+    end;
   end;
 end;
 
@@ -8392,19 +8524,33 @@ begin
 			thMSEx.Free;
 			thMSEx := nil;
 		end;
+    if Assigned(thUIAEx) then
+		begin
+    	bter := True;
+			thUIAEx.Terminate;
+			thUIAEx.WaitFor;
+			thUIAEx.Free;
+			thUIAEx := nil;
+		end;
     bAllSave := True;
     bTer := False;
-    thMSEx :=  MSAAExTH.Create(True);
-    thMSEx.OnTerminate := ThMSAAExDone;
-    thMSEx.Start;
+    if ActTV = TreeView1 then
+    begin
+    	thMSEx :=  MSAAExTH.Create(True);
+    	thMSEx.OnTerminate := ThMSAAExDone;
+    	thMSEx.Start;
+    end
+    else if ActTV = tbUIA then
+    begin
+    	thUIAEx :=  UIAExTH.Create(True);
+    	thUIAEx.OnTerminate := ThMSAAExDone;
+    	thUIAEx.Start;
+    end;
 	end;
 
 end;
 
 procedure TwndMSAAV.mnuTVOSelClick(Sender: TObject);
-var
-  temp: string;
-  sList: TStringList;
 begin
   if (ActTV.SelectionCount > 0) and (ActTV.Items.Count > 0) then
   	TreeDataSave(false, false);
@@ -8412,9 +8558,6 @@ begin
 end;
 
 procedure TwndMSAAV.mnuTVSSelClick(Sender: TObject);
-var
-  sList: TStringList;
-  FName: string;
 begin
 		//Save Treeview contents
     if (ActTV.SelectionCount > 0) and (ActTV.Items.Count > 0) then

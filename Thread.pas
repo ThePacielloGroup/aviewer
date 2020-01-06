@@ -74,6 +74,18 @@ type
     constructor Create(bCreateSuspended: boolean = True); virtual;
   end;
 
+  UIAExTh = class(TThread)
+  private
+    { Private éŒ¾ }
+    UIAuto       : IUIAutomation;
+    function AddTreeItem(iUIEle: IUIAutomationElement; ParentItem: TTreeNode; NewNode: boolean = true): TTreenode;
+    procedure RecurACC(ParentNode: TTreeNode; ParentEle: IUIAutomationElement; uiCondition: IUIAutomationCondition);
+  protected
+    procedure Execute; override;
+  public
+    constructor Create(bCreateSuspended: boolean = True); virtual;
+  end;
+
   HTMLThread = class(TThread)
   private
     { Private éŒ¾ }
@@ -919,6 +931,209 @@ begin
 	end;
 end;
 
+constructor UIAExTh.Create(bCreateSuspended: boolean = True);
+begin
+    FreeOnTerminate :=  false;
+    inherited Create(bCreateSuspended);
+
+end;
+
+procedure UIAExTh.Execute;
+var
+	uiCondi  : IUIAutomationCondition;
+  ov: OleVariant;
+  hr: hresult;
+  i, iTarg, iProg: integer;
+  GetNodeD, SetPBar: TThreadProcedure;
+  cEle: IUIAUTOMATIONELEMENT;
+  cNode: TTreeNode;
+  bDummy: boolean;
+begin
+	GetNodeD := procedure
+  begin
+  	cEle := nil;
+    cNode := wndMSAAV.tbUIA.Items.GetNode(HTreeItem(uDList.Items[iTarg]));
+    if (Assigned(cNode)) and (Assigned(TTreeData(cNode.Data^).uiEle)) then
+    begin
+    	cEle := TTreeData(cNode.Data^).uiEle;
+      bDummy := TTreeData(cNode.Data^).dummy;
+      if (bDummy) and (cNode.HasChildren) and  (cNode.Item[0].Text = 'avwr_dummy') then
+        	cNode.DeleteChildren;
+    end;
+  end;
+
+  SetPBar := procedure
+  begin
+  	wndMSAAV.Taskbar1.ProgressValue := iProg;
+  end;
+  try
+
+
+  	CoInitializeEx(nil, { COINIT_APARTMENTTHREADED } COINIT_MULTITHREADED);
+		hr := CoCreateInstance(CLASS_CUIAutomation, nil, CLSCTX_INPROC_SERVER,
+			IID_IUIAutomation, UIAuto);
+
+		TVariantArg(ov).vt := VT_BOOL;
+		TVariantArg(ov).vbool := true;
+		hr := UIAuto.CreatePropertyCondition(UIA_IsControlElementPropertyId,
+			ov, uiCondi);
+		if (hr = 0) and (Assigned(uiCondi)) then
+		begin
+      iProg := 0;
+    	Synchronize(SetPBar);
+			for i := 0 to uDList.Count - 1 do
+			begin
+				if Terminated then
+					break;
+        iProg := Round((i / uDList.Count) * 100);
+    		Synchronize(SetPBar);
+				iTarg := i;
+				Synchronize(GetNodeD);
+				if Assigned(cEle) and (bDummy) then
+        begin
+
+        	RecurACC(cNode, cEle, uiCondi);
+
+        end;
+				sleep(1);
+			end;
+		end;
+	finally
+		CoUninitialize;
+	end;
+end;
+
+function UIAExTh.AddTreeItem(iUIEle: IUIAutomationElement; ParentItem: TTreeNode; NewNode: boolean = true): TTreenode;
+var
+	AddItem: TThreadProcedure;
+  TD: PTreeData;
+  resNode: TTreeNode;
+begin
+	AddItem := procedure
+  begin
+      New(TD);
+      TD^.Acc := nil;
+      TD^.UIEle := iUIEle;
+      TD^.iID := 0;
+      TD^.dummy := false;
+      if NewNode then
+      begin
+      	resNode := wndMSAAV.tbUIA.Items.AddChildObject(ParentItem, '', Pointer(TD));
+      end
+      else
+      begin
+      	ParentItem.Text := '';
+        ParentItem.Data := Pointer(TD);
+        resNode := ParentItem;
+        wndMSAAV.tbUIA.OnAddition(wndMSAAV.tbUIA, resNode);
+      end;
+      uTBList.Add(integer(resNode.ItemId));
+      if (resNode.Level >= 300) and not Assigned(frmMSAAV.LoopNode) then
+      begin
+      	frmMSAAV.Loopnode := ParentItem;
+      end;
+  end;
+  Synchronize(AddItem);
+  Result := resNode;
+
+end;
+
+procedure UIAExTh.RecurACC(ParentNode: TTreeNode; ParentEle: IUIAutomationElement; uiCondition: IUIAutomationCondition);
+var
+	tEle, SyncEle, fcldEle: IUIAutomationElement;
+	iImgIdx: integer;
+	cNode, Recurnode: TTreeNode;
+	ws: widestring;
+	SCld, GetCld, GetFCld: TThreadProcedure;
+	ov: OleVariant;
+	hr, hr_SCld: HResult;
+	PC: PChar;
+	arElement: IUIAutomationElementArray;
+	iLen, i, iTarg: integer;
+	Scope: TreeScope;
+	procedure GetNodeText;
+	begin
+
+		if SUCCEEDED(SyncEle.Get_CurrentName(ws)) then
+		begin
+			ws := StringReplace(ws, #13, ' ', [rfReplaceAll]);
+			ws := StringReplace(ws, #10, ' ', [rfReplaceAll]);
+
+			if ws = '' then
+				ws := None;
+			SyncEle.GetCurrentPropertyValue(UIA_LegacyIAccessibleRolePropertyId, ov);
+			if VarIsType(ov, VT_I4) and (TVarData(ov).VInteger <= 61) then
+			begin
+				iImgIdx := TVarData(ov).VInteger - 1;
+				PC := StrAlloc(255);
+				GetRoleTextW(ov, PC, StrBufSize(PC));
+				ws := ws + ' - ' + PC;
+				StrDispose(PC);
+
+			end;
+		end;
+	end;
+
+begin
+	if Terminated then
+		Exit;
+	if not Assigned(ParentEle) then
+		Exit;
+
+  SCld := procedure
+  begin
+  	Scope := TreeScope_Children;
+		hr_SCld := SyncEle.FindAll(Scope, uiCondition, arElement);
+		arElement.Get_Length(iLen);
+
+  end;
+
+  GetCld := procedure
+  begin
+  	tEle := nil;
+    hr := arElement.GetElement(itarg, tEle);
+  end;
+
+
+  GetFCld := procedure
+  begin
+  	fcldEle := nil;
+    Scope := TreeScope_Children;
+    hr := tEle.FindFirst(Scope, uiCondition, fcldEle);
+  end;
+
+  cNode := ParentNode;
+	SyncEle := ParentEle;
+  if Assigned(cNode) and (cNode.Level >= 300) and Assigned(frmMSAAV.LoopNode) then
+  	exit;
+
+
+  if hr = S_OK then
+  begin
+    Synchronize(SCld);
+    for i := 0 to iLen - 1 do
+    begin
+    	if Terminated then
+				break;
+			sleep(1);
+			iTarg := i;
+			Synchronize(GetCld);
+			Synchronize(GetFCld);
+
+			if Assigned(fcldEle) then
+			begin
+				Recurnode := AddTreeItem(tEle, cNode);
+				RecurACC(Recurnode, tEle, uiCondition);
+			end
+			else
+			begin
+				AddTreeItem(tEle, cNode);
+			end;
+		end;
+	end;
+
+end;
+
 constructor TreeThread4UIA.Create(UIA: IUIAutomation; iEle, pEle: IUIAutomationElement; NoneText: string; bCreateSuspended: boolean = True; bRecur: boolean = True; pNode: TTreenode = nil);
 begin
     UIEle := iEle;
@@ -948,9 +1163,10 @@ begin
   begin
   	cEle := nil;
     cNode := wndMSAAV.tbUIA.Items.GetNode(HTreeItem(uDList.Items[iTarg]));
-    if (Assigned(cNode)) then
+    if (Assigned(cNode)) and (Assigned(TTreeData(cNode.Data^).uiEle)) then
     begin
     	cEle := TTreeData(cNode.Data^).uiEle;
+      wndMSAAV.tbUIA.Items.AddChild(cNode, 'avwr_dummy');
     end;
   end;
 
@@ -993,12 +1209,12 @@ begin
 									break;
 								iTarg := i;
 								Synchronize(GetNodeD);
-								if Assigned(cEle) then
+								{if Assigned(cEle) then
 								begin
 
 									RecurACC(cNode, cEle, uiCondi);
 
-								end;
+								end; }
 								sleep(1);
 							end;
 							Synchronize(ExpandNode);
