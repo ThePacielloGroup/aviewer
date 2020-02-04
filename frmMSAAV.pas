@@ -605,8 +605,6 @@ begin
 					if SUCCEEDED(WindowFromAccessibleObject(pAcc, Wnd)) then
 					begin
 
-
-						//hr := UIAuto.ElementFromiAccessible(pAcc, v, uiEle);
             tagPT.X := arPT[0].X;
 						tagPT.Y := arPT[0].Y;
 						hr := UIAuto.ElementFromPoint(tagPT, uiEle);
@@ -649,7 +647,7 @@ begin
               PageControl1.ActivePageIndex := 1;
               TabSheet1.TabVisible := False;
               TabSheet2.TabVisible := True;
-              acShowTip.Enabled := False;
+              acShowTip.Enabled := True;
             	ShowText4UIA;
             end;
           end
@@ -686,7 +684,7 @@ begin
 			PageControl1.ActivePageIndex := 1;
 			TabSheet1.TabVisible := False;
       TabSheet2.TabVisible := True;
-			acShowTip.Enabled := false;
+			acShowTip.Enabled := true;
 			ShowText4UIA;
 		end;
 	end;
@@ -1406,7 +1404,7 @@ begin
 				thMSEx := nil;
 			end;
       if (mnutvUIA.Checked) or (TreeMode) then
-      	UIAText;
+      	sUIATxt := UIAText;
 
       hr := GetiLegacy;
       if (hr = 0) and (Assigned(iLeg)) then
@@ -4339,22 +4337,15 @@ const
 begin
 	if not Assigned(UIAuto) then
 		Exit;
-	if not mnutvUIA.Checked then
-	begin
-		uiEle := nil;
-    iAcc.accLocation(cRC.Left, cRC.Top, cRC.Right, cRC.Bottom, varParent);
-    tagPT.X := cRC.Location.X;
-		tagPT.Y := cRC.Location.Y;
-		UIAuto.ElementFromPoint(tagPT, uiEle);
+	if not Assigned(UIEle) then
+		Exit;
 
-	end;
   if tEle = nil then tEle := uiEle;
 	if (not Assigned(tEle)) then
 		Exit;
 
 	try
-		// iRes := UIA.ElementFromIAccessible(iAcc, 0, tEle);
-		if { (iRes = S_OK) and } (Assigned(uiEle)) then
+		if (Assigned(uiEle)) then
 		begin
 			for i := 0 to 32 do
 				UIAs[i] := None;
@@ -4820,7 +4811,6 @@ begin
 					begin
 						if i >= 28 then
 						begin
-							// node := nodes.AddChild(rNode, lUIA[i+1]);
               if not HTMLout then
 								Node := SetNodeData(rNode, lUIA[i + 1], '', nil, 0);
 							UIArray := nil;
@@ -4844,7 +4834,7 @@ begin
 									for t := 0 to iLen - 1 do
 									begin
 										// cNode := nodes.AddChild(Node, inttostr(t));
-                    if not HTMLout then
+                    if (not HTMLout) and (Assigned(Node)) then
 											cNode := SetNodeData(Node, inttostr(t), '', nil, 0);
 										ResEle := nil;
 										if SUCCEEDED(UIArray.GetElement(t, ResEle)) then
@@ -4861,7 +4851,7 @@ begin
 														ND := TreeList1.GetNodeData(cNode);
 														ND.Acc := iaTarg;
 														ND.iID := 0;
-
+                            ND.Value2 := ws;
 													end;
 												end
 												else
@@ -4872,9 +4862,6 @@ begin
 												end;
                         if not HTMLout then
                         begin
-													ND := TreeList1.GetNodeData(cNode);
-													ND.Value2 := ws;
-													// TreeList1.SetNodeColumn(cnode, 1, ws);
 													Result := Result + lUIA[i + 1] + ':' + #9 + ws + #13#10;
                         end
                         else
@@ -5134,166 +5121,147 @@ var
     pEle, cEle: IUIAutomationElement;
     hr: HResult;
 begin
-    if not Assigned(iAcc) and (not mnutvUIA.Checked) then Exit;
-    if (mnutvUIA.Checked) then Exit;
+    
+
     try
+			if (ActTV = TreeView1) and (Assigned(iAcc)) then
+			begin
+				if mnublnMSAA.Checked then
+					s := s + sMSAAtxt; // MSAAText4Tip;
+				if mnublnIA2.Checked  then
+					s := s + SetIA2Text(iAcc, false);
 
-
-
-        if mnublnMSAA.Checked then
-            s := s + sMSAATxt;//MSAAText4Tip;
-        if mnublnIA2.Checked  and (not mnutvUIA.Checked) then
-            s := s + SetIA2Text(iacc, false);
-        if mnublnCode.Checked and (not mnutvUIA.Checked) then
+				if mnublnCode.Checked then
+				begin
+					c := sHTML;
+					inner := sTypeFF;
+					outer := sTypeIE;
+					hr := iAcc.QueryInterface(IID_IServiceProvider, iSP);
+					if (hr = 0) and (Assigned(iSP)) then
 					begin
-						c := sHTML;
-						inner := sTypeFF;
-						outer := sTypeIE;
-						hr := iAcc.QueryInterface(IID_IServiceProvider, iSP);
-						if (hr = 0) and (Assigned(iSP)) then
+						hr := iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement, iEle);
+						if (hr = 0) and (Assigned(iEle)) then
 						begin
-							hr := iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement, iEle);
-							if (hr = 0) and (Assigned(iEle)) then
-							begin
 
-								if (SUCCEEDED(iSP.QueryService(IID_IHTMLElement,
-									IID_IHTMLElement, iEle))) then
-								begin
-									sRC := iEle.outerHTML;
-									sRC := copy(sRC, 0, ShowSrcLen);
-									s := s + c + outer + ':' + #13#10 + sRC;
-								end;
-							end
-							else
+							if (SUCCEEDED(iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement,
+								iEle))) then
 							begin
-              	hr := iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, isd);
-								if (hr = 0) and (Assigned(isd)) then
-								begin
-									isd.get_nodeInfo(PC, SI, PC2, PU, PU2, WD);
+								sRC := iEle.outerHTML;
+								sRC := copy(sRC, 0, ShowSrcLen);
+								s := s + c + outer + ':' + #13#10 + sRC;
+							end;
+						end
+						else
+						begin
+							hr := iSP.QueryService(IID_ISIMPLEDOMNODE,
+								IID_ISIMPLEDOMNODE, isd);
+							if (hr = 0) and (Assigned(isd)) then
+							begin
+								isd.get_nodeInfo(PC, SI, PC2, PU, PU2, WD);
 
-									if WD <> 3 then
+								if WD <> 3 then
+								begin
+									PC := '';
+									isd.get_innerHTML(PC);
+									sRC := copy(PC, 0, ShowSrcLen);
+									s := s + c + inner + #13#10 + sRC;
+								end
+								else
+								begin
+									iSP := isd as IServiceProvider;
+									if SUCCEEDED(iSP.QueryInterface(IID_ISIMPLEDOMTEXT, iText))
+									then
 									begin
-										PC := '';
-										isd.get_innerHTML(PC);
+										iText.get_domText(PC);
 										sRC := copy(PC, 0, ShowSrcLen);
-										s := s + c + inner + #13#10 + sRC;
-									end
-									else
-									begin
-										iSP := isd as IServiceProvider;
-										if SUCCEEDED(iSP.QueryInterface(IID_ISIMPLEDOMTEXT, iText))
-										then
-										begin
-											iText.get_domText(PC);
-											sRC := copy(PC, 0, ShowSrcLen);
-											s := s + c + '(' + sTxt + ')' + #13#10 + sRC;
-										end;
+										s := s + c + '(' + sTxt + ')' + #13#10 + sRC;
 									end;
 								end;
 							end;
 						end;
-						// s := s + Src;
 					end;
-
-        if not mnutvUIA.Checked then
+				end;
+				vChild := VarParent; // CHILDID_SELF;
+				iAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, vChild);
+				sLeft := RC.Left;
+				sTop := RC.Bottom;
+				WindowFromAccessibleObject(iAcc, Wnd)
+			end//if MSAA
+      else
+      begin
+      	s := sUIATxt;
+        if SUCCEEDED(UIEle.Get_CurrentBoundingRectangle(tRC)) then
         begin
-          vChild := varParent;//CHILDID_SELF;
-          iAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, vChild);
 
-        end
-        else
-        begin
-          if SUCCEEDED(UIEle.Get_CurrentBoundingRectangle(tRC)) then
-          begin
-
-            RC := Rect(tRc.left, tRC.top, tRC.right, tRC.bottom);
-          end;
+        	RC := Rect(tRc.left, tRC.top, tRC.right, tRC.bottom);
         end;
-          sLeft := RC.Left;
-          sTop := RC.Bottom;
+        sLeft := RC.Left;
+				sTop := RC.Bottom;
+      end;
 
-        if hWndTip <> 0 then
-        begin
-            DestroyWindow(hWndTip);
-        end;
-            ShowBalloonTip(self, 1, 'Aviewer', s, rc, sLeft, sTop, True);
-            SetBalloonPos(sLeft, sTop);
-            if not mnutvUIA.Checked then
-              WindowFromAccessibleObject(iAcc, Wnd)
-            else
-            begin
-              UIAuto.Get_ControlViewWalker(iVW);
-              if Assigned(iVW) then
-              begin
-                uiEle.Get_CurrentNativeWindowHandle(pWnd);
-                cEle := UIEle;
-                Wnd := HWND(pWnd);
-                while Wnd = 0 do
-                begin
-                  iVW.GetParentElement(cELe, pEle);
-                  if Assigned(pEle) then
-                  begin
-                    pEle.Get_CurrentNativeWindowHandle(pWnd);
-                    Wnd := HWND(pWnd);
-                    cEle := pEle;
-                  end;
-                end;
-              end;
-            end;
-            tinfo.cbSize := SizeOf(tinfo);
-            tinfo.hwnd := Wnd;
-            tinfo.uId := 1;
-            iRes := SendMessage(hWndTip, TTM_GETBUBBLESIZE , 0, Integer(@tinfo));
+			if hWndTip <> 0 then
+			begin
+				DestroyWindow(hWndTip);
+			end;
+			ShowBalloonTip(self, 1, 'Aviewer', s, RC, sLeft, sTop, True);
+			SetBalloonPos(sLeft, sTop);
 
-            if iRes > 0 then
-            begin
-                i := HIWORD(iRes);
+			tinfo.cbSize := SizeOf(tinfo);
+			tinfo.HWND := Wnd;
+			tinfo.uId := 1;
+			iRes := SendMessage(hWndTip, TTM_GETBUBBLESIZE, 0, integer(@tinfo));
 
-                FillChar(monEx, SizeOf(TMonitorInfoEx), #0);
-                monEx.cbSize := SizeOf(monEx);
-                for iCnt := 0 to Screen.MonitorCount - 1 do
-                begin
+			if iRes > 0 then
+			begin
+				i := HIWORD(iRes);
 
-                  GetMonitorInfo(Screen.Monitors[iCnt].Handle, @monEx);
-                  hm := MonitorFromWindow(hWndTip, MONITOR_DEFAULTTONEAREST);
-                  // if PtInRect(monEx.rcMonitor , TP) then
-                  if hm = Screen.Monitors[iCnt].Handle then
-                  begin
-                    Mon := Screen.Monitors[iCnt];//Screen.MonitorFromRect(rc);
+				FillChar(monEx, SizeOf(TMonitorInfoEx), #0);
+				monEx.cbSize := SizeOf(monEx);
+				for iCnt := 0 to Screen.MonitorCount - 1 do
+				begin
 
-                    if ((RC.Top + i + 20) > Mon.WorkareaRect.Bottom) then
-                        sTop := RC.Top - i - 20// - RC2.top)
-                    else if (RC.Top + RC.Bottom) > mon.WorkareaRect.Bottom then
-                        sTop := RC.Top - i - 20
-                    else
-                        sTop := RC.Top + RC.Bottom;
-                    if sTop < 0 then
-                      sTop := 0;
-                       OutputDebugString(PWIDECHAR(inttostr(rc.Bottom)));
-                       OutputDebugString(PWidechar(inttostr(RC.Top + i + 20)));
-                      if (RC.Left + LOWORD(iRes)) > (Mon.WorkareaRect.Left + Mon.WorkareaRect.Right) then
-                          sLeft := Mon.WorkareaRect.Right - LOWORD(iRes)
-                      else if RC.Left < Mon.WorkareaRect.Left then
-                          sLeft := Mon.WorkareaRect.Left
-                      else
-                          sLeft := RC.Left;
+					GetMonitorInfo(Screen.Monitors[iCnt].Handle, @monEx);
+					hm := MonitorFromWindow(hWndTip, MONITOR_DEFAULTTONEAREST);
+					// if PtInRect(monEx.rcMonitor , TP) then
+					if hm = Screen.Monitors[iCnt].Handle then
+					begin
+						Mon := Screen.Monitors[iCnt]; // Screen.MonitorFromRect(rc);
 
-                      SetBalloonPos(sLeft, sTop);
-                      break;
-                  end;
-                end;
-            end
-            else
-            begin
-                SetBalloonPos(sLeft, sTop);
-            end;
+						if ((RC.Top + i + 20) > Mon.WorkareaRect.Bottom) then
+							sTop := RC.Top - i - 20 // - RC2.top)
+						else if (RC.Top + RC.Bottom) > Mon.WorkareaRect.Bottom then
+							sTop := RC.Top - i - 20
+						else
+							sTop := RC.Top + RC.Bottom;
+						if sTop < 0 then
+							sTop := 0;
+						OutputDebugString(pWidechar(inttostr(RC.Bottom)));
+						OutputDebugString(pWidechar(inttostr(RC.Top + i + 20)));
+						if (RC.Left + LOWORD(iRes)) >
+							(Mon.WorkareaRect.Left + Mon.WorkareaRect.Right) then
+							sLeft := Mon.WorkareaRect.Right - LOWORD(iRes)
+						else if RC.Left < Mon.WorkareaRect.Left then
+							sLeft := Mon.WorkareaRect.Left
+						else
+							sLeft := RC.Left;
 
-    except
-        on E:Exception do
-        begin
-            ShowErr(E.Message);
-        end;
-    end;
+						SetBalloonPos(sLeft, sTop);
+						break;
+					end;
+				end;
+			end
+			else
+			begin
+				SetBalloonPos(sLeft, sTop);
+			end;
+
+		except
+			on E: Exception do
+			begin
+				ShowErr(E.Message);
+			end;
+		end;
+
 
 end;
 
@@ -5802,50 +5770,48 @@ var
     RC: Tagrect;
 begin
 
-    if Assigned(TTreeData(pNode.Data^).Acc) then
-    begin
 
-      if pageControl1.ActivePageIndex = 0 then
-      begin
-      	TreeMode := True;
-      	VarParent := TTreeData(pNode.Data^).iID;
-      	iAcc :=  TTreeData(pNode.Data^).Acc;
 
-          b := ShowMSAAText;
-          GetNaviState;
-          if (acRect.Checked) then
-          begin
-            ShowRectWnd(clRed);
-          end;
-          if b then
-          begin
-            if (acShowTip.Checked) then
-            begin
-              ShowTipWnd;
-            end;
-          end
-      end;
-    end
-    else if Assigned(TTreeData(pNode.Data^).uiEle) then
-    begin
-    	if pageControl1.ActivePageIndex = 1 then
-      begin
-      TreeMode := True;
-      UIEle := TTreeData(pNode.Data^).uiEle;
+	if (Assigned(TTreeData(pNode.Data^).Acc)) and
+		(PageControl1.ActivePageIndex = 0) then
+	begin
+		Treemode := True;
+		VarParent := TTreeData(pNode.Data^).iID;
+		iAcc := TTreeData(pNode.Data^).Acc;
 
-      ShowText4UIA;
-      GetNaviState;
-      if (acRect.Checked) then
-      begin
-        UIEle.Get_CurrentBoundingRectangle(RC);
-        ShowRectWnd2(clRed, Rect(rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top));
-      end;
-      if (acShowTip.Checked) then
-      begin
-        ShowTipWnd;
-      end;
-      end;
-    end;
+		b := ShowMSAAText;
+		GetNaviState;
+		if (acRect.Checked) then
+		begin
+			ShowRectWnd(clRed);
+		end;
+		if b then
+		begin
+			if (acShowTip.Checked) then
+			begin
+				ShowTipWnd;
+			end;
+		end
+	end;
+	if (Assigned(TTreeData(pNode.Data^).uiEle)) and
+		(PageControl1.ActivePageIndex = 1) then
+	begin
+		Treemode := True;
+		uiEle := TTreeData(pNode.Data^).uiEle;
+
+		ShowText4UIA;
+		GetNaviState;
+		if (acRect.Checked) then
+		begin
+			uiEle.Get_CurrentBoundingRectangle(RC);
+			ShowRectWnd2(clRed, Rect(RC.Left, RC.Top, RC.Right - RC.Left,
+				RC.Bottom - RC.Top));
+		end;
+		if (acShowTip.Checked) then
+		begin
+			ShowTipWnd;
+		end;
+	end;
 
 end;
 
@@ -5919,8 +5885,8 @@ begin
 		Exit;
 
 	try
-		if (((not Assigned(TreeTH)) or (TreeTH.Finished)) and (not mnutvUIA.Checked)) or
-			(((not Assigned(UIATH)) or (UIATH.Finished)) and (mnutvUIA.Checked)) then
+		if (((not Assigned(TreeTH)) or (TreeTH.Finished)) and (ActTV = TreeView1)) or
+			(((not Assigned(UIATH)) or (UIATH.Finished)) and (ActTV = tbUIA)) then
 		begin
 			SetTreeMode(Node);
 		end;
@@ -6184,8 +6150,8 @@ begin
 		Exit;
 
 	try
-		if (((not Assigned(TreeTH)) or (TreeTH.Finished)) and (not mnutvUIA.Checked)) or
-			(((not Assigned(UIATH)) or (UIATH.Finished)) and (mnutvUIA.Checked)) then
+		if (((not Assigned(TreeTH)) or (TreeTH.Finished)) and (ActTV = TreeView1)) or
+			(((not Assigned(UIATH)) or (UIATH.Finished)) and (ActTV = tbUIA)) then
 		begin
 			SetTreeMode(Node);
 
@@ -8656,11 +8622,11 @@ begin
   else
   begin
   	ActTV := tbUIA;
-  	acShowTip.Enabled := False;
-  	if Assigned(WndTip) then
+  	acShowTip.Enabled := True;
+  	{if Assigned(WndTip) then
 		begin
 			WndTip.Visible := false;
-		end;
+		end;}
   end;
   GetNaviState;
 end;
