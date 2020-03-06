@@ -1310,6 +1310,7 @@ var
   iSEle: ISimpleDOMNode;
   eleHWND, paHWND: HWND;
   gtcStart, gtcStop: cardinal;
+  RC: tagRECT;
 	function GetiLegacy: HResult;
 	begin
   	result := S_FALSE;
@@ -1369,6 +1370,24 @@ begin
 		mnuTVSSel.Enabled := false;
 		mnuTVOSel.Enabled := false;
     Memo1.ClearAll;
+    if acOnlyFocus.Checked then
+		begin
+			if Assigned(uiEle) then
+			begin
+				uiEle.Get_CurrentBoundingRectangle(RC);
+				ShowRectWnd2(clYellow, Rect(RC.Left, RC.Top, RC.Right - RC.Left,
+					RC.Bottom - RC.Top));
+			end;
+		end
+		else if acRect.Checked then
+		begin
+			if Assigned(uiEle) then
+			begin
+				uiEle.Get_CurrentBoundingRectangle(RC);
+				ShowRectWnd2(clBlue, Rect(RC.Left, RC.Top, RC.Right - RC.Left,
+					RC.Bottom - RC.Top));
+			end;
+		end;
   end
   else
   begin
@@ -1403,6 +1422,9 @@ begin
 				thMSEx.Free;
 				thMSEx := nil;
 			end;
+
+
+
       if (mnutvUIA.Checked) or (TreeMode) then
       	sUIATxt := UIAText;
 
@@ -1419,6 +1441,7 @@ begin
           end;
           if (mnuMSAA.Checked) and (mnutvUIA.Checked) then
           	sMSAATxt := MSAAText(tAcc);
+          iAcc := tAcc;
           hr := iAcc.QueryInterface(IID_IServiceProvider, iSP);
 					if SUCCEEDED(hr) and Assigned(iSP) then
 					begin
@@ -4799,7 +4822,8 @@ begin
       	Result := Result + #13#10 + tab + #9 + '<strong>' + lUIA[0] + '</strong>' + #13#10#9 + tab + '<ul>'
       else
 				Result := lUIA[0] + #13#10;
-
+      rNode := nil;
+      Node := nil;
       if not HTMLout then
 				rNode := SetNodeData(nil, lUIA[0], '', nil, 0);
 			for i := 0 to 54 do
@@ -4811,7 +4835,7 @@ begin
 					begin
 						if i >= 28 then
 						begin
-              if not HTMLout then
+              if (not HTMLout) and (Assigned(rNode)) then
 								Node := SetNodeData(rNode, lUIA[i + 1], '', nil, 0);
 							UIArray := nil;
 							iRes := E_FAIL;
@@ -4845,7 +4869,7 @@ begin
 												if (not mnutvUIA.Checked) and (not HTMLOut) then
 												begin
 													iaTarg := GetMSAA;
-													if Assigned(iaTarg) then
+													if Assigned(iaTarg) and (Assigned(Node)) then
 													begin
 														iaTarg.Get_accName(0, ws);
 														ND := TreeList1.GetNodeData(cNode);
@@ -4876,7 +4900,7 @@ begin
 							end
 							else
 							begin
-								if not HTMLout then
+								if (not HTMLout) and (Assigned(Node)) then
                 begin
 									ND := TreeList1.GetNodeData(Node);
 									ND.Value2 := None;
@@ -4885,7 +4909,7 @@ begin
 						end
 						else
 						begin
-							if not HTMLout then
+							if (not HTMLout) and (Assigned(rNode)) then
               begin
 								SetNodeData(rNode, lUIA[i + 1], UIAs[i], nil, 0);
 								Result := Result + lUIA[i + 1] + ':' + #9 + UIAs[i] + #13#10;
@@ -4903,11 +4927,6 @@ begin
 					begin
 						if i = 31 then
 						begin
-							if not HTMLout then
-              begin
-								Node := SetNodeData(rNode, lUIA[i + 1], '', nil, 0);
-								ND := TreeList1.GetNodeData(Node);
-              end;
 							try
 								iRes := tEle.Get_CurrentLabeledBy(ResEle);
 								if SUCCEEDED(iRes) then
@@ -4916,8 +4935,10 @@ begin
 									if not SUCCEEDED(ResEle.Get_CurrentName(ws)) then
 										ws := None;
 
-                  if not HTMLout then
+                  if (not HTMLout) and (Assigned(rNode)) then
 									begin
+                    Node := SetNodeData(rNode, lUIA[i + 1], '', nil, 0);
+										ND := TreeList1.GetNodeData(Node);
 										ND.Value2 := ws;
 										if not mnutvUIA.Checked then
 										begin
@@ -4932,7 +4953,12 @@ begin
 									end;
 								end
 								else
-									if not HTMLout then ND.Value2 := None;
+									if (not HTMLout) and (Assigned(rNode)) then
+                  begin
+                  	Node := SetNodeData(rNode, lUIA[i + 1], '', nil, 0);
+										ND := TreeList1.GetNodeData(Node);
+                  	ND.Value2 := None;
+                  end;
 							except
 								on E: Exception do
 									// UIAs[31] := E.Message;
@@ -4941,7 +4967,7 @@ begin
 						else if i = 53 then
 						begin
 							// node := nodes.AddChild(rNode, lUIA[54]);
-              if not HTMLout then
+              if (not HTMLout) and (Assigned(rNode)) then
               begin
 								Node := SetNodeData(rNode, lUIA[54], '', nil, 0);
 								Result := Result + lUIA[54];
@@ -4953,7 +4979,7 @@ begin
 							try
 								for t := 0 to 5 do
 								begin
-                	if not HTMLout then
+                	if (not HTMLout) and (Assigned(Node)) then
                   begin
 										SetNodeData(Node, lUIA[55 + t], UIAs[53 + t], nil, 0);
 										Result := Result + #9 + lUIA[55 + t] + ':' +
@@ -4973,7 +4999,7 @@ begin
 						end
 						else if i = 54 then
 						begin
-            	if not HTMLout then
+            	if (not HTMLout) and (Assigned(rNode)) then
               begin
 								SetNodeData(rNode, lUIA[61], UIAs[59], nil, 0);
 								Result := Result + lUIA[61] + ':' + #9 + UIAs[59] + #13#10;
@@ -4985,7 +5011,7 @@ begin
 						end
 						else
 						begin
-            	if not HTMLout then
+            	if (not HTMLout) and (Assigned(rNode)) then
               begin
 								SetNodeData(rNode, lUIA[i + 1], UIAs[i], nil, 0);
 								Result := Result + lUIA[i + 1] + ':' + #9 + UIAs[i] + #13#10;
@@ -5114,14 +5140,11 @@ var
     iText: ISimpleDOMText;
     tinfo: TToolInfo;
     wnd: HWND;
-    pWnd: Pointer;
     monEx: TMonitorInfoEx;
     hm: HMonitor;
-    iVW: IUIAutomationTreeWalker;
-    pEle, cEle: IUIAutomationElement;
     hr: HResult;
 begin
-    
+
 
     try
 			if (ActTV = TreeView1) and (Assigned(iAcc)) then
@@ -5804,7 +5827,7 @@ begin
 		if (acRect.Checked) then
 		begin
 			uiEle.Get_CurrentBoundingRectangle(RC);
-			ShowRectWnd2(clRed, Rect(RC.Left, RC.Top, RC.Right - RC.Left,
+			ShowRectWnd2(clBlue, Rect(RC.Left, RC.Top, RC.Right - RC.Left,
 				RC.Bottom - RC.Top));
 		end;
 		if (acShowTip.Checked) then
@@ -6060,7 +6083,7 @@ begin
 								TD^.Acc := nil;
 								TD^.uiEle := tEle;
 								TD^.iID := 0;
-								if Assigned(fcldEle) then
+								if SUCCEEDED(hr) and (Assigned(fcldEle)) then
 								begin
 									TD^.dummy := True;
 									eNode := tbUIA.Items.AddChildObject(Node, '', Pointer(TD));
@@ -6448,8 +6471,11 @@ begin
           ShowRectWnd(clRed)
         else
         begin
-          UIEle.Get_CurrentBoundingRectangle(RC);
-          ShowRectWnd2(clRed, Rect(rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top));
+        	if Assigned(UIEle) then
+          begin
+          	UIEle.Get_CurrentBoundingRectangle(RC);
+          	ShowRectWnd2(clBlue, Rect(rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top));
+          end;
         end;
     end
     else
