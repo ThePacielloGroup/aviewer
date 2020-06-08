@@ -22,14 +22,14 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms, System.UITypes, System.Types,
-  Dialogs, ImgList, ComCtrls, ToolWin,  StdCtrls, ShellAPI,
+  Dialogs, ImgList, ComCtrls, ToolWin,  StdCtrls, ShellAPI, Registry,
   IniFiles, ActnList, CommCtrl, FocusRectWnd, ClipBrd,
   ActiveX, MSHTML_tlb, ExtCtrls, Shlobj, WinAPI.oleacc,
   iAccessible2Lib_tlb, ISimpleDOM, Actions,
   Menus, Thread, TipWnd, UIAutomationClient_TLB, AccCTRLs,
   frmSet, Math, IntList, StrUtils, PermonitorApi, Multimon, VirtualTrees,
-  System.ImageList, UIA_TLB, SynEdit, SynEditHighlighter, SynHighlighterHtml, CommDlg, System.Win.TaskbarCore,
-  Vcl.Taskbar;
+  System.ImageList, UIA_TLB, CommDlg, System.Win.TaskbarCore,
+  Vcl.Taskbar, System.RegularExpressions, Vcl.OleCtrls, SHDocVw;
 
 const
     IID_IServiceProvider: TGUID = '{6D5140C1-7436-11CE-8034-00AA006009FA}';
@@ -89,6 +89,21 @@ type
         Value: OleVariant;
     end;
 
+  TObjectProcedure = procedure of object;
+
+   TWBEvent = class(TInterfacedObject, IDispatch)
+   private
+     FOnEvent: TObjectProcedure;
+   protected
+     function GetTypeInfoCount(out Count: Integer): HResult; stdcall;
+     function GetTypeInfo(Index, LocaleID: Integer; out TypeInfo): HResult; stdcall;
+     function GetIDsOfNames(const IID: TGUID; Names: Pointer; NameCount, LocaleID: Integer; DispIDs: Pointer): HResult; stdcall;
+     function Invoke(DispID: Integer; const IID: TGUID; LocaleID: Integer; Flags: Word; var Params; VarResult, ExcepInfo, ArgErr: Pointer): HResult; stdcall;
+   public
+     constructor Create(const OnEvent: TObjectProcedure) ;
+     property OnEvent: TObjectProcedure read FOnEvent write FOnEvent;
+   end;
+
   TwndMSAAV = class(TForm)//, IUIAutomationFocusChangedEventHandler)
     ImageList1: TImageList;
     ActionList1: TActionList;
@@ -142,12 +157,8 @@ type
     mnuUIA: TMenuItem;
     Panel2: TPanel;
     PB1: TAccClrBtn;
-    Panel4: TPanel;
-    PB3: TAccClrBtn;
     Panel5: TPanel;
-    Splitter2: TSplitter;
     Panel3: TPanel;
-    PB2: TAccClrBtn;
     acTVcol: TAction;
     acTLCol: TAction;
     acMMCol: TAction;
@@ -181,14 +192,11 @@ type
     mnuTVOAll: TMenuItem;
     mnuTVOSel: TMenuItem;
     mnuSelMode: TMenuItem;
-    TreeList1: TVirtualStringTree;
     acTreeFocus: TAction;
     acListFocus: TAction;
     acMemoFocus: TAction;
     ac3ctrls: TAction;
     ImageList4: TImageList;
-    Memo1: TAccSynEdit;
-    SynHTMLSyn1: TSynHTMLSyn;
     PageControl1: TPageControl;
     TabSheet1: TTabSheet;
     TabSheet2: TTabSheet;
@@ -199,6 +207,7 @@ type
     mnutvBoth: TMenuItem;
     Taskbar1: TTaskbar;
     TaskDlg: TTaskDialog;
+    wb1: TWebBrowser;
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure acFocusExecute(Sender: TObject);
     procedure acCursorExecute(Sender: TObject);
@@ -217,27 +226,19 @@ type
     procedure acMSAAModeExecute(Sender: TObject);
     procedure FormResize(Sender: TObject);
     procedure Timer2Timer(Sender: TObject);
-    procedure TreeList1Change(Sender: TObject; Node: TTreeNode);
     procedure TreeView1Change(Sender: TObject; Node: TTreeNode);
     procedure TreeView1Deletion(Sender: TObject; Node: TTreeNode);
     procedure FormDestroy(Sender: TObject);
     procedure acShowTipExecute(Sender: TObject);
     procedure mnuMSAAClick(Sender: TObject);
     procedure acTVcolExecute(Sender: TObject);
-    procedure acTLColExecute(Sender: TObject);
-    procedure acMMColExecute(Sender: TObject);
     procedure Splitter1Moved(Sender: TObject);
-    procedure Splitter2Moved(Sender: TObject);
     procedure mnuTargetClick(Sender: TObject);
     procedure mnuAllClick(Sender: TObject);
     procedure acSettingExecute(Sender: TObject);
     procedure TreeView1Hint(Sender: TObject; const Node: TTreeNode;
       var Hint: string);
-    procedure TreeList1Deletion(Sender: TObject; Node: TTreeNode);
-    //procedure TreeView1Addition(Sender: TObject; Node: TTreeNode);
-    procedure TreeList1Click(Sender: TObject);
-    procedure TreeList1KeyDown(Sender: TObject; var Key: Word;
-      Shift: TShiftState);
+
     procedure TreeView1Expanding(Sender: TObject; Node: TTreeNode;
       var AllowExpansion: Boolean);
     procedure TreeView1Addition(Sender: TObject; Node: TTreeNode);
@@ -250,12 +251,7 @@ type
     procedure mnuOAllClick(Sender: TObject);
     procedure mnuTVOSelClick(Sender: TObject);
     procedure mnuSelModeClick(Sender: TObject);
-    procedure TreeList1GetText(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex; TextType: TVSTTextType; var CellText: string);
     procedure acTreeFocusExecute(Sender: TObject);
-    procedure acListFocusExecute(Sender: TObject);
-    procedure acMemoFocusExecute(Sender: TObject);
-    procedure ac3ctrlsExecute(Sender: TObject);
-    procedure TreeList1FreeNode(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure tbUIADeletion(Sender: TObject; Node: TTreeNode);
     procedure tbUIAChange(Sender: TObject; Node: TTreeNode);
     procedure tbUIAAddition(Sender: TObject; Node: TTreeNode);
@@ -263,6 +259,8 @@ type
     procedure mnutvUIAClick(Sender: TObject);
     procedure TaskDlgVerificationClicked(Sender: TObject);
     procedure tbUIAExpanding(Sender: TObject; Node: TTreeNode; var AllowExpansion: Boolean);
+    procedure wb1NavigateComplete2(ASender: TObject; const pDisp: IDispatch; const URL: OleVariant);
+    procedure acListFocusExecute(Sender: TObject);
   private
     { Private declarations }
     bTer: boolean;
@@ -291,7 +289,6 @@ type
     UIEle: IUIAutomationElement;
     TreeTH: TreeThread;
     UIATH: TreeThread4UIA;
-    HTMLTh: HTMLThread;
     thMSEx: MSAAExTh;
     thUIAEx: UIAExTh;
     ActTV: TAccTreeview;
@@ -326,7 +323,6 @@ type
     function HTMLText: string;
     function HTMLText4FF: string;
     function ARIAText: string;
-    function SetNodeData(pNode: PVirtualNode; Text1, Text2: string; Acc: iAccessible; iID: integer): PVirtualNode;
     function SetIA2Text(pAcc: IAccessible = nil; SetTL: boolean = True): string;
 
     function GetEleName(Acc: IAccessible): string;
@@ -336,13 +332,11 @@ type
     //Thread terminate
     procedure ThDone(Sender: TObject);
     procedure ThDoneUIA(Sender: TObject);
-    procedure ThHTMLDone(Sender: TObject);
     procedure ThMSAAExDone(Sender: TObject);
     procedure RecursiveID(sID: string; isEle: ISimpleDOMNODE; Labelled: boolean = true);
     procedure ShowBalloonTip(Control: TWinControl; Icon: integer; Title: string; Text: string; RC: TRect; X, Y:integer; Track:boolean = false);
     procedure SetBalloonPos(X, Y:integer);
     procedure RecursiveACC(ParentNode: TTreeNode; ParentAcc: IAccessible);
-    procedure RecursiveIA2Rel(pNode: pVirtualNode; ia2: IAccessible2);
     function GetSameAcc: boolean;
     function IsSameUIElement(ia1, ia2: IAccessible; iID1, iID2: integer): boolean;
     procedure SetTreeMode(pNode: TTreeNode);
@@ -356,6 +350,8 @@ type
     function GetTVSelItems: string;
     procedure WMDPIChanged(var Message: TMessage); message WM_DPICHANGED;
     procedure TreeDataSave(bAll, bSave: boolean);
+    procedure WBOnClick;
+    procedure WriteHTML;
   protected
     { Protected declarations  }
 
@@ -385,9 +381,8 @@ var
   wndMSAAV: TwndMSAAV;
   ac: IAccessible;
   DMode: boolean;
-
+  sBodyTxt, sCodeTxt: string;
   refNode, LoopNode, sNode: TTreeNode;
-  refVNode: PVirtualNode;
   TBList, uTBList, DList, uDList: TIntegerList;
   lMSAA: array[0..11] of string;
   lIA2: array [0..15] of string;
@@ -400,6 +395,22 @@ implementation
 
 
 {$R *.dfm}
+
+function GetTemp(var S: String): Boolean;
+var
+  Len: Integer;
+begin
+  Len := Windows.GetTempPath(0, nil);
+  if Len > 0 then
+  begin
+    SetLength(S, Len);
+    Len := Windows.GetTempPath(Len, PChar(S));
+    SetLength(S, Len);
+    S := SysUtils.IncludeTrailingPathDelimiter(S);
+    Result := Len > 0;
+  end else
+    Result := False;
+end;
 
 function DoubleToInt(d: double): integer;
 begin
@@ -1362,14 +1373,11 @@ begin
 
   if (mnutvUIA.Checked) then
   begin
-  	TreeList1.BeginUpdate;
-		TreeList1.Clear;
-		TreeList1.EndUpdate;
+
 		mnuTVSAll.Enabled := false;
 		mnuTVOAll.Enabled := false;
 		mnuTVSSel.Enabled := false;
 		mnuTVOSel.Enabled := false;
-    Memo1.ClearAll;
     if acOnlyFocus.Checked then
 		begin
 			if Assigned(uiEle) then
@@ -1391,13 +1399,7 @@ begin
   end
   else
   begin
-  	if TreeMode then
-    begin
-    	TreeList1.BeginUpdate;
-		TreeList1.Clear;
-		TreeList1.EndUpdate;
-    Memo1.ClearAll;
-    end;
+
   end;
 
   iDefIndex := -1;
@@ -1546,14 +1548,7 @@ begin
       end;
       if mnutvUIA.Checked then
 			begin
-				if TreeList1.ChildCount[TreeList1.RootNode] > 0 then
-				begin
-					TreeList1.Expanded[TreeList1.RootNode];
-					TreeList1.OffsetX := 0;
-					TreeList1.OffsetY := 0;
-					TreeList1.Selected[TreeList1.RootNode] := True;
 
-				end;
 				if Treemode then
 					GetNaviState;
 			end;
@@ -1583,6 +1578,7 @@ var
     AWnd: HWND;
     bSame: boolean;
     gtcStart, gtcStop: cardinal;
+
     procedure GetAccTxt;
 		begin
 			iAcc.Get_accName(VarParent, ws);
@@ -1623,24 +1619,15 @@ Example:
 		Exit;
   if (not mnutvUIA.Checked) then
   begin
-		TreeList1.BeginUpdate;
-		TreeList1.Clear;
-		TreeList1.EndUpdate;
+
 		mnuTVSAll.Enabled := false;
 		mnuTVOAll.Enabled := false;
 		mnuTVSSel.Enabled := false;
 		mnuTVOSel.Enabled := false;
-    Memo1.ClearAll;
   end
   else
   begin
-  	if TreeMode then
-    begin
-    	TreeList1.BeginUpdate;
-		TreeList1.Clear;
-		TreeList1.EndUpdate;
-    Memo1.ClearAll;
-    end;
+
   end;
 	iDefIndex := -1;
 	LoopNode := nil;
@@ -1651,7 +1638,8 @@ Example:
   sARIATxt := '';
   sIA2Txt := '';
   nSelected := False;
-
+  sBodyTxt := '';
+  sCodeTxt := '';
 
 		GetNaviState(True);
 		CEle := nil;
@@ -1679,6 +1667,9 @@ Example:
 			thMSEx.Free;
 			thMSEx := nil;
 		end;
+
+
+    try
 
 			if (mnuMSAA.Checked) and ((not mnutvUIA.Checked) or (TreeMode)) then
 				sMSAAtxt := MSAAText;
@@ -1914,129 +1905,69 @@ Example:
 					sUIATxt := UIAText;
 				if Treemode then
 					GetNaviState;
-        if TreeList1.ChildCount[TreeList1.RootNode] > 0 then
-				begin
-					TreeList1.Expanded[TreeList1.RootNode];
-					TreeList1.OffsetX := 0;
-					TreeList1.OffsetY := 0;
-					TreeList1.Selected[TreeList1.RootNode] := True;
-					// GetNaviState;
-				end;
+        WriteHTML;
       end;
-
-		Result := True;
-end;
-
-
-
-procedure TwndMSAAV.RecursiveIA2Rel(pNode: PVirtualnode; ia2: IAccessible2);
-var
-    isp: iserviceprovider;
-    iInter: IInterface;
-    ia2Targ: iaccessible2;
-    iaTarg: IAccessible;
-    hr, iRole, t, p, iTarg, iRel: integer;
-    cNode, ccNode, cccNode: PVirtualNode;
-    iAL: IAccessibleRelation;
-    s, ws: widestring;
-    ND: PNodeData;
-begin
-    Inc(iRefCnt);
-    if iRefCnt > 5 then
-        exit;
-    try
-        if SUCCEEDED(ia2.Get_nRelations(iRole)) then
-        begin
-            for p := 0 to iRole - 1 do
-            begin
-
-                ia2.Get_relation(p, iAL);
-                //cnode := nodes.AddChild(pNode, inttostr(p));
-                cnode := TreeList1.InsertNode(pNode, amAddChildLast, nil);
-                ND := TreeList1.GetNodeData(cnode);
-                ND.Value1 := inttostr(p);
-                ND.Value2 := '';
-                ND.Acc := nil;
-
-                iAL.Get_RelationType(s);
-
-                {ccNode := nodes.AddChild(cNode, rType);
-                TreeList1.SetNodeColumn(ccnode, 1, s);
-                ccNode := nodes.AddChild(cNode, rTarg);}
-                ccnode := TreeList1.InsertNode(cNode, amAddChildLast, nil);
-                ND := TreeList1.GetNodeData(ccnode);
-                ND.Value1 := rType;
-                ND.Value2 := s;
-                ND.Acc := nil;
-
-                ccnode := TreeList1.InsertNode(cNode, amAddChildLast, nil);
-                ND := TreeList1.GetNodeData(ccnode);
-                ND.Value1 := rTarg;
-                ND.Value2 := '';
-                ND.Acc := nil;
-
-                iAL.Get_nTargets(iTarg);
-                for t := 0 to iTarg do
-                begin
-                    iInter := nil;
-                    hr := iAL.Get_target(t, iInter);
-                    if SUCCEEDED(hr) then
-                    begin
-                        hr := iInter.QueryInterface(IID_IACCESSIBLE2, ia2Targ);
-                        if SUCCEEDED(hr) then
-                        begin
-                            hr := ia2Targ.QueryInterface
-                              (IID_IServiceProvider, iSP);
-                            if SUCCEEDED(hr) then
-                            begin
-                                hr := iSP.QueryService(IID_IACCESSIBLE,
-                                    IID_IACCESSIBLE, iaTarg);
-                                if SUCCEEDED(hr) then
-                                begin
-
-                                    // s := iaTarg.accName[0];
-                                    iaTarg.Get_accName(0, s);
-                                    ia2Targ.Role(iRole);
-                                    ws := GetIA2Role(iRole);
-                                    // iaTarg.Get_accValue(0, ws);
-                                    {cccNode := nodes.AddChild(ccNode, inttostr(t));
-                                    TreeList1.SetNodeColumn(cccNode, 1, s + ' - ' + ws);
-                                    New(TD);
-                                    TD^.Acc := iaTarg;
-                                    TD^.iID := 0;
-                                    cccNode.Data := Pointer(TD); }
-
-                                    cccnode := TreeList1.InsertNode(ccNode, amAddChildLast, nil);
-                                    ND := TreeList1.GetNodeData(cccnode);
-                                    ND.Value1 := inttostr(t);
-                                    ND.Value2 := s + ' - ' + ws;
-                                    ND.Acc := iaTarg;
-                                    ND.iID := 0;
-                                    if SUCCEEDED(ia2Targ.Get_nRelations(iRel))
-                                    then
-                                    begin
-                                        if iRel > 0 then
-                                        begin
-                                        RecursiveIA2Rel(ccNode, ia2Targ);
-                                        end;
-                                    end;
-                                end;
-                            end;
-                        end;
-                    end;
-                end;
-                { iAL.Get_RelationType(s);
-                  if i = 0 then
-                  MSAAs[5] := s
-                  else
-                  MSAAs[5] := MSAAs[5] + ', ' + s; }
-            end;
-        end;
-    except
-        on E: Exception do
-            Showerr(E.Message);
+      Result := True;
+    finally
     end;
+
 end;
+
+procedure TwndMSAAV.WriteHTML;
+var
+	List: TStringList;
+  RS:TResourceStream;
+  hr: hresult;
+  WBDoc: IHTMLDocument2;
+  arOle  : Variant;
+begin
+	if sBodyTxt = '' then
+  	exit;
+
+  List := TStringList.Create;
+	try
+		try
+			RS := TResourceStream.Create(hInstance, 'VLIST', PChar('TEXT'));
+			List.LoadFromStream(RS);
+      List.Text := StringReplace(List.Text, '%body%', sBodyTxt,
+				[rfReplaceAll, rfIgnoreCase]);
+			List.Text := StringReplace(List.Text, '%code%', sCodeTxt,
+				[rfReplaceAll, rfIgnoreCase]);
+			List.Text := StringReplace(List.Text, '%fs%', inttostr(Font.Size) + 'pt',
+				[rfReplaceAll, rfIgnoreCase]);
+			List.Text := StringReplace(List.Text, '%ff%', Font.Name,
+				[rfReplaceAll, rfIgnoreCase]);
+
+			hr := wb1.Document.QueryInterface(IID_IHTMLDOCUMENT2, WBDoc);
+			if (SUCCEEDED(hr)) and (Assigned(WBDoc)) then
+			begin
+				arOle := VarArrayCreate([0, 0], VarVariant);
+				try
+
+					VarArrayLock(arOle);
+					arOle[0] := List.Text;
+					WBDoc.Writeln(PSafeArray(System.TVarData(arOle).VArray));
+					WBDoc.close;
+					WBDoc.onclick := (TWBEvent.Create(WBOnClick) as IDispatch);
+				finally
+					VarArrayUnLock(arOle);
+					VarClear(arOle);
+				end;
+			end;
+		except
+			on E: Exception do
+			begin
+				ShowMessage(E.Message);
+				Exit;
+			end;
+		end;
+	finally
+		RS.Free;
+    List.Free;
+	end;
+end;
+
+
 
 function TwndMSAAV.IA2Text4HTML(pAcc: IAccessible = nil;
 	tab: string = ''): string;
@@ -2372,18 +2303,6 @@ begin
 
 end;
 
-function TwndMSAAV.SetNodeData(pNode: PVirtualNode; Text1, Text2: string; Acc: iAccessible; iID: integer): PVirtualNode;
-var
-  ND: PNodeData;
-begin
-  result := TreeList1.InsertNode(pNode, amAddChildLast , nil);
-  ND := TreeList1.GetNodeData(result);
-  ND.Value1 := Text1;
-  ND.Value2 := Text2;
-  ND.Acc := Acc;
-  ND.iID := iID;
-end;
-
 function TwndMSAAV.SetIA2Text(pAcc: IAccessible = nil; SetTL: boolean = True): string;
 var
 	iSP: IServiceProvider;
@@ -2394,7 +2313,6 @@ var
 
 	hr, i, iRole, t, p, iTarg, iPos, iUID: integer;
 	MSAAs: array [0 .. 13] of WideString;
-	rNode, Node, cNode, ccNode, cccNode: PVirtualNode;
 	ovChild, ovValue: OleVariant;
 	iAL: IAccessibleRelation;
 	s, ws: WideString;
@@ -2411,7 +2329,6 @@ begin
 		Exit;
 
 	// if flgIA2 = 0 then Exit;
-	rNode := nil;
 	oList := TStringList.Create;
 	try
 
@@ -2614,8 +2531,7 @@ begin
 				// nodes := TreeList1.Items;
 				if SetTL then
 				begin
-					// rNode := nodes.AddChild(nil, lIA2[0]);
-					rNode := SetNodeData(nil, lIA2[0], '', nil, 0);
+        	sBodyTxt := sBodyTxt + #13#10 + '<h1>' + lIA2[0] + '</h1><table><tbody>';
 				end;
 				for i := 0 to 11 do
 				begin
@@ -2627,14 +2543,15 @@ begin
 							// + #13#10;
 							if SetTL then
 							begin
-								// node := nodes.AddChild(rNode, lIA2[i+1]);
-								Node := SetNodeData(rNode, lIA2[i + 1], '', nil, 0);
+              	sBodyTxt := sBodyTxt + #13#10 + '<tr><th class="col2" colspan="2">' +  lIA2[i + 1] + '</th></tr><tr><td colspan="2"><table><tbody>';
+
 								for p := 0 to oList.Count - 1 do
 								begin
 									t := pos(':', oList[p]);
-									SetNodeData(Node, copy(oList[p], 0, t - 1),
-										copy(oList[p], t + 1, Length(oList[p])), nil, 0);
+                  sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  copy(oList[p], 0, t - 1) + '</td><td class="value">' + copy(oList[p], t + 1, Length(oList[p])) + '</td></tr>';
+
 								end;
+                sBodyTxt := sBodyTxt + #13#10 + '</tbody></table></td></tr>';
 							end
 							else
 							begin
@@ -2650,20 +2567,22 @@ begin
 							try
 								if SUCCEEDED(ia2.Get_nRelations(iRole)) then
 								begin
+                	if SetTL then
+                  begin
+                  	sBodyTxt := sBodyTxt + #13#10 + '<tr><th class="col2" colspan="2">' +  lIA2[i + 1] + '</th></tr><tr><td colspan="2"><table><tbody>';
+                    sBodyTxt := sBodyTxt + #13#10 + '<tr><th class="center">Type</th><th class="center">Targets</th></tr>';
+                  end;
 									for p := 0 to iRole - 1 do
 									begin
 										Result := Result + #13#10 + #9 + rType + ':';
 										ia2.Get_relation(p, iAL);
 										iAL.Get_RelationType(s);
 
-										ccNode := nil;
 
 										if SetTL then
 										begin
-											Node := SetNodeData(rNode, lIA2[i + 1], '', nil, 0);
-											cNode := SetNodeData(Node, inttostr(p), '', nil, 0);
-											SetNodeData(cNode, rType, s, nil, 0);
-											ccNode := SetNodeData(cNode, rTarg, '', nil, 0);
+                      sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' + s + '</td><td class="value"><ol>';
+
 										end;
 										Result := Result + s;
 										Result := Result + #13#10 + #9 + rTarg + ':';
@@ -2700,16 +2619,18 @@ begin
 															Result := Result + s + ' - ' + ws + #13#10 + #9;
 															if SetTL then
 															begin
-																cccNode := SetNodeData(ccNode, inttostr(t),
-																	s + ' - ' + ws, iaTarg, 0);
+                              	sBodyTxt := sBodyTxt + #13#10 + '<li>' +  s + ' - ' + ws + '</li>';
 															end;
 														end;
 													end;
 												end;
 											end;
 										end;
-
+                    if SetTL then
+                    	sBodyTxt := sBodyTxt + #13#10 + '</ol>'
 									end;
+                  if SetTL then
+                    	sBodyTxt := sBodyTxt + #13#10 + '</td></tr></tbody></table></td></tr>'
 								end;
 							except
 								on E: Exception do
@@ -2718,24 +2639,22 @@ begin
 						end
 						else if i = 9 then
 						begin
-							Node := nil;
 							if SetTL then
 							begin
-								// node := nodes.AddChild(rNode, lIA2[10]);
-								Node := SetNodeData(rNode, lIA2[10], '', nil, 0);
+              	sBodyTxt := sBodyTxt + #13#10 + '<tr><th class="col2" colspan="2">' + lIA2[10] + '</th></tr><tr><td class="col2" colspan="2"><table><tbody>';
+
 							end;
 							for t := 0 to 2 do
 							begin
 								if SetTL then
 								begin
-									// cnode := nodes.AddChild(Node, lIA2[11+t]);
-									// TreeList1.SetNodeColumn(cnode, 1, MSAAs[t+9]);
-									SetNodeData(Node, lIA2[11 + t], MSAAs[t + 9], nil, 0);
+                  sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  lIA2[11 + t] + '</td><td class="value">' + MSAAs[t + 9] + '</td></tr>';
+
 								end;
 								Result := Result + lIA2[11 + t] + ':' + #9 +
 									MSAAs[t + 9] + #13#10;
 							end;
-
+              sBodyTxt := sBodyTxt + #13#10 + '</tbody></table></td></tr>';
 						end
 						else if i = 10 then
 						begin
@@ -2746,12 +2665,13 @@ begin
 
 								if MSAAs[12] = '' then
 								begin
-									SetNodeData(rNode, lIA2[14], None, nil, 0);
-									// TreeList1.SetNodeColumn(Node, 1, None);
+                	sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  lIA2[14] + '</td><td class="value">' + none + '</td></tr>';
+
 								end
 								else
 								begin
-									Node := SetNodeData(rNode, lIA2[14], '', nil, 0);
+                	sBodyTxt := sBodyTxt + #13#10 + '<tr><th class="col2" colspan="2">' + lIA2[14] + '</th></tr><tr><td class="col2" colspan="2"><table><tbody>';
+
 									cList := TStringList.Create;
 									try
 										cList.Delimiter := ';';
@@ -2763,13 +2683,11 @@ begin
 											if cList[p] <> '' then
 											begin
 												iPos := pos(':', cList[p]);
-												SetNodeData(Node, copy(cList[p], 0, iPos - 1),
-													copy(cList[p], iPos + 1, Length(cList[p])), nil, 0);
-												// cNode := nodes.AddChild(Node, copy(cList[p], 0, iPos - 1));
-												// TreeList1.SetNodeColumn(cNode, 1, copy(cList[p], iPos + 1, length(cList[p])));
+                        sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  copy(cList[p], 0, iPos - 1) + '</td><td class="value">' + copy(cList[p], iPos + 1, Length(cList[p])) + '</td></tr>';
+
 											end;
 										end;
-
+                    sBodyTxt := sBodyTxt + #13#10 + '</tbody></table></td></tr>';
 									finally
 										cList.Free;
 									end;
@@ -2781,41 +2699,34 @@ begin
 						begin
 							if SetTL then
 							begin
-								// node := nodes.AddChild(rNode, lIA2[i+1]);
-								// TreeList1.SetNodeColumn(node, 1, MSAAs[i]);
-								SetNodeData(rNode, lIA2[15], MSAAs[13], nil, 0);
-							end;
+              	sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  lIA2[15] + '</td><td class="value">' + MSAAs[13] + '</td></tr>';
+              end;
 							Result := Result + lIA2[15] + ':' + #9 + MSAAs[13] + #13#10;
 						end
 						else
 						begin
 							if SetTL then
 							begin
-								// node := nodes.AddChild(rNode, lIA2[i+1]);
-								// TreeList1.SetNodeColumn(node, 1, MSAAs[i]);
-								SetNodeData(rNode, lIA2[i + 1], MSAAs[i], nil, 0);
-							end;
+                	sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  lIA2[i + 1] + '</td><td class="value">' + MSAAs[i] + '</td></tr>';
+              end;
+
 							Result := Result + lIA2[i + 1] + ':' + #9 + MSAAs[i] + #13#10;
 						end;
 					end;
 				end;
+        sBodyTxt := sBodyTxt + #13#10 + '</tbody></table>';
 
-				// Result := Result + lIA2[9] + ':' + #9 + MSAAs[8] + #13#10;
-				if SetTL then
-					TreeList1.Expanded[TreeList1.RootNode] := True;
-				// rNode.Expand(True);
 			end
 			else // IAccessible2 failed
 			begin
 				if SetTL then
 				begin
-					rNode := SetNodeData(nil, lIA2[0],
-						Err_Inter + '(IAccessible2)', nil, 0);
+        	sBodyTxt := sBodyTxt + #13#10 + '<h1>' + lIA2[0] + '(' + Err_Inter + ')</h1>';
+
 				end;
 			end;
 		end;
 		TipTextIA2 := Result + #13#10 + #13#10;
-		TreeList1.Expanded[rNode] := True;
 	finally
 		oList.Free;
 	end;
@@ -3299,7 +3210,6 @@ var
 	MSAAs: array [0 .. 10] of WideString;
 	ws: WideString;
 	hr: HResult;
-	Node: PVirtualNode;
 	i: integer;
 	cVal: cardinal;
 	pEle: IUIAUTOMATIONELEMENT;
@@ -3477,24 +3387,19 @@ begin
 		begin
 			// nodes := TreeList1.Items;
 			// refNode := nodes.AddChild(nil, lMSAA[0]);
-			refVNode := SetNodeData(nil, lMSAA[0] + '(UIA_LegacyIAccessible)',
-				'', nil, 0);
+      sBodyTxt := sBodyTxt + #13#10 + '<h1>' + lMSAA[0] + '(UIA_LegacyIAccessible)' + '</h1><table><tbody>';
 			for i := 0 to 10 do
 			begin
 				if (flgMSAA and TruncPow(2, i)) <> 0 then
 				begin
 					// node := nodes.AddChild(refNode, lMSAA[i+1]);
 					// TreeList1.SetNodeColumn(node, 1, MSAAs[i]);
-					Node := SetNodeData(refVNode, lMSAA[i + 1], MSAAs[i], nil, 0);
+          sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  lMSAA[i + 1] + '</td><td class="value">' + MSAAs[i] + '</td></tr>';
+
 					Result := Result + lMSAA[i + 1] + ':' + #9 + MSAAs[i] + #13#10;
-					if i = 4 then
-					begin
-						iDefIndex := Node.Index;
-					end;
+					;
 				end;
 			end;
-			// refNode.Expand(True);
-			TreeList1.Expanded[refVNode] := True;
 		end
 		else
 		begin
@@ -3510,7 +3415,7 @@ begin
 	end
   else
   begin
-  	SetNodeData(nil, lMSAA[0], Err_Inter + '(IUIAutomationLegacyIAccessiblePattern)', nil, 0);
+  	sBodyTxt := sBodyTxt + #13#10 + '<h1>' + 'IUIAutomationLegacyIAccessiblePattern(' + Err_Inter + ')</h1><table><tbody>';
   end;
 end;
 
@@ -3522,7 +3427,6 @@ var
     ovValue, ovChild: OleVariant;
     MSAAs: array [0..10] of widestring;
     ws: widestring;
-    node: pVirtualNode;
     i: integer;
     pDis: IDispatch;
     pa: IAccessible;
@@ -3699,25 +3603,21 @@ begin
         Result := lMSAA[0] + #13#10;
         if not TextOnly then
         begin
-        	//nodes := TreeList1.Items;
-        	//refNode := nodes.AddChild(nil, lMSAA[0]);
-          refVNode := SetNodeData(nil, lMSAA[0], '', nil, 0);
-        	for i := 0 to 10 do
+
+          sBodyTxt := sBodytxt + '<h1>' + lMSAA[0] + '</h1>' + #13#10 + '<table><tbody>' + #13#10;
+          for i := 0 to 10 do
         	begin
-            	if (flgMSAA and TruncPow(2, i)) <> 0 then
-            	begin
-                	//node := nodes.AddChild(refNode, lMSAA[i+1]);
-                	//TreeList1.SetNodeColumn(node, 1, MSAAs[i]);
-                  Node := SetNodeData(refVNode, lMSAA[i+1], MSAAs[i], nil, 0);
-                	Result := Result + lMSAA[i+1] + ':' + #9 + MSAAs[i] + #13#10;
-                	if i = 4 then
-                	begin
-                    	iDefIndex := Node.Index;
-                	end;
-            	end;
-        	end;
-          TreeList1.Expanded[refVNode] := True;
-          //refNode.Expand(True);
+          	if i = 4 then
+            begin
+              if (MSAAs[i] = none) or (MSAAs[i] = '') then
+              	sBodyTxt := sBodytxt + '<tr><td class="name">' +  lMSAA[i+1] + '</td><td class="value">' + MSAAs[i] + '</td></tr>' + #13#10
+              else
+            		sBodyTxt := sBodytxt + '<tr><td class="name">' +  lMSAA[i+1] + '<button type="button" id="exe_da">execute</button></td><td class="value">' + MSAAs[i] + '</td></tr>' + #13#10
+            end
+            else
+          		sBodyTxt := sBodytxt + '<tr><td class="name">' +  lMSAA[i+1] + '</td><td class="value">' + MSAAs[i] + '</td></tr>' + #13#10;
+          end;
+          sBodyTxt := sBodytxt + '</tbody></table>';
         end
         else
         begin
@@ -3737,7 +3637,11 @@ end;
 function TwndMSAAV.HTMLText: string;
 var
 	i: integer;
-	rNode: PVirtualNode;
+
+  match: TMatch;
+  matches: TMatchCollection;
+  iPos: integer;
+  atname, atValue, q, hAttrs: string;
 begin
 	if not Assigned(CEle) then
 	begin
@@ -3745,22 +3649,59 @@ begin
 
 		Exit;
 	end;
-	for i := 0 to 2 do
+  for i := 0 to 2 do
 		HTMLs[i, 1] := '';
-		rNode := SetNodeData(nil, sHTML, '', nil, 0);
+  HTMLs[0, 1] := CEle.tagName;
+  sBodyTxt := sBodyTxt + #13#10 + '<h1>' + sHTML + '</h1><table><tbody>';
+  sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  HTMLs[0, 0] + '</td><td class="value">' + HTMLs[0, 1] + '</td></tr>';
+  HTMLs[2, 1] := CEle.outerHTML;
 
-
-    if Assigned(HTMLTH) then
+  match := TRegEx.Match(HTMLs[2, 1], '<("[^"]*"|''[^'']*''|[^''">])*>');
+  if match.Success then
+  begin
+  	matches := TRegEx.matches(match.Value, '(\S+)=[""'']?((?:.(?![""'']?\s+(?:\S+)=|[>""'']))+.)[""'']?');
+    sBodyTxt := sBodyTxt + #13#10 + '<tr><th class="col2" colspan="2">' +  HTMLs[1, 0] + '</th></tr><tr><td colspan="2"><table><tbody>';
+    for i := 0 to matches.Count - 1 do
 		begin
-			HTMLTH.Terminate;
-			HTMLTH.WaitFor;
-			HTMLTH.Free;
-			HTMLTH := nil;
-		end;
 
-    HTMLTH := HTMLThread.Create(CEle, rNode);
-    HTMLTH.OnTerminate := THHTMLDone;
-    HTMLTH.Start;
+			iPos := Pos('=', matches.Item[i].Value);
+			atname := Copy(matches.Item[i].Value, 1, iPos - 1);
+			atValue := Copy(matches.Item[i].Value, iPos + 1,
+				Length(matches.Item[i].Value));
+			q := Copy(atValue, 1, 1);
+			if (q = '''') or (q = '"') then
+			begin
+				atValue := Copy(atValue, 2, Length(atValue));
+				atValue := Copy(atValue, 1, Length(atValue) - 1);
+			end;
+      sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  atname + '</td><td class="value">' + atValue + '</td></tr>';
+
+      hAttrs := hAttrs + atname + '=' + atValue + #13#10;
+
+		end;
+    sBodyTxt := sBodyTxt + #13#10 + '</tbody></table></td></tr>';
+  end
+  else
+  	sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  HTMLs[1, 0] + '</td><td class="value">' + none + '</td></tr>';
+
+  sBodyTxt := sBodyTxt + #13#10 + '</tbody></table>';
+
+  HTMLs[1, 1] := hAttrs;
+
+  sCodeTxt := StringReplace(HTMLs[2, 1], '&', '&amp;', [rfReplaceAll, rfIgnoreCase]);
+  sCodeTxt := StringReplace(sCodeTxt, '<', '&lttavwr;', [rfReplaceAll, rfIgnoreCase]);
+  sCodeTxt := StringReplace(sCodeTxt, '>', '&gttavwr;', [rfReplaceAll, rfIgnoreCase]);
+  sCodeTxt := StringReplace(sCodeTxt, '"', '&quot;', [rfReplaceAll, rfIgnoreCase]);
+  sCodeTxt := StringReplace(sCodeTxt, '&lttavwr;', '<span class="tagclr">&lt;</span>', [rfReplaceAll, rfIgnoreCase]);
+  sCodeTxt := StringReplace(sCodeTxt, '&gttavwr;', '<span class="tagclr">&gt;</span>', [rfReplaceAll, rfIgnoreCase]);
+
+  sCodeTxt := '<h1>' + HTMLs[2, 0] + '</h1>' + #13#10 + '<pre><code>' + #13#10 + sCodeTxt + #13#10 + '</code></pre>';
+
+
+  result := sHTML + #13#10 + HTMLs[0, 0] + ':' + #9 + HTMLs[0, 1] + #13#10 +
+		HTMLs[1, 0] + ':' + #9 + HTMLs[1, 1] + #13#10 + HTMLs[2, 0] + ':' + #9 +
+		HTMLs[2, 1] + #13#10#13#10;
+
 
 
 end;
@@ -3776,10 +3717,10 @@ var
     SI: Smallint;
     PU, PU2: PUINT;
     WD, tWD: Word;
-    rNode, Node, sNode: pVirtualNode;
     iText: ISimpleDOMText;
     iSP: iServiceProvider;
 begin
+
     if not Assigned(SDOM) then
     begin
         //GetNaviState(True);
@@ -3794,41 +3735,26 @@ begin
             HTMLsFF[0, 1] := PC
         else
             HTMLsFF[0, 1] := sTxt;
-        //rNode := TreeList1.Items.AddChild(nil, sHTML);
-        rNode := SetNodeData(nil, sHTML, '', nil, 0);
-        //Node := TreeList1.Items.AddChild(rNode, HTMLsFF[0, 0]);
-        //TreeList1.SetNodeColumn(node, 1, HTMLsFF[0, 1]);
-        SetNodeData(rNode, HTMLsFF[0, 0], HTMLsFF[0, 1], nil, 0);
+        sBodyTxt := sBodyTxt + #13#10 + '<h1>' + sHTML + '</h1><table><tbody>';
+        sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  HTMLsFF[0, 0] + '</td><td class="value">' + HTMLsFF[0, 1] + '</td></tr>';
+
         SDOM.get_attributes(65, aPC[0], aSI[0], aPC2[0], WD);
         if WD > 0 then
         begin
-            //Node := TreeList1.Items.AddChild(rNode, HTMLsFF[1, 0]);
-            Node := SetNodeData(rNode, HTMLsFF[1, 0], '', nil, 0);
-            sNode := Node;
-
-            for i := 0 to WD - 1 do
-            begin
-                s := LowerCase(aPC[i]);
-                if (s <> 'role') and (Copy(s, 1, 4) <> 'aria') then
-                begin
-                    try
-
-                        //Node := TreeList1.Items.AddChild(sNode, aPC[i]);
-                        //TreeList1.SetNodeColumn(node, 1, aPC2[i]);
-                        SetNodeData(sNode, aPC[i], aPC2[i], nil, 0);
-                        hattrs := hattrs + WideString(aPC[i]) + '","' + WideString(aPC2[i]) + #13#10;
-                    except
-
-                    end;
-                end;
-            end;
+					sBodyTxt := sBodyTxt + #13#10 + '<tr><th class="col2" colspan="2">' +  HTMLsFF[1, 0] + '</th></tr><td colspan="2"><table><tbody>';
+          for i := 0 to WD - 1 do
+          begin
+          	sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  aPC[i] + '</td><td class="value">' + aPC2[i] + '</td></tr>';
+            hattrs := hattrs + WideString(aPC[i]) + '","' + WideString(aPC2[i]) + #13#10;
+          end;
+          sBodyTxt := sBodyTxt + #13#10 + '</tbody></table></td></tr>';
         end
         else
         begin
-            //Node := TreeList1.Items.AddChild(rNode, HTMLsFF[1, 0]);
-            //TreeList1.SetNodeColumn(node, 1, none)
-            SetNodeData(rNode, HTMLsFF[1, 0], none, nil, 0);
+        	sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  HTMLsFF[1, 0] + '</td><td class="value">' + none + '</td></tr>';
         end;
+        sBodyTxt := sBodyTxt + #13#10 + '</tbody></table>';
+
         if hattrs = '' then
             HTMLsFF[1, 1] := none
         else
@@ -3849,14 +3775,21 @@ begin
             end;
         end;
 
+        sCodeTxt := StringReplace(PC, '&', '&amp;', [rfReplaceAll, rfIgnoreCase]);
+  			sCodeTxt := StringReplace(sCodeTxt, '<', '&lttavwr;', [rfReplaceAll, rfIgnoreCase]);
+  			sCodeTxt := StringReplace(sCodeTxt, '>', '&gttavwr;', [rfReplaceAll, rfIgnoreCase]);
+  			sCodeTxt := StringReplace(sCodeTxt, '"', '&quot;', [rfReplaceAll, rfIgnoreCase]);
+  			sCodeTxt := StringReplace(sCodeTxt, '&lttavwr;', '<span class="tagclr">&lt;</span>', [rfReplaceAll, rfIgnoreCase]);
+  			sCodeTxt := StringReplace(sCodeTxt, '&gttavwr;', '<span class="tagclr">&gt;</span>', [rfReplaceAll, rfIgnoreCase]);
+
+        sCodeTxt := '<h1>' + d + '</h1>' + #13#10 + '<pre><code>' + #13#10 + sCodeTxt + #13#10 + '</code></pre>';
+
         HTMLsFF[2, 1] := PC;
 
         Result := sHTML + #13#10 + HTMLsFF[0, 0] + ':' + #9 +  HTMLsFF[0, 1] +
                   #13#10 + HTMLsFF[1, 0] + ':' + #9 +  HTMLsFF[1, 1] +
                   #13#10 + d + ':' + #9 +  HTMLsFF[2, 1] + #13#10#13#10;
-        Memo1.Text := d + ':' + #13#10 +  HTMLsFF[2, 1] + #13#10#13#10;
-        //rNode.Expand(True);
-        TreeList1.Expanded[rNode] := true;
+
     except
 
     end;
@@ -4018,25 +3951,22 @@ var
 	iAttrCol: IHTMLATTRIBUTECOLLECTION;
 	iDomAttr: IHTMLDOMATTRIBUTE;
 	aEle: IHTMLElement;
+  iEle5: IHTMLElement5;
 	s: string;
 	List, List2: TStringList;
 	ovValue: OleVariant;
 	i: integer;
 	aAttrs, LowerS: string;
-	rNode, Node, rcNode: PVirtualNode;
 	aPC, aPC2: array [0 .. 64] of PChar;
 	aSI: array [0 .. 64] of Smallint;
 	WD: Word;
 	Serv: IServiceProvider;
 	lAcc: IAccessible;
 	RC: TRect;
+  hr : HResult;
 begin
 
-    if (CEle = nil) or (SDom = nil) then
-	begin
-		// GetNaviState(True);
-		Exit;
-	end;
+
 	if Assigned(WndLabel) then
 	begin
 		FreeAndNil(WndLabel);
@@ -4052,103 +3982,74 @@ begin
 		FreeAndNil(WndTarg);
 		WndTarg := nil;
 	end;
-
+  aAttrs := '';
 	if (Assigned(CEle)) then
 	begin
-		iAttrCol := (CEle as IHTMLDomNode).attributes as IHTMLATTRIBUTECOLLECTION;
-		for i := 0 to iAttrCol.Length - 1 do
-		begin
-			ovValue := i;
-			iDomAttr := iAttrCol.item(ovValue) as IHTMLDOMATTRIBUTE;
-			if iDomAttr.specified then
-			begin
-				s := LowerCase(VarToStr(iDomAttr.nodeName));
-				if s = 'role' then
-				begin
-					try
-						if VarHaveValue(iDomAttr.nodeValue) then
-							ARIAs[0, 1] := VarToStr(iDomAttr.nodeValue)
-						else
-							ARIAs[0, 1] := ''
-					except
-						on E: Exception do
-						begin
-							ShowErr(E.Message);
-							ARIAs[0, 1] := ''
-						end;
-					end;
-				end
-				else if copy(s, 1, 4) = 'aria' then
-				begin
+  	hr := CEle.QueryInterface(IID_IHTMLELEMENT5, iEle5);
+    if (SUCCEEDED(hr)) and (Assigned(Iele5)) then
+    begin
+      if iEle5.hasAttribute('role') then
+    		aAttrs := aAttrs + '"role","' + iEle5.role + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Activedescendant') then
+      	aAttrs := aAttrs + '"aria-Activedescendant","' + iEle5.ariaActivedescendant + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Busy') then
+      	aAttrs := aAttrs + '"aria-Busy","' + iEle5.ariaBusy + '"' + #13#10;
+    	if iEle5.hasAttribute('aria-Checked') then
+      	aAttrs := aAttrs + '"aria-Checked","' + iEle5.ariaChecked + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Controls') then
+      	aAttrs := aAttrs + '"aria-Controls","' + iEle5.ariaControls + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Describedby') then
+      	aAttrs := aAttrs + '"aria-Describedby","' + iEle5.ariaDescribedby + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Disabled') then
+      	aAttrs := aAttrs + '"aria-Disabled","' + iEle5.ariaDisabled + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Expanded') then
+      	aAttrs := aAttrs + '"aria-Expanded","' + iEle5.ariaExpanded + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Flowto') then
+      	aAttrs := aAttrs + '"aria-Flowto","' + iEle5.ariaFlowto + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Haspopup') then
+      	aAttrs := aAttrs + '"aria-Haspopup","' + iEle5.ariaHaspopup + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Hidden') then
+      	aAttrs := aAttrs + '"aria-Hidden","' + iEle5.ariaHidden + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Invalid') then
+      	aAttrs := aAttrs + '"aria-Invalid","' + iEle5.ariaInvalid + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Labelledby') then
+      	aAttrs := aAttrs + '"aria-Labelledby","' + iEle5.ariaLabelledby + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Level') then
+      	aAttrs := aAttrs + '"aria-Level","' + InttoStr(iEle5.ariaLevel) + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Live') then
+      	aAttrs := aAttrs + '"aria-Live","' + iEle5.ariaLive + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Multiselectable') then
+      	aAttrs := aAttrs + '"aria-Multiselectable","' + iEle5.ariaMultiselectable + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Owns') then
+      	aAttrs := aAttrs + '"aria-Owns","' + iEle5.ariaOwns + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Posinset') then
+      	aAttrs := aAttrs + '"aria-Posinset","' + InttoStr(iEle5.ariaPosinset) + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Pressed') then
+      	aAttrs := aAttrs + '"aria-Pressed","' + iEle5.ariaPressed + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Readonly') then
+      	aAttrs := aAttrs + '"aria-Readonly","' + iEle5.ariaReadonly + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Relevant') then
+      	aAttrs := aAttrs + '"aria-Relevant","' + iEle5.ariaRelevant + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Required') then
+      	aAttrs := aAttrs + '"aria-Required","' + iEle5.ariaRequired + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Secret') then
+      	aAttrs := aAttrs + '"aria-Secret","' + iEle5.ariaSecret + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Selected') then
+      	aAttrs := aAttrs + '"aria-Selected","' + iEle5.ariaSelected + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Setsize') then
+      	aAttrs := aAttrs + '"aria-Setsize","' + InttoStr(iEle5.ariaSetsize) + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Valuemin') then
+      	aAttrs := aAttrs + '"aria-Valuemin","' + iEle5.ariaValuemin + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Valuemax') then
+      	aAttrs := aAttrs + '"aria-Valuemax","' + iEle5.ariaValuemax + '"' + #13#10;
+      if iEle5.hasAttribute('aria-Valuenow') then
+      	aAttrs := aAttrs + '"aria-Valuenow","' + iEle5.ariaValuenow + '"' + #13#10;
 
-					try
-						if VarHaveValue(iDomAttr.nodeValue) then
-						begin
 
-							aAttrs := aAttrs + '"' + VarToStr(iDomAttr.nodeName) + '","' +
-								(iDomAttr.nodeValue) + '"' + #13#10;
-							LowerS := LowerCase(VarToStr(iDomAttr.nodeName));
-							if acRect.Checked then
-							begin
-								if LowerS = 'aria-labelledby' then
-								begin
-									aEle := (CEle.Document as IHTMLDOCUMENT3)
-										.getElementById(VarToStr(iDomAttr.nodeValue));
-									if Assigned(aEle) then
-									begin
-										if SUCCEEDED(aEle.QueryInterface(IID_IServiceProvider, Serv))
-										then
-										begin
-											if SUCCEEDED(Serv.QueryService(IID_IACCESSIBLE,
-												IID_IACCESSIBLE, lAcc)) then
-											begin
-												// if SUCCEEDED(lAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, 0)) then
-												// begin
-												lAcc.accLocation(RC.left, RC.top, RC.right,
-													RC.bottom, 0);
-												ShowLabeledWnd(clBlue, RC);
-												// end;
 
-											end;
-										end;
-									end;
-								end
-								else if LowerS = 'aria-decirbedby' then
-								begin
-									aEle := (CEle.Document as IHTMLDOCUMENT3)
-										.getElementById(VarToStr(iDomAttr.nodeValue));
-									if Assigned(aEle) then
-									begin
-										if SUCCEEDED(aEle.QueryInterface(IID_IServiceProvider, Serv))
-										then
-										begin
-											if SUCCEEDED(Serv.QueryService(IID_IACCESSIBLE,
-												IID_IACCESSIBLE, lAcc)) then
-											begin
-												// if SUCCEEDED(lAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, 0)) then
-												// begin
-												lAcc.accLocation(RC.left, RC.top, RC.right,
-													RC.bottom, 0);
-												ShowDescWnd(clBlue, RC);
-												// end;
-											end;
+    end;
 
-										end;
-									end;
-								end;
-							end;
-						end;
 
-					except
-						on E: Exception do
-						begin
-							ShowErr(E.Message);
-							aAttrs := aAttrs + '';
-						end;
-					end;
-				end;
-			end;
-		end;
 	end
 	else if (Assigned(SDom)) then
 	begin
@@ -4160,48 +4061,27 @@ begin
 			LowerS := LowerCase(aPC[i]);
 			if LowerS = 'role' then
 			begin
-				ARIAs[0, 1] := aPC2[i];
+        aAttrs := aAttrs + '"' + ARIAs[0, 1] + '","' + aPC2[i] + '"' + #13#10;
 			end
 			else if copy(LowerS, 1, 4) = 'aria' then
 			begin
 
 				aAttrs := aAttrs + '"' + aPC[i] + '","' + aPC2[i] + '"' + #13#10;
-				if acRect.Checked then
-				begin
-					if LowerS = 'aria-labelledby' then
-					begin
-						// showmessage(aPC2[i]);
-						RecursiveID(aPC2[i], SDom, True);
-					end
-					else if LowerS = 'aria-decirbedby' then
-						RecursiveID(aPC2[i], SDom, false);
-				end;
+
 			end;
 		end;
 	end;
-	if ARIAs[0, 1] = '' then
-		ARIAs[0, 1] := None;
+
 	if aAttrs = '' then
 		ARIAs[1, 1] := None
 	else
 		ARIAs[1, 1] := aAttrs;
 
-	{ rNode := TreeList1.Items.AddChild(nil, sAria);
-		Node := TreeList1.Items.AddChild(rNode, Arias[0, 0]);
-		TreeList1.SetNodeColumn(node, 1, Arias[0, 1]); }
-	rNode := SetNodeData(nil, sARIA, '', nil, 0);
-	Node := SetNodeData(rNode, ARIAs[0, 0], ARIAs[0, 1], nil, 0);
+  sBodyTxt := sBodyTxt + #13#10 + '<h1>' + sARIA + '</h1><table><tbody>';
+  if aAttrs <> '' then
+  begin
 
-	// Node := TreeList1.Items.AddChild(rNode, Arias[1, 0]);
-	if aAttrs = '' then
-	begin
-		// TreeList1.SetNodeColumn(node, 1, Arias[1, 1]);
-		SetNodeData(rNode, ARIAs[1, 0], ARIAs[1, 1], nil, 0);
-	end
-	else
-	begin
-		rcNode := Node;
-		List := TStringList.Create;
+    List := TStringList.Create;
 		List2 := TStringList.Create;
 		try
 			List.Text := aAttrs;
@@ -4209,27 +4089,30 @@ begin
 			begin
 				List2.Clear;
 				List2.CommaText := List[i];
+
 				if List2.Count >= 1 then
 				begin
-					// Node := TreeList1.Items.AddChild(rcNode, List2[0]);
 					if List2.Count >= 2 then
 					begin
-						// TreeList1.SetNodeColumn(node, 1, List2[1]);
-						SetNodeData(rcNode, List2[0], List2[1], nil, 0);
+						sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  List2[0] + '</td><td class="value">' + List2[1] + '</td></tr>';
 					end
 					else
-						SetNodeData(rcNode, List2[0], '', nil, 0);
+						sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  List2[0] + '</td><td class="value"></td></tr>';
 				end;
 			end;
 		finally
 			List.Free;
 			List2.Free;
 		end;
-	end;
-	Result := sARIA + #13#10 + ARIAs[0, 0] + ':' + #9 + ARIAs[0, 1] + #13#10 +
-		ARIAs[1, 0] + ':' + #9 + ARIAs[1, 1] + #13#10#13#10;
-	// rNode.Expand(True);
-	TreeList1.Expanded[rNode] := True;
+  end
+  else
+  begin
+  	sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  ARIAs[1, 0] + '</td><td class="value">' + ARIAs[1, 1] + '</td></tr>';
+  end;
+  sBodyTxt := sBodyTxt + #13#10 + '</tbody></table>';
+
+
+	Result := sARIA + #13#10 + ARIAs[1, 1] + #13#10#13#10;
 end;
 
 function TwndMSAAV.IsSameUIElement(ia1, ia2: IAccessible; iID1, iID2: integer): boolean;
@@ -4267,7 +4150,6 @@ function TwndMSAAV.UIAText(tEle: IUIAutomationElement = nil; HTMLout: boolean = 
 var
 	iRes, i, t, iLen, iBool, iStyleID: integer;
 	dblRV: double;
-	rNode, Node, cNode: PVirtualNode;
 	ini: TMemInifile;
 	ResEle: IUIAUTOMATIONELEMENT;
 	UIArray: IUIAutomationElementArray;
@@ -4821,11 +4703,11 @@ begin
       if HTMLout then
       	Result := Result + #13#10 + tab + #9 + '<strong>' + lUIA[0] + '</strong>' + #13#10#9 + tab + '<ul>'
       else
+      begin
 				Result := lUIA[0] + #13#10;
-      rNode := nil;
-      Node := nil;
-      if not HTMLout then
-				rNode := SetNodeData(nil, lUIA[0], '', nil, 0);
+        sBodyTxt := sBodyTxt + #13#10 + '<h1>' + lUIA[0] + '</h1><table><tbody>';
+      end;
+
 			for i := 0 to 54 do
 			begin
 
@@ -4835,8 +4717,8 @@ begin
 					begin
 						if i >= 28 then
 						begin
-              if (not HTMLout) and (Assigned(rNode)) then
-								Node := SetNodeData(rNode, lUIA[i + 1], '', nil, 0);
+              if (not HTMLout) then
+              	sBodyTxt := sBodyTxt + #13#10 + '<tr><th colspan="2">' +  lUIA[i + 1] + '</th></tr><tr><td colspan="2"><table><tbody>';
 							UIArray := nil;
 							iRes := E_FAIL;
 							if i = 28 then
@@ -4858,8 +4740,7 @@ begin
 									for t := 0 to iLen - 1 do
 									begin
 										// cNode := nodes.AddChild(Node, inttostr(t));
-                    if (not HTMLout) and (Assigned(Node)) then
-											cNode := SetNodeData(Node, inttostr(t), '', nil, 0);
+
 										ResEle := nil;
 										if SUCCEEDED(UIArray.GetElement(t, ResEle)) then
 										begin
@@ -4869,13 +4750,10 @@ begin
 												if (not mnutvUIA.Checked) and (not HTMLOut) then
 												begin
 													iaTarg := GetMSAA;
-													if Assigned(iaTarg) and (Assigned(Node)) then
+													if Assigned(iaTarg) then
 													begin
 														iaTarg.Get_accName(0, ws);
-														ND := TreeList1.GetNodeData(cNode);
-														ND.Acc := iaTarg;
-														ND.iID := 0;
-                            ND.Value2 := ws;
+
 													end;
 												end
 												else
@@ -4887,31 +4765,33 @@ begin
                         if not HTMLout then
                         begin
 													Result := Result + lUIA[i + 1] + ':' + #9 + ws + #13#10;
+                          sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  inttostr(t) + '</td><td class="value">' + ws + '</td></tr>';
                         end
                         else
                         begin
+
                         	Result := Result + #13#10#9#9 + tab + '<li>' +  lUIA[i+1] + ': ' + ws + ';</li>';
                         end;
 											end;
 										end;
 									end;
-									TreeList1.Expanded[Node] := True;
+
 								end;
 							end
 							else
 							begin
-								if (not HTMLout) and (Assigned(Node)) then
+								if (not HTMLout)  then
                 begin
-									ND := TreeList1.GetNodeData(Node);
-									ND.Value2 := None;
+									sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name"></td><td class="value">' + none + '</td></tr>';
                 end;
 							end;
+              sBodyTxt := sBodyTxt + #13#10 +  '</tbody></table></td></tr>';
 						end
 						else
 						begin
-							if (not HTMLout) and (Assigned(rNode)) then
+							if (not HTMLout)  then
               begin
-								SetNodeData(rNode, lUIA[i + 1], UIAs[i], nil, 0);
+                sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  lUIA[i + 1] + '</td><td class="value">' + UIAs[i] + '</td></tr>';
 								Result := Result + lUIA[i + 1] + ':' + #9 + UIAs[i] + #13#10;
               end
               else
@@ -4935,16 +4815,9 @@ begin
 									if not SUCCEEDED(ResEle.Get_CurrentName(ws)) then
 										ws := None;
 
-                  if (not HTMLout) and (Assigned(rNode)) then
+                  if (not HTMLout)  then
 									begin
-                    Node := SetNodeData(rNode, lUIA[i + 1], '', nil, 0);
-										ND := TreeList1.GetNodeData(Node);
-										ND.Value2 := ws;
-										if not mnutvUIA.Checked then
-										begin
-											ND.Acc := GetMSAA;
-											ND.iID := 0;
-										end;
+                    sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  lUIA[i + 1] + '</td><td class="value">' + ws + '</td></tr>';
 										Result := Result + lUIA[i + 1] + ':' + #9 + ws + #13#10;
 									end
 									else
@@ -4953,11 +4826,9 @@ begin
 									end;
 								end
 								else
-									if (not HTMLout) and (Assigned(rNode)) then
+									if (not HTMLout) then
                   begin
-                  	Node := SetNodeData(rNode, lUIA[i + 1], '', nil, 0);
-										ND := TreeList1.GetNodeData(Node);
-                  	ND.Value2 := None;
+                  	sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  lUIA[i + 1] + '</td><td class="value">' + none + '</td></tr>';
                   end;
 							except
 								on E: Exception do
@@ -4967,9 +4838,9 @@ begin
 						else if i = 53 then
 						begin
 							// node := nodes.AddChild(rNode, lUIA[54]);
-              if (not HTMLout) and (Assigned(rNode)) then
+              if (not HTMLout) then
               begin
-								Node := SetNodeData(rNode, lUIA[54], '', nil, 0);
+              	sBodyTxt := sBodyTxt + #13#10 + '<tr><th colspan="2">' +  lUIA[54] + '</th></tr><tr><td colspan="2"><table><tbody>';
 								Result := Result + lUIA[54];
               end
               else
@@ -4979,9 +4850,9 @@ begin
 							try
 								for t := 0 to 5 do
 								begin
-                	if (not HTMLout) and (Assigned(Node)) then
+                	if (not HTMLout)  then
                   begin
-										SetNodeData(Node, lUIA[55 + t], UIAs[53 + t], nil, 0);
+                  	sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  lUIA[55 + t] + '</td><td class="value">' + UIAs[53 + t] + '</td></tr>';
 										Result := Result + #9 + lUIA[55 + t] + ':' +
 											UIAs[53 + t] + #13#10;
                   end
@@ -4990,8 +4861,9 @@ begin
                   	Result := Result + #13#10#9#9#9 + tab + '<li>' +  lUIA[55 + t] + ': ' + UIAs[53 + t] + ';</li>';
                   end;
 								end;
-								if not HTMLout then TreeList1.Expanded[Node] := True
-                else Result := Result + #13#10#9#9#9 + tab + '</ul>' +  #13#10#9#9 + tab + '</li>';
+                if HTMLout then Result := Result + #13#10#9#9#9 + tab + '</ul>' +  #13#10#9#9 + tab + '</li>'
+                else
+                	sBodyTxt := sBodyTxt + #13#10 +  '</tbody></table></td></tr>';
 							except
 								on E: Exception do
 									// UIAs[31] := E.Message;
@@ -4999,9 +4871,9 @@ begin
 						end
 						else if i = 54 then
 						begin
-            	if (not HTMLout) and (Assigned(rNode)) then
+            	if (not HTMLout)  then
               begin
-								SetNodeData(rNode, lUIA[61], UIAs[59], nil, 0);
+              	sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  lUIA[61] + '</td><td class="value">' + UIAs[59] + '</td></tr>';
 								Result := Result + lUIA[61] + ':' + #9 + UIAs[59] + #13#10;
               end
               else
@@ -5011,9 +4883,9 @@ begin
 						end
 						else
 						begin
-            	if (not HTMLout) and (Assigned(rNode)) then
+            	if (not HTMLout)  then
               begin
-								SetNodeData(rNode, lUIA[i + 1], UIAs[i], nil, 0);
+              	sBodyTxt := sBodyTxt + #13#10 + '<tr><td class="name">' +  lUIA[i + 1] + '</td><td class="value">' + UIAs[i] + '</td></tr>';
 								Result := Result + lUIA[i + 1] + ':' + #9 + UIAs[i] + #13#10;
               end
               else
@@ -5024,13 +4896,28 @@ begin
 					end;
 				end;
 			end;
-			if not HTMLout then TreeList1.Expanded[rNode] := True;
+			if not HTMLout then sBodyTxt := sBodyTxt + #13#10 + '</tbody></table>';
 		end;
   finally
   end;
 
 end;
 
+
+procedure TwndMSAAV.wb1NavigateComplete2(ASender: TObject; const pDisp: IDispatch; const URL: OleVariant);
+var
+	iDoc2: IHTMLDocument2;
+  hr: hresult;
+begin
+	if Assigned(WB1.Document) then
+   begin
+   	hr := WB1.Document.QueryInterface(IID_IHTMLDOCUMENT2, iDoc2);
+    if (SUCCEEDED(hr)) and (Assigned(iDoc2)) then
+    begin
+      iDoc2.onclick  := (TWBEvent.Create(WBOnClick) as IDispatch);
+    end;
+   end;
+end;
 
 procedure TwndMSAAV.SetBalloonPos(X, Y:integer);
 begin
@@ -5494,7 +5381,6 @@ begin
 				ini.WriteInteger('Settings', 'Left', left);
 				// P2W, P4H: integer;
 				ini.WriteInteger('Settings', 'P2W', Panel2.Width);
-				ini.WriteInteger('Settings', 'P4H', Panel4.Height);
 				ini.WriteBool('Settings', 'vMSAA', mnuMSAA.Checked);
 				ini.WriteBool('Settings', 'vARIA', mnuARIA.Checked);
 				ini.WriteBool('Settings', 'vHTML', mnuHTML.Checked);
@@ -5526,13 +5412,6 @@ begin
 			UIATH := nil;
 		end;
 
-    if Assigned(HTMLTH) then
-		begin
-			HTMLTH.Terminate;
-			HTMLTH.WaitFor;
-			HTMLTH.Free;
-			HTMLTH := nil;
-		end;
 
     if Assigned(thMSEx) then
 		begin
@@ -5559,6 +5438,29 @@ begin
 	end;
 end;
 
+procedure TwndMSAAV.WBOnClick;
+var
+   iEle: IHTMLElement;
+   iDoc2: IHTMLDocument2;
+   hr: hresult;
+   sName, sid: string;
+begin
+
+   hr := WB1.Document.QueryInterface(IID_IHTMLDOCUMENT2, iDoc2);
+   if (SUCCEEDED(hr)) and (Assigned(Idoc2)) then
+   begin
+     iEle := iDoc2.parentWindow.event.srcElement;
+     sName := LowerCase(iEle.tagName);
+     sID := iEle.id;
+     if (sName = 'button') and (sID = 'exe_da') then
+     begin
+
+       iAcc.accDoDefaultAction(VarParent);
+
+     end;
+   end;
+
+end;
 
 
 
@@ -5568,7 +5470,6 @@ var
     Rec     : TSearchRec;
     i: integer;
 begin
-
 	scList := nil;
 		bFirstTime := True;
     bPFunc := False;
@@ -5577,7 +5478,7 @@ begin
     GetDCap(handle, Defx, Defy);
     GetWindowScale(Handle, DefX, DefY, ScaleX, ScaleY);
     cDPI := DoubleToInt(DefY * ScaleY);
-    TreeList1.NodeDataSize := SizeOf(TNodeData);
+    wb1.Navigate('about:blank');
     TreeTH := nil;
     APPDir :=  IncludeTrailingPathDelimiter(ExtractFileDir(Application.ExeName));
     TransDir := IncludeTrailingPathDelimiter(AppDir + 'Languages');
@@ -5656,136 +5557,9 @@ procedure TwndMSAAV.FormResize(Sender: TObject);
 begin
 
     P2W := Panel2.Width;
-    P4H := Panel4.Height;
 end;
 
 
-procedure TwndMSAAV.TreeList1Change(Sender: TObject; Node: TTreeNode);
-var
-	RC: TRect;
-	iSP: IServiceProvider;
-	Ele: IHTMLElement;
-	SDom: ISImpleDOMNode;
-begin
-
-	if TreeList1.SelectedCount > 0 then
-	begin
-
-		if Node.Data <> nil then
-		begin
-			if acRect.Checked then
-			begin
-				if Assigned(CEle) then
-				begin
-					iSP := iAcc as IServiceProvider;
-					if (SUCCEEDED(iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement,
-						Ele))) then
-						Ele.scrollIntoView(True);
-				end
-				else if Assigned(SDom) then
-				begin
-					iSP := iAcc as IServiceProvider;
-					if (SUCCEEDED(iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE,
-						SDom))) then
-						SDom.scrollTo(True);
-				end;
-				Sleep(50);
-				TTreeData(Node.Data^).Acc.accLocation(RC.left, RC.top, RC.right,
-					RC.bottom, 0);
-				ShowTargWnd(clBlue, RC);
-			end;
-		end;
-
-	end;
-end;
-
-procedure TwndMSAAV.TreeList1Click(Sender: TObject);
-begin
-	if TreeList1.SelectedCount > 0 then
-	begin
-		if Assigned(UIAuto) and Assigned(iAcc) then
-		begin
-			if not not Assigned(iAcc) then
-			begin
-				if iDefIndex = integer(TreeList1.FocusedNode.Index) then
-				begin
-					try
-						iAcc.accDoDefaultAction(VarParent);
-					except
-
-					end;
-				end;
-			end
-			else
-				iAcc := nil;
-		end;
-	end;
-end;
-
-procedure TwndMSAAV.TreeList1Deletion(Sender: TObject; Node: TTreeNode);
-begin
-    Dispose(Node.Data);
-end;
-
-procedure TwndMSAAV.TreeList1FreeNode(Sender: TBaseVirtualTree;
-  Node: PVirtualNode);
-var
-	ND: PNodeData;
-begin
-  ND := Sender.GetNodeData(Node);
-  Finalize(ND^);
-end;
-
-procedure TwndMSAAV.TreeList1GetText(Sender: TBaseVirtualTree; Node: PVirtualNode; Column: TColumnIndex; TextType: TVSTTextType;
-  var CellText: string);
-var
-  ND: PNodeData;
-begin
-  if Sender.GetNodeData(Node) = nil then
-    exit;
-  if TextType = ttNormal then
-  begin
-    case Column of
-      0:
-      begin
-        ND := Sender.GetNodeData(Node);
-        CellText := ND.Value1;
-      end;
-      1:
-      begin
-        ND := Sender.GetNodeData(Node);
-        CellText := ND.Value2;
-      end;
-    end;
-  end;
-
-end;
-
-procedure TwndMSAAV.TreeList1KeyDown(Sender: TObject; var Key: Word;
-	Shift: TShiftState);
-
-begin
-	if (TreeList1.SelectedCount > 0) and (Key = VK_RETURN) then
-	begin
-		if Assigned(UIAuto) and Assigned(iAcc) then
-		begin
-			if not not Assigned(iAcc) then
-			begin
-
-				if iDefIndex = integer(TreeList1.FocusedNode.Index) then
-				begin
-					try
-						iAcc.accDoDefaultAction(VarParent);
-					except
-
-					end;
-				end;
-			end
-			else
-				iAcc := nil;
-		end;
-	end;
-end;
 
 procedure TwndMSAAV.SetTreeMode(pNode: TTreeNode);
 var
@@ -6231,7 +6005,7 @@ end;
 
 procedure TwndMSAAV.acListFocusExecute(Sender: TObject);
 begin
-  TreeList1.SetFocus;
+	wb1.SetFocus;
 end;
 
 procedure TwndMSAAV.acMSAAModeExecute(Sender: TObject);
@@ -6421,15 +6195,13 @@ end;
 
 procedure TwndMSAAV.acNextSExecute(Sender: TObject);
 begin
-    TreeList1.Clear;
-    Memo1.ClearAll;
+
     ExecMSAAMode(acNextS);
 end;
 
 procedure TwndMSAAV.acPrevSExecute(Sender: TObject);
 begin
-    TreeList1.Clear;
-    Memo1.ClearAll;
+
     ExecMSAAMode(acPrevS);
 end;
 
@@ -6443,16 +6215,14 @@ end;
 
 procedure TwndMSAAV.acChildExecute(Sender: TObject);
 begin
-    TreeList1.Clear;
-    Memo1.ClearAll;
+
     ExecMSAAMode(acChild);
 end;
 
 
 procedure TwndMSAAV.acParentExecute(Sender: TObject);
 begin
-    TreeList1.Clear;
-    Memo1.ClearAll;
+
     ExecMSAAMode(acParent);
 end;
 
@@ -6887,62 +6657,6 @@ end;
 
 
 
-procedure TwndMSAAV.acMemoFocusExecute(Sender: TObject);
-begin
-  Memo1.SetFocus;
-end;
-
-procedure TwndMSAAV.acMMColExecute(Sender: TObject);
-begin
-    if Panel4.Height > 12 then
-    begin
-        Panel4.Height := 12;
-        PB3.Picture.Bitmap.LoadFromResourceName(hInstance, 'UP');
-        //Panel3.Align := alClient;
-        PB2.Enabled := false;
-        acTLCol.Enabled := False;
-        Splitter2.Enabled := false;
-    end
-    else
-    begin
-        PB3.Picture.Bitmap.LoadFromResourceName(hInstance, 'DOWN');
-        if P4H <= 12 then
-            P4H := P4HDEF;
-        Panel4.Height := P4H;
-        //Panel3.Align := alBottom;
-        PB2.Enabled := True;
-        acTLCol.Enabled := True;
-        Splitter2.Enabled := True;
-    end;
-end;
-
-procedure TwndMSAAV.acTLColExecute(Sender: TObject);
-begin
-    if Panel3.Height > 12 then
-    begin
-        //Panel3.Height := 22;
-        Panel4.Height := Panel5.Height - 12;
-        PB2.Picture.Bitmap.LoadFromResourceName(hInstance, 'DOWN');
-        //Panel4.Align := alClient;
-        PB3.Enabled := false;
-        acMMCol.Enabled := false;
-        Splitter2.Enabled := false;
-    end
-    else
-    begin
-        PB2.Picture.Bitmap.LoadFromResourceName(hInstance, 'UP');
-        if P4H <= 12 then
-            P4H := P4HDEF;
-        if P4H = Panel5.Height - 12 then
-            P4H := Panel5.Height div 2;
-        Panel4.Height := P4H;
-        //Panel4.Align := alBottom;
-        PB3.Enabled := True;
-        Splitter2.Enabled := True;
-        acMMCol.Enabled := True;
-    end;
-end;
-
 procedure TwndMSAAV.acTVcolExecute(Sender: TObject);
 begin
     if Panel2.Width > 12 then
@@ -6965,20 +6679,6 @@ procedure TwndMSAAV.acTreeFocusExecute(Sender: TObject);
 begin
   TreeView1.SetFocus;
 end;
-
-procedure TwndMSAAV.ac3ctrlsExecute(Sender: TObject);
-begin
-  if TreeView1.Focused then
-    TreeList1.SetFocus
-  else if TreeList1.Focused then
-    Memo1.SetFocus
-  else if Memo1.Focused then
-    TreeView1.SetFocus
-  else
-    TreeView1.SetFocus;
-end;
-
-
 
 procedure TwndMSAAV.GetNaviState(AllFalse: boolean = false);
 begin
@@ -7406,15 +7106,7 @@ begin
             mnuReg.Hint := ini.ReadString('General', 'MSAA_mnuRegHint', 'Register IAccessible2Proxy.dll');
             mnuUnReg.Hint := ini.ReadString('General', 'MSAA_mnuUnregHint', 'Unregister IAccessible2Proxy.dll');
 
-            Memo1.AccName := ini.ReadString('General', 'MSAA_CodeEdit', 'Code');
-            Memo1.Hint := ini.ReadString('General', 'MSAA_CodeEditHint', '');
-            Memo1.AccDesc := GetLongHint(Memo1.Hint);
-            TreeList1.Header.Columns[0].Text := ini.ReadString('General', 'MSAA_tlColumn1', 'Intarfece');
-            TreeList1.Header.Columns[1].Text := ini.ReadString('General', 'MSAA_tlColumn2', 'Value');
-            TreeList1.AccessibleName := PChar(ini.ReadString('General', 'MSAA_ListName', 'Result List'));
-            d := PChar(ini.ReadString('General', 'MSAA_ListName', 'Result List'));
-            SetWindowText(TreeList1.Handle, PWideChar(d));
-            TreeList1.Hint := ini.ReadString('General', 'MSAA_ListHint', '');
+
             //TreeList1.AccDesc := GetLongHint(TreeList1.Hint);
             TreeView1.AccName := PChar(ini.ReadString('General', 'MSAA_TVName', 'Accessibility Tree'));
             TreeView1.Hint := ini.ReadString('General', 'MSAA_TVHint', '');
@@ -7422,11 +7114,8 @@ begin
             UIA_fail := ini.ReadString('General', 'UIA_CreationError', 'CoCreateInstance failed. ');
 
             PB1.Hint :=  ini.ReadString('General', 'Collapse_TV_Hint', 'Collapse(or Expand) Button for TreeView');
-            PB2.Hint :=  ini.ReadString('General', 'Collapse_TL_Hint', 'Collapse(or Expand) Button for TreeList');
-            PB3.Hint :=  ini.ReadString('General', 'Collapse_CE_Hint', 'Collapse(or Expand) Button for CodeEdit');
+
             PB1.AccDesc := PB1.Hint;
-            PB2.AccDesc := PB2.Hint;
-            PB3.AccDesc := PB3.Hint;
             acTVCol.Caption := ini.ReadString('General', 'mnuTreeView', '&TreeView');
             acTLCol.Caption := ini.ReadString('General', 'mnuTreeList', 'Tree&List');
             acMMCol.Caption := ini.ReadString('General', 'mnuCodeEdit', '&CodeEdit');
@@ -7455,11 +7144,12 @@ begin
             HTMLs[1, 0] := ini.ReadString('HTML', 'Attributes', 'Attributes');
             HTMLs[2, 0] := ini.ReadString('HTML', 'Code', 'Code');
             sTypeIE := '(' + ini.ReadString('HTML', 'outerHTML', 'outerHTML') + ')';
-            HTMLs[2, 0] := HTMLs[2, 0] + StypeIE;
+
 
             HTMLsFF[0, 0] := HTMLs[0, 0];
             HTMLsFF[1, 0] := HTMLs[1, 0];
             HTMLsFF[2, 0] := HTMLs[2, 0];
+            HTMLs[2, 0] := HTMLs[2, 0] + StypeIE;
             sTxt := ini.ReadString('HTML', 'Text', 'Text');
             sTypeFF := '(' + ini.ReadString('HTML', 'innerHTML', 'innerHTML') + ')';
 
@@ -7594,7 +7284,7 @@ begin
         Height := DoubleToInt(DefH * ScaleY);
         //P2W, P4H: integer;
         Panel2.Width := ini.ReadInteger('Settings', 'P2W', 350);
-        Panel4.Height := ini.ReadInteger('Settings', 'P4H', 250);
+
 
         flgMSAA := ini.ReadInteger('Settings', 'flgMSAA', flgMSAA);
         flgIA2 := ini.ReadInteger('Settings', 'flgIA2', flgIA2);
@@ -7692,42 +7382,7 @@ begin
         PB1.Picture.Bitmap.LoadFromResourceName(hInstance, 'RIGHT');
         Splitter1.Enabled := false;
     end;
-    if Panel4.Height > 12 then
-    begin
-        P4H := Panel4.Height;
-        PB3.Picture.Bitmap.LoadFromResourceName(hInstance, 'DOWN');
-        PB2.Enabled := True;
-        acTLCol.Enabled := True;
-        //Splitter2.Enabled := True;
-    end
-    else
-    begin
-        P4H := P4HDEF;
-        PB3.Picture.Bitmap.LoadFromResourceName(hInstance, 'UP');
-        PB2.Enabled := false;
-        acTLCol.Enabled := false;
-        //Splitter2.Enabled := false;
-    end;
-    if Panel3.Height > 12 then
-    begin
-        //P4H := Panel4.Height;
-        PB2.Picture.Bitmap.LoadFromResourceName(hInstance, 'UP');
-        PB3.Enabled := True;
-        acMMCol.Enabled := True;
-        //Splitter2.Enabled := True;
-    end
-    else
-    begin
-        P4H := P4HDEF;
-        PB2.Picture.Bitmap.LoadFromResourceName(hInstance, 'DOWN');
-        PB3.Enabled := false;
-        acMMCol.Enabled := false;
-        //Splitter2.Enabled := false;
-    end;
-    if (Panel3.Height <=12) or (Panel4.Height <= 12) then
-        Splitter2.Enabled := false
-    else
-        Splitter2.Enabled := True;
+
     CoInitialize(nil);
     hr := CoCreateInstance(CLASS_CUIAutomation, nil, CLSCTX_INPROC_SERVER, IID_IUIAutomation, UIAuto);
 
@@ -7751,12 +7406,10 @@ begin
       	uiEle.Get_CurrentProcessId(iPID);
 			uiEle := nil;
     end;
-    TreeList1.Header.Columns[0].Width := TreeList1.ClientWidth div 2;
-    TreeList1.Header.Columns[1].Width := TreeList1.ClientWidth div 2;
+
     if hHook = 0 then
     begin
         ShowMessage(Msg);
-        TreeList1.Enabled := false;
         Toolbar1.Enabled := false;
         mnuSelD.Enabled := false;
     end;
@@ -8016,21 +7669,7 @@ begin
 	mnuTVSSelClick(self);
 end;
 
-function GetTemp(var S: String): Boolean;
-var
-  Len: Integer;
-begin
-  Len := Windows.GetTempPath(0, nil);
-  if Len > 0 then
-  begin
-    SetLength(S, Len);
-    Len := Windows.GetTempPath(Len, PChar(S));
-    SetLength(S, Len);
-    S := SysUtils.IncludeTrailingPathDelimiter(S);
-    Result := Len > 0;
-  end else
-    Result := False;
-end;
+
 
 function TwndMSAAV.GetEleName(Acc: IAccessible): string;
 var
@@ -8568,9 +8207,7 @@ begin
   	Width := DoubleToInt(DefW * ScaleX);
   	Height := DoubleToInt(DefH * ScaleY);
 		GetTextExtentPoint(Canvas.Handle, PWideChar(Caption), Length(PwideChar(Caption)), SZ);
-    TreeList1.Font := Font;
-    TreeList1.Header.Font := Font;
-    TreeList1.Header.Height := SZ.Height + 3;
+
 
     iHeight := DoubleToInt(16 * ScaleX);
     Imagelist4.Clear;
@@ -8610,17 +8247,12 @@ begin
     toolbar1.ButtonHeight := iHeight + 5;
     toolbar1.ButtonWidth := iHeight + 5;
     panel1.Height := iHeight + 5;
-
+    WriteHTML;
 end;
 
 procedure TwndMSAAV.Splitter1Moved(Sender: TObject);
 begin
     P2W := Panel2.Width;
-end;
-
-procedure TwndMSAAV.Splitter2Moved(Sender: TObject);
-begin
-    P4H := Panel4.Height;
 end;
 
 
@@ -8682,13 +8314,6 @@ begin
       mnuOSel.Enabled := True;
     end;
   end;
-end;
-
-procedure TwndMSAAV.ThHTMLDone(Sender: TObject);
-begin
-	sHTMLTxt := sHTML + #13#10 + HTMLs[0, 0] + ':' + #9 + HTMLs[0, 1] + #13#10 +
-		HTMLs[1, 0] + ':' + #9 + HTMLs[1, 1] + #13#10 + HTMLs[2, 0] + ':' + #9 +
-		HTMLs[2, 1] + #13#10#13#10;
 end;
 
 procedure TwndMSAAV.ThDoneUIA(Sender: TObject);
@@ -8773,5 +8398,36 @@ begin
   	SizeChange;
   end;
 
+end;
+
+constructor TWBEvent.Create(const OnEvent: TObjectProcedure) ;
+begin
+   inherited Create;
+   FOnEvent := OnEvent;
+end;
+
+function TWBEvent.GetIDsOfNames(const IID: TGUID; Names: Pointer; NameCount, LocaleID: Integer; DispIDs: Pointer): HResult;
+begin
+   Result := E_NOTIMPL;
+end;
+
+function TWBEvent.GetTypeInfo(Index, LocaleID: Integer; out TypeInfo): HResult;
+begin
+   Result := E_NOTIMPL;
+end;
+
+function TWBEvent.GetTypeInfoCount(out Count: Integer): HResult;
+begin
+   Result := E_NOTIMPL;
+end;
+
+function TWBEvent.Invoke(DispID: Integer; const IID: TGUID; LocaleID: Integer; Flags: Word; var Params; VarResult, ExcepInfo, ArgErr: Pointer): HResult;
+begin
+   if (DispID = DISPID_VALUE) then
+   begin
+     if Assigned(FOnEvent) then FOnEvent;
+     Result := S_OK;
+   end
+   else Result := E_NOTIMPL;
 end;
 end.

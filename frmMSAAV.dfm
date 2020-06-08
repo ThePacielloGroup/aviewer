@@ -2657,9 +2657,7 @@ object wndMSAAV: TwndMSAAV
       Stretch = False
       PickerColor = clBtnFace
       AccName = 'Collapse Button'
-      CtrlNext = PB2
       CtrlPrev = TreeView1
-      CtrlRight = PB2
       CtrlLeft = TreeView1
     end
     object PageControl1: TPageControl
@@ -2725,6 +2723,7 @@ object wndMSAAV: TwndMSAAV
           OnAddition = tbUIAAddition
           OnChange = tbUIAChange
           OnDeletion = tbUIADeletion
+          OnExpanding = tbUIAExpanding
           CtrlNext = PB1
           CtrlPrev = Toolbar1
           CtrlRight = PB1
@@ -2742,135 +2741,30 @@ object wndMSAAV: TwndMSAAV
     BevelOuter = bvNone
     TabOrder = 2
     TabStop = True
-    object Splitter2: TSplitter
-      Left = 0
-      Top = 435
-      Width = 582
-      Height = 5
-      Cursor = crVSplit
-      Align = alBottom
-      AutoSnap = False
-      MinSize = 12
-      OnMoved = Splitter2Moved
-      ExplicitTop = 0
-      ExplicitWidth = 633
-    end
-    object Panel4: TPanel
-      Left = 0
-      Top = 440
-      Width = 582
-      Height = 265
-      Align = alBottom
-      BevelOuter = bvNone
-      TabOrder = 1
-      TabStop = True
-      object PB3: TAccClrBtn
-        Left = 0
-        Top = 0
-        Width = 582
-        Height = 10
-        Align = alTop
-        Caption = 'Collapse CodeEdit'
-        TabOrder = 0
-        TabStop = True
-        OnClick = acMMColExecute
-        Picture.Data = {07544269746D617000000000}
-        InColor = clBtnFace
-        CaptionLeft = -100
-        CaptionTop = -100
-        Stretch = False
-        PickerColor = clBtnFace
-        AccName = 'Collapse Button'
-      end
-      object Memo1: TAccSynEdit
-        Left = 0
-        Top = 10
-        Width = 582
-        Height = 255
-        Align = alClient
-        Font.Charset = DEFAULT_CHARSET
-        Font.Color = clWindowText
-        Font.Height = -13
-        Font.Name = 'Courier New'
-        Font.Style = []
-        TabOrder = 1
-        Gutter.Font.Charset = DEFAULT_CHARSET
-        Gutter.Font.Color = clWindowText
-        Gutter.Font.Height = -11
-        Gutter.Font.Name = 'Courier New'
-        Gutter.Font.Style = []
-        Highlighter = SynHTMLSyn1
-        ScrollBars = ssVertical
-        TabWidth = 2
-        WordWrap = True
-        FontSmoothing = fsmNone
-        CtrlPrev = PB3
-        CtrlUp = PB3
-      end
-    end
     object Panel3: TPanel
       Left = 0
       Top = 0
       Width = 582
-      Height = 435
+      Height = 705
       Align = alClient
       BevelOuter = bvNone
       TabOrder = 0
       TabStop = True
-      object PB2: TAccClrBtn
+      object wb1: TWebBrowser
         Left = 0
         Top = 0
         Width = 582
-        Height = 10
-        Align = alTop
-        Caption = 'Collapse TreeList'
-        TabOrder = 0
-        TabStop = True
-        OnClick = acTLColExecute
-        Picture.Data = {07544269746D617000000000}
-        InColor = clBtnFace
-        CaptionLeft = -100
-        CaptionTop = -100
-        Stretch = False
-        PickerColor = clBtnFace
-        AccName = 'Collapse Button'
-        CtrlPrev = PB1
-        CtrlUp = Toolbar1
-      end
-      object TreeList1: TVirtualStringTree
-        Left = 0
-        Top = 10
-        Width = 582
-        Height = 425
+        Height = 705
         Align = alClient
-        Header.AutoSizeIndex = 0
-        Header.Font.Charset = DEFAULT_CHARSET
-        Header.Font.Color = clWindowText
-        Header.Font.Height = -11
-        Header.Font.Name = 'Tahoma'
-        Header.Font.Style = []
-        Header.Height = 27
-        Header.Options = [hoColumnResize, hoDrag, hoShowSortGlyphs, hoVisible]
-        TabOrder = 1
-        TreeOptions.PaintOptions = [toShowButtons, toShowDropmark, toShowRoot, toShowTreeLines, toThemeAware, toUseBlendedImages, toUseExplorerTheme]
-        TreeOptions.SelectionOptions = [toFullRowSelect, toAlwaysSelectNode]
-        OnClick = TreeList1Click
-        OnFreeNode = TreeList1FreeNode
-        OnGetText = TreeList1GetText
-        OnKeyDown = TreeList1KeyDown
-        Columns = <
-          item
-            MinWidth = 100
-            Position = 0
-            Width = 280
-            WideText = 'Interface'
-          end
-          item
-            MinWidth = 100
-            Position = 1
-            Width = 294
-            WideText = 'Value'
-          end>
+        TabOrder = 0
+        OnNavigateComplete2 = wb1NavigateComplete2
+        ExplicitHeight = 695
+        ControlData = {
+          4C000000273C0000DD4800000000000000000000000000000000000000000000
+          000000004C000000000000000000000001000000E0D057007335CF11AE690800
+          2B2E12620A000000000000004C0000000114020000000000C000000000000046
+          8000000000000000000000000000000000000000000000000000000000000000
+          00000000000000000100000000000000000000000000000000000000}
       end
     end
   end
@@ -2878,7 +2772,7 @@ object wndMSAAV: TwndMSAAV
     Left = 176
     Top = 400
     Bitmap = {
-      494C01010F008C01F80910001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01010F008C01380A10001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000004000000001002000000000000040
       0000000000000000000000000000000000000000000000000000BDBDBD007A7A
       7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A7A007A7A
@@ -3481,11 +3375,9 @@ object wndMSAAV: TwndMSAAV
     end
     object acTLCol: TAction
       Caption = 'Tree&List'
-      OnExecute = acTLColExecute
     end
     object acMMCol: TAction
       Caption = '&CodeEdit'
-      OnExecute = acMMColExecute
     end
     object acSetting: TAction
       Caption = 'Settings'
@@ -3504,12 +3396,10 @@ object wndMSAAV: TwndMSAAV
     object acMemoFocus: TAction
       Caption = 'acMemoFocus'
       ShortCut = 8306
-      OnExecute = acMemoFocusExecute
     end
     object ac3ctrls: TAction
       Caption = 'ac3ctrls'
       ShortCut = 8307
-      OnExecute = ac3ctrlsExecute
     end
   end
   object Timer1: TTimer
@@ -3676,7 +3566,7 @@ object wndMSAAV: TwndMSAAV
     Left = 256
     Top = 200
     Bitmap = {
-      494C01013E005000FC030F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C01013E0050003C040F000F00FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       00000000000036000000280000003C000000F0000000010020000000000000E1
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000
@@ -5576,13 +5466,6 @@ object wndMSAAV: TwndMSAAV
   object ImageList4: TImageList
     Left = 112
     Top = 198
-  end
-  object SynHTMLSyn1: TSynHTMLSyn
-    Options.AutoDetectEnabled = False
-    Options.AutoDetectLineLimit = 0
-    Options.Visible = False
-    Left = 256
-    Top = 134
   end
   object PopupMenu3: TPopupMenu
     Left = 582
