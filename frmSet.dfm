@@ -2591,38 +2591,24 @@ object WndSet: TWndSet
     Height = 473
     Caption = 'Shortcut Key'
     TabOrder = 6
-    object clShortcut: TVirtualStringTree
-      Left = 17
-      Top = 16
-      Width = 344
-      Height = 412
-      Header.AutoSizeIndex = 0
-      Header.Font.Charset = DEFAULT_CHARSET
-      Header.Font.Color = clWindowText
-      Header.Font.Height = -11
-      Header.Font.Name = 'Tahoma'
-      Header.Font.Style = []
-      Header.Height = 27
-      Header.Options = [hoColumnResize, hoDrag, hoShowSortGlyphs, hoVisible]
-      TabOrder = 0
-      TreeOptions.PaintOptions = [toShowButtons, toShowDropmark, toShowRoot, toShowTreeLines, toThemeAware, toUseBlendedImages, toUseExplorerTheme]
-      TreeOptions.SelectionOptions = [toFullRowSelect, toAlwaysSelectNode]
-      OnClick = clShortcutClick
-      OnFreeNode = clShortcutFreeNode
-      OnGetText = clShortcutGetText
+    object clShortcut: TListView
+      Left = 3
+      Top = 17
+      Width = 372
+      Height = 413
       Columns = <
         item
-          MinWidth = 100
-          Position = 0
-          Width = 200
-          WideText = 'Name'
+          AutoSize = True
+          Caption = 'Name'
         end
         item
-          MinWidth = 100
-          Position = 1
-          Width = 140
-          WideText = 'Key'
+          AutoSize = True
+          Caption = 'Shortcut key'
         end>
+      RowSelect = True
+      TabOrder = 0
+      ViewStyle = vsReport
+      OnClick = clShortcutClick
     end
   end
   object cmbShortCut: TAccComboBox

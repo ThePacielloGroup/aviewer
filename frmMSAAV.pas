@@ -27,7 +27,7 @@ uses
   ActiveX, MSHTML_tlb, ExtCtrls, Shlobj, WinAPI.oleacc,
   iAccessible2Lib_tlb, ISimpleDOM, Actions,
   Menus, Thread, TipWnd, UIAutomationClient_TLB, AccCTRLs,
-  frmSet, Math, IntList, StrUtils, PermonitorApi, Multimon, VirtualTrees,
+  frmSet, Math, IntList, StrUtils, PermonitorApi, Multimon,
   System.ImageList, UIA_TLB, CommDlg, System.Win.TaskbarCore,
   Vcl.Taskbar, System.RegularExpressions, Vcl.OleCtrls, SHDocVw;
 
@@ -6270,7 +6270,7 @@ var
     lbtb, lbmf, mfTV, mfLV, mfST, mf3ctrl: string;
     ini: TMemINiFile;
     SCD: PSCData;
-    cNode, rNode: PVirtualNode;
+    li: TListitem;
 begin
   FormStyle := fsNormal;
   timer1.Enabled := false;
@@ -6415,126 +6415,123 @@ begin
 				finally
 					ini.Free;
 				end;
-        WndSet.clShortcut.NodeDataSize := SizeOf(TSCData);
+        li := WndSet.clShortcut.Items.Add;
+        li.Caption := tbFocus.Hint;
+        li.SubItems.Add(ShortcutToText(acFocus.ShortCut));
+        New(SCD);
+        SCD.Name := tbFocus.Hint;
+        SCD.SCKey := acFocus.ShortCut;
+        SCD.actName := acFocus.Name;
+        li.Data := SCD;
 
-        rNode := WndSet.clShortcut.AddChild(nil);
-        SCD := rNode.GetData;
-        SCD^.Name := lbtb;
-  			SCD^.SCKey := 0;
-        WndSet.TFNode := rNode;
+        li := WndSet.clShortcut.Items.Add;
+        li.Caption := tbCursor.Hint;
+        li.SubItems.Add(ShortcutToText(acCursor.ShortCut));
+        New(SCD);
+        SCD.Name := tbCursor.Hint;
+        SCD.SCKey := acCursor.ShortCut;
+        SCD.actName := acCursor.Name;
+        li.Data := SCD;
 
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := tbFocus.Hint;
-  			SCD^.SCKey := acFocus.ShortCut;
-        SCD^.actName := acFocus.Name;
-        WndSet.clShortcut.Selected[cNode] := True;
-        WndSet.clShortcut.OnClick(WndSet.clShortcut);
+        li := WndSet.clShortcut.Items.Add;
+        li.Caption := tbRectAngle.Hint;
+        li.SubItems.Add(ShortcutToText(acRect.ShortCut));
+        New(SCD);
+        SCD.Name := tbRectAngle.Hint;
+        SCD.SCKey := acRect.ShortCut;
+        SCD.actName := acRect.Name;
+        li.Data := SCD;
 
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := tbCursor.Hint;
-  			SCD^.SCKey := acCursor.ShortCut;
-        SCD^.actName := acCursor.Name;
+        li := WndSet.clShortcut.Items.Add;
+        li.Caption := tbShowtip.Hint;
+        li.SubItems.Add(ShortcutToText(acShowtip.ShortCut));
+        New(SCD);
+        SCD.Name := tbShowtip.Hint;
+        SCD.SCKey := acShowtip.ShortCut;
+        SCD.actName := acShowtip.Name;
+        li.Data := SCD;
 
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := tbRectAngle.Hint;
-  			SCD^.SCKey := acRect.ShortCut;
-        SCD^.actName := acRect.Name;
+        li := WndSet.clShortcut.Items.Add;
+        li.Caption := tbCopy.Hint;
+        li.SubItems.Add(ShortcutToText(acCopy.ShortCut));
+        New(SCD);
+        SCD.Name := tbCopy.Hint;
+        SCD.SCKey := acCopy.ShortCut;
+        SCD.actName := acCopy.Name;
+        li.Data := SCD;
 
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := tbShowtip.Hint;
-  			SCD^.SCKey := acShowtip.ShortCut;
-        SCD^.actName := acShowtip.Name;
+        li := WndSet.clShortcut.Items.Add;
+        li.Caption := tbOnlyFocus.Hint;
+        li.SubItems.Add(ShortcutToText(acOnlyFocus.ShortCut));
+        New(SCD);
+        SCD.Name := tbOnlyFocus.Hint;
+        SCD.SCKey := acOnlyFocus.ShortCut;
+        SCD.actName := acOnlyFocus.Name;
+        li.Data := SCD;
 
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := tbCopy.Hint;
-  			SCD^.SCKey := acCopy.ShortCut;
-        SCD^.actName := acCopy.Name;
+        li := WndSet.clShortcut.Items.Add;
+        li.Caption := tbParent.Hint;
+        li.SubItems.Add(ShortcutToText(acParent.ShortCut));
+        New(SCD);
+        SCD.Name := tbParent.Hint;
+        SCD.SCKey := acParent.ShortCut;
+        SCD.actName := acParent.Name;
+        li.Data := SCD;
 
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := tbOnlyFocus.Hint;
-  			SCD^.SCKey := acOnlyFocus.ShortCut;
-        SCD^.actName := acOnlyFocus.Name;
+        li := WndSet.clShortcut.Items.Add;
+        li.Caption := tbChild.Hint;
+        li.SubItems.Add(ShortcutToText(acChild.ShortCut));
+        New(SCD);
+        SCD.Name := tbChild.Hint;
+        SCD.SCKey := acChild.ShortCut;
+        SCD.actName := acChild.Name;
+        li.Data := SCD;
 
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := tbParent.Hint;
-  			SCD^.SCKey := acParent.ShortCut;
-        SCD^.actName := acParent.Name;
+        li := WndSet.clShortcut.Items.Add;
+        li.Caption := tbPrevS.Hint;
+        li.SubItems.Add(ShortcutToText(acPrevS.ShortCut));
+        New(SCD);
+        SCD.Name := tbPrevS.Hint;
+        SCD.SCKey := acPrevS.ShortCut;
+        SCD.actName := acPrevS.Name;
+        li.Data := SCD;
 
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := tbChild.Hint;
-  			SCD^.SCKey := acChild.ShortCut;
-        SCD^.actName := acChild.Name;
+        li := WndSet.clShortcut.Items.Add;
+        li.Caption := tbNextS.Hint;
+        li.SubItems.Add(ShortcutToText(acNextS.ShortCut));
+        New(SCD);
+        SCD.Name := tbNextS.Hint;
+        SCD.SCKey := acNextS.ShortCut;
+        SCD.actName := acNextS.Name;
+        li.Data := SCD;
 
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := tbPrevS.Hint;
-  			SCD^.SCKey := acPrevS.ShortCut;
-        SCD^.actName := acPrevS.Name;
+        li := WndSet.clShortcut.Items.Add;
+        li.Caption := tbHelp.Hint;
+        li.SubItems.Add(ShortcutToText(acHelp.ShortCut));
+        New(SCD);
+        SCD.Name := tbHelp.Hint;
+        SCD.SCKey := acHelp.ShortCut;
+        SCD.actName := acHelp.Name;
+        li.Data := SCD;
 
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := tbNextS.Hint;
-  			SCD^.SCKey := acNextS.ShortCut;
-        SCD^.actName := acNextS.Name;
+				li := WndSet.clShortcut.Items.Add;
+        li.Caption := tbMSAAMode.Hint;
+        li.SubItems.Add(ShortcutToText(acMSAAMode.ShortCut));
+        New(SCD);
+        SCD.Name := tbMSAAMode.Hint;
+        SCD.SCKey := acMSAAMode.ShortCut;
+        SCD.actName := acMSAAMode.Name;
+        li.Data := SCD;
 
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := tbHelp.Hint;
-  			SCD^.SCKey := acHelp.ShortCut;
-        SCD^.actName := acHelp.Name;
+        li := WndSet.clShortcut.Items.Add;
+        li.Caption := tbRegister.Hint;
+        li.SubItems.Add(ShortcutToText(acSetting.ShortCut));
+        New(SCD);
+        SCD.Name := tbRegister.Hint;
+        SCD.SCKey := acSetting.ShortCut;
+        SCD.actName := acSetting.Name;
+        li.Data := SCD;
 
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := tbMSAAMode.Hint;
-  			SCD^.SCKey := acMSAAMode.ShortCut;
-        SCD^.actName := acMSAAMode.Name;
-
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := tbRegister.Hint;
-  			SCD^.SCKey := acSetting.ShortCut;
-        SCD^.actName := acSetting.Name;
-        WndSet.clShortcut.Expanded[rNode] := True;
-
-        rNode := WndSet.clShortcut.AddChild(nil);
-        SCD := rNode.GetData;
-        SCD.Name := lbmf;
-  			SCD.SCKey := 0;
-        WndSet.MFNode := rNode;
-
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := mfTV;
-  			SCD^.SCKey := acTreeFocus.ShortCut;
-        SCD^.actName := acTreeFocus.Name;
-
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := mfLV;
-  			SCD^.SCKey := acListFocus.ShortCut;
-        SCD^.actName := acListFocus.Name;
-
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := mfST;
-  			SCD^.SCKey := acMemoFocus.ShortCut;
-        SCD^.actName := acMemoFocus.Name;
-
-        cNode := WndSet.clShortcut.AddChild(rNode);
-        SCD := cNode.GetData;
-  			SCD^.Name := mf3ctrl;
-  			SCD^.SCKey := ac3ctrls.ShortCut;
-        SCD^.actName := ac3ctrls.Name;
-
-        WndSet.clShortcut.Expanded[rNode] := True;
         WndSet.SizeChange;
         if WndSet.ShowModal = mrOK then
         begin
@@ -6591,35 +6588,15 @@ begin
                 ini.WriteInteger('Settings', 'flgUIA2', flgUIA2);
                 ini.WriteBool('Settings', 'ExTooltip', Extip);
 
-                rNode := WndSet.TFNode;
-								cNode := rNode.FirstChild;
-                SCD := WndSet.clShortcut.GetNodeData(cNode);
-                ini.WriteInteger('Shortcut', SCD^.actName, SCD^.SCKey);
-            		for i := 1 to rNode.ChildCount - 1 do
+
+            		for i := 0 to WndSet.clShortcut.Items.Count - 1 do
 								begin
-									cNode := cNode.NextSibling;
-									if cNode = nil then
+									li := WndSet.clShortcut.Items[i];
+									if li = nil then
 										break
 									else
                   begin
-                  	SCD := WndSet.clShortcut.GetNodeData(cNode);
-                		ini.WriteInteger('Shortcut', SCD^.actName, SCD^.SCKey);
-                  end;
-								end;
-
-								rNode := WndSet.MFNode;
-								cNode := rNode.FirstChild;
-                SCD := WndSet.clShortcut.GetNodeData(cNode);
-                ini.WriteInteger('Shortcut', SCD^.actName, SCD^.SCKey);
-								for i := 1 to rNode.ChildCount - 1 do
-								begin
-									cNode := cNode.NextSibling;
-									if cNode = nil then
-										break
-									else
-									begin
-                  	SCD := WndSet.clShortcut.GetNodeData(cNode);
-                		ini.WriteInteger('Shortcut', SCD^.actName, SCD^.SCKey);
+                		ini.WriteInteger('Shortcut', TSCData(WndSet.clShortcut.Selected.Data^).actName, TSCData(WndSet.clShortcut.Selected.Data^).SCKey);
                   end;
 								end;
 
@@ -6638,10 +6615,10 @@ begin
         				acHelp.ShortCut := Word(ini.ReadInteger('Shortcut', acHelp.Name, 112));
         				acMSAAMode.ShortCut := Word(ini.ReadInteger('Shortcut', acMSAAMode.Name, 8308));
         				acSetting.ShortCut := Word(ini.ReadInteger('Shortcut', acSetting.Name, 8309));
-        				acTreeFocus.ShortCut := Word(ini.ReadInteger('Shortcut', acTreeFocus.Name, 8304));
+        				{acTreeFocus.ShortCut := Word(ini.ReadInteger('Shortcut', acTreeFocus.Name, 8304));
         				acListFocus.ShortCut := Word(ini.ReadInteger('Shortcut', acListFocus.Name, 8305));
         				acMemoFocus.ShortCut := Word(ini.ReadInteger('Shortcut', acMemoFocus.Name, 8306));
-        				ac3ctrls.ShortCut := Word(ini.ReadInteger('Shortcut', ac3ctrls.Name, 8307));
+        				ac3ctrls.ShortCut := Word(ini.ReadInteger('Shortcut', ac3ctrls.Name, 8307));}
 
             finally
                 ini.Free;

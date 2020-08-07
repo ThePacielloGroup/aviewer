@@ -23,8 +23,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics,
   Controls, Forms, Dialogs, StdCtrls, menus,
-  CheckLst, AccCTRLs, commctrl, iniFiles, ComObj, ShlObj, ShellAPI, Math, StrUtils,
-  VirtualTrees, PermonitorApi;
+  CheckLst, AccCTRLs, commctrl, iniFiles, ComObj, ShlObj, ShellAPI, Math, StrUtils, PermonitorApi, Vcl.ComCtrls;
 
 type
   TWndSet = class(TForm)
@@ -43,16 +42,13 @@ type
     gbShortCut: TAccGroupBox;
     cmbShortCut: TAccComboBox;
     btnAssign: TAccButton;
-    clShortcut: TVirtualStringTree;
+    clShortcut: TListView;
     procedure FormCreate(Sender: TObject);
     procedure btnRegClick(Sender: TObject);
     procedure btnUnregClick(Sender: TObject);
     procedure btnFontClick(Sender: TObject);
-    procedure clShortcutGetText(Sender: TBaseVirtualTree; Node: PVirtualNode;
-      Column: TColumnIndex; TextType: TVSTTextType; var CellText: string);
     procedure clShortcutClick(Sender: TObject);
     procedure btnAssignClick(Sender: TObject);
-    procedure clShortcutFreeNode(Sender: TBaseVirtualTree; Node: PVirtualNode);
   private
     { Private declare }
 
@@ -64,7 +60,6 @@ type
     DefFont, DefW, DefH: integer;
     ScaleX, ScaleY, DefX, DefY: double;
     cDPI, sDPI: integer;
-    TFNode, MFNode: PVirtualNode;
     procedure Load_Str(Path: string);
     procedure SizeChange;
   end;
@@ -153,7 +148,6 @@ procedure TWndSet.SizeChange;
 var
     SZ, SZ2, SZ3, SZ4,SZ5: TSize;
     iMax, iMax2, iFont, iWidth, iHeight, i: integer;
-    pNode, cNode: PVirtualnode;
     procedure GetStrSize(Cap: string; var FSZ: TSize);
     begin
 
@@ -206,34 +200,8 @@ begin
 
     clShortcut.Height := SZ5.cy * 24;
     clShortcut.Font := Font;
-    clShortcut.Header.Font := Font;
-    clShortcut.Header.Height := SZ5.cy + 3;
 
-    pNode := TFNode;
-    clShortcut.NodeHeight[pNode] := ChkList.ItemHeight;
-    cNode := pNode.FirstChild;
-    clShortcut.NodeHeight[cNode] := ChkList.ItemHeight;
-    for i := 1 to pNode.ChildCount - 1 do
-    begin
-    	cNode := cNode.NextSibling;
-      if cNode = nil then
-      	break
-      else
-      	clShortcut.NodeHeight[cNode] := ChkList.ItemHeight;
-    end;
 
-    pNode := MFNode;
-    clShortcut.NodeHeight[pNode] := ChkList.ItemHeight;
-    cNode := pNode.FirstChild;
-    clShortcut.NodeHeight[cNode] := ChkList.ItemHeight;
-    for i := 1 to pNode.ChildCount - 1 do
-    begin
-    	cNode := cNode.NextSibling;
-      if cNode = nil then
-      	break
-      else
-      	clShortcut.NodeHeight[cNode] := ChkList.ItemHeight;
-    end;
 
     cmbShortcut.Top := clShortcut.Top + clShortcut.Height + SZ5.cy;
     cmbShortcut.Width :=  (clShortcut.Width div 3) * 2 - 2;
@@ -405,37 +373,29 @@ begin
 end;
 
 procedure TWndSet.btnAssignClick(Sender: TObject);
-var
-	SCD: PSCData;
 begin
-	if clShortcut.SelectedCount > 0 then
+	if clShortcut.SelCount > 0 then
   begin
-  	if clShortcut.GetNodeLevel(clShortcut.FocusedNode) = 1 then
-    begin
-    	SCD := clShortcut.GetNodeData(clShortcut.FocusedNode);
-      if cmbShortcut.ItemIndex = 0 then
-      	SCD.SCKey := 0
-      else
-        SCD.SCKey := TextToShortCut(cmbShortcut.Items[cmbShortcut.ItemIndex] );
-      clShortcut.RepaintNode(clShortcut.FocusedNode);
-    end;
+    if cmbShortcut.ItemIndex = 0 then
+    	TSCData(clShortcut.Selected.Data^).SCKey := 0
+    else
+    	TSCData(clShortcut.Selected.Data^).SCKey := TextToShortCut(cmbShortcut.Items[cmbShortcut.ItemIndex] );
+    clShortcut.Selected.SubItems[0] := cmbShortcut.Items[cmbShortcut.ItemIndex];
+  	
   end;
 end;
 
 procedure TWndSet.clShortcutClick(Sender: TObject);
 var
-	SCD: PSCData;
   d: string;
   i: integer;
 begin
-	if clShortcut.SelectedCount > 0 then
+	if clShortcut.SelCount > 0 then
   begin
-  	if clShortcut.GetNodeLevel(clShortcut.FocusedNode) = 1 then
-    begin
+
     	cmbShortcut.Enabled := true;
     	btnAssign.Enabled := true;
-     	SCD := clShortcut.GetNodeData(clShortcut.FocusedNode);
-      d := shortcuttotext(SCD.SCKey);
+      d := ShortcutToText(TSCData(clShortcut.Selected.Data^).SCKey);
       for i := 0 to cmbShortcut.Items.Count - 1 do
       begin
         if (d = '') then
@@ -452,55 +412,11 @@ begin
           end;
         end;
       end;
-    end
-    else
-    begin
-      cmbShortcut.Enabled := false;
-    	btnAssign.Enabled := false;
-    end;
   end
   else
   begin
     cmbShortcut.Enabled := false;
     btnAssign.Enabled := false;
-  end;
-end;
-
-procedure TWndSet.clShortcutFreeNode(Sender: TBaseVirtualTree;
-  Node: PVirtualNode);
-var
-	SCD: PSCData;
-begin
-  SCD := Sender.GetNodeData(Node);
-  Finalize(SCD^);
-end;
-
-procedure TWndSet.clShortcutGetText(Sender: TBaseVirtualTree;
-  Node: PVirtualNode; Column: TColumnIndex; TextType: TVSTTextType;
-  var CellText: string);
-var
-  SCD: PSCData;
-begin
-	if not Assigned(Sender.GetNodeData(Node)) then
-    exit;
-  if TextType = ttNormal then
-  begin
-    case Column of
-      0:
-      begin
-        SCD := Sender.GetNodeData(Node);
-        CellText := SCD.Name;
-      end;
-      1:
-      begin
-      	if sender.GetNodeLevel(Node) > 0 then
-        begin
-
-        	SCD := Sender.GetNodeData(Node);
-        	CellText := ShortcuttoText(SCD.SCKey);
-        end;
-      end;
-    end;
   end;
 end;
 
@@ -550,8 +466,8 @@ begin
             btnOK.Caption := ini.ReadString('SetDLG', 'btnOK', '&OK');
             btnCancel.Caption := ini.ReadString('SetDLG', 'btnCancel', '&Cancel');
             cbExTip.Caption := ini.ReadString('General', 'ExTooltip', 'Expansion tooltip');
-            clShortcut.Header.Columns[0].Text := ini.ReadString('SetDLG', 'column1', 'Name');
-        		clShortcut.Header.Columns[1].Text := ini.ReadString('SetDLG', 'column2', 'Key');
+            clShortcut.Columns[0].Caption := ini.ReadString('SetDLG', 'column1', 'Name');
+        		clShortcut.Columns[1].Caption := ini.ReadString('SetDLG', 'column2', 'Key');
           	gbShortCut.Caption := ini.ReadString('SetDLG', 'gbShortcut', 'Shortcut Key');
             btnAssign.Caption := ini.ReadString('SetDLG', 'btnAssign', '&Assign');
             //SizeChange;
