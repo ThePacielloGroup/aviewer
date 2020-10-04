@@ -270,7 +270,7 @@ type
     QSFailed: string;
     sHTML, sTxt, sTypeIE, sTypeFF, sARIA, NodeTxt, Err_Inter: string;
     bSelMode: Boolean;
-    iFocus, iRefCnt, ShowSrcLen, iPID, iProg: integer;
+    iFocus, ShowSrcLen, iPID, iProg: integer;
     hHook: THandle;
     LangList, ClsNames: TStringList;
     rType, rTarg: string;
@@ -294,7 +294,7 @@ type
     ActTV: TAccTreeview;
     Treemode, bPFunc, bAllSave: boolean;
     //UIA: IUIAutomation;
-    P2W, P4H: integer;
+    P2W: integer;
     cDPI: integer;
     bFirstTime, bTabEvt: boolean;
     TipText, TipTextIA2, sFilter: string;
@@ -317,7 +317,7 @@ type
     procedure ExecOnlyFocus;
     function MSAAText(pAcc: IAccessible = nil; TextOnly: boolean = false): string;
     function MSAAText4UIA(TextOnly: boolean = false): string;
-    function MSAAText4Tip(pAcc: IAccessible = nil): string;
+
 
 
     function HTMLText: string;
@@ -325,7 +325,7 @@ type
     function ARIAText: string;
     function SetIA2Text(pAcc: IAccessible = nil; SetTL: boolean = True): string;
 
-    function GetEleName(Acc: IAccessible): string;
+
     function ShowTaskDlg: boolean;
     procedure SizeChange;
     procedure ExecMSAAMode(sender: TObject);
@@ -333,7 +333,6 @@ type
     procedure ThDone(Sender: TObject);
     procedure ThDoneUIA(Sender: TObject);
     procedure ThMSAAExDone(Sender: TObject);
-    procedure RecursiveID(sID: string; isEle: ISimpleDOMNODE; Labelled: boolean = true);
     procedure ShowBalloonTip(Control: TWinControl; Icon: integer; Title: string; Text: string; RC: TRect; X, Y:integer; Track:boolean = false);
     procedure SetBalloonPos(X, Y:integer);
     procedure RecursiveACC(ParentNode: TTreeNode; ParentAcc: IAccessible);
@@ -1925,9 +1924,9 @@ begin
   	exit;
 
   List := TStringList.Create;
+  RS := TResourceStream.Create(hInstance, 'VLIST', PChar('TEXT'));
 	try
 		try
-			RS := TResourceStream.Create(hInstance, 'VLIST', PChar('TEXT'));
 			List.LoadFromStream(RS);
       List.Text := StringReplace(List.Text, '%body%', sBodyTxt,
 				[rfReplaceAll, rfIgnoreCase]);
@@ -2734,197 +2733,6 @@ begin
 
 end;
 
-function TwndMSAAV.MSAAText4Tip(pAcc: IAccessible = nil): string;
-var
-    PC:PChar;
-    ovValue, ovChild: OleVariant;
-    MSAAs: array [0..10] of widestring;
-    ws: widestring;
-    i: integer;
-    pDis: IDispatch;
-    pa: IAccessible;
-begin
-    if not Assigned(iAcc) then Exit;
-    if not mnuMSAA.Checked then Exit;
-    if pAcc = nil then pAcc := iAcc;
-    for i := 0 to 10 do
-    begin
-        MSAAs[i] := none;
-    end;
-    try
-
-        ovChild := varParent;
-
-        if (flgMSAA and 1) <> 0 then
-        begin
-            try
-                if SUCCEEDED(pAcc.Get_accName(ovChild, ws)) then
-                    MSAAs[0] := ws;
-            except
-                on E: Exception do
-                    MSAAs[0] := E.Message;
-            end;
-        end;
-        if (flgMSAA and 2) <> 0 then
-        begin
-            try
-                if SUCCEEDED(pAcc.Get_accRole(ovChild, ovValue)) then
-                begin
-                    if VarHaveValue(ovValue) then
-                    begin
-                        if VarIsNumeric(ovValue) then
-                        begin
-                            PC := StrAlloc(255);
-                            GetRoleTextW(ovValue, PC, StrBufSize(PC));
-                            MSAAs[1] := PC;
-                            StrDispose(PC);
-                        end
-                        else if VarIsStr(ovValue) then
-                        begin
-                            MSAAs[1] := VarToStr(ovValue);
-                        end;
-                    end;
-                end;
-            except
-                on E: Exception do
-                    MSAAs[1] := E.Message;
-            end;
-        end;
-        if (flgMSAA and 4) <> 0 then
-        begin
-             try
-                if SUCCEEDED(pAcc.Get_accState(ovChild, ovValue)) then
-                begin
-                    if VarHaveValue(ovValue) then
-                    begin
-                        if VarIsNumeric(ovValue) then
-                        begin
-                            MSAAs[2] := GetMultiState(Cardinal(ovValue));
-                        end
-                        else if VarIsStr(ovValue) then
-                        begin
-                            MSAAs[2] := VarToStr(ovValue);
-                        end;
-                    end;
-                end;
-            except
-                on E: Exception do
-                    MSAAs[2] := E.Message;
-            end;
-        end;
-        if (flgMSAA and 8) <> 0 then
-        begin
-            try
-                if SUCCEEDED(pAcc.Get_accDescription(ovChild, ws)) then
-                if ws <> '' then
-                    MSAAs[3] := ws;
-            except
-                on E: Exception do
-                    MSAAs[3] := E.Message;
-            end;
-        end;
-
-        if (flgMSAA and 16) <> 0 then
-        begin
-            try
-                if SUCCEEDED(pAcc.Get_accDefaultAction(ovChild, ws)) then
-                if ws <> '' then
-                    MSAAs[4] := ws;
-            except
-                on E: Exception do
-                    MSAAs[4] := E.Message;
-            end;
-        end;
-
-        if (flgMSAA and 32) <> 0 then
-        begin
-            try
-                if SUCCEEDED(pAcc.Get_accValue(ovChild, ws)) then
-                if ws <> '' then
-                    MSAAs[5] := ws;
-            except
-                on E: Exception do
-                    MSAAs[5] := E.Message;
-            end;
-        end;
-
-        if (flgMSAA and 64) <> 0 then
-        begin
-            try
-                if SUCCEEDED(pAcc.Get_accParent(pDis)) then
-                begin
-                    if Assigned(pDis) then
-                    begin
-                        if SUCCEEDED(pDis.QueryInterface(IID_IACCESSIBLE, pa)) then
-                        begin
-                            pa.Get_accName(CHILDID_SELF, MSAAs[6]);
-                        end;
-                    end;
-                end;
-            except
-                on E: Exception do
-                    MSAAs[6] := E.Message;
-            end;
-        end;
-
-        if (flgMSAA and 128) <> 0 then
-        begin
-            try
-                if SUCCEEDED(pAcc.Get_accChildCount(i)) then
-                    MSAAs[7] := IntTostr(i);
-            except
-                on E: Exception do
-                    MSAAs[7] := E.Message;
-            end;
-        end;
-
-        if (flgMSAA and 256) <> 0 then
-        begin
-            try
-                if SUCCEEDED(pAcc.Get_accHelp(ovChild, ws)) then
-                    MSAAs[8] := ws;
-            except
-                on E: Exception do
-                    MSAAs[8] := E.Message;
-            end;
-        end;
-        if (flgMSAA and 512) <> 0 then
-        begin
-            try
-                if SUCCEEDED(pAcc.Get_accHelpTopic(ws, ovChild, i)) then
-                begin
-                    MSAAs[9] := ws + ' , ' + InttoStr(i);
-                end;
-            except
-                on E: Exception do
-                    MSAAs[9] := E.Message;
-            end;
-        end;
-        if (flgMSAA and 1024) <> 0 then
-        begin
-            try
-                if SUCCEEDED(pAcc.Get_accKeyboardShortcut(ovChild, ws)) then
-                    MSAAs[10] := ws;
-            except
-                on E: Exception do
-                    MSAAs[10] := E.Message;
-            end;
-        end;
-
-        Result := lMSAA[0] + #13#10;
-        for i := 0 to 10 do
-        begin
-            if (flgMSAA and TruncPow(2, i)) <> 0 then
-            begin
-                Result := Result + lMSAA[i+1] + ':' + #9 + MSAAs[i] + #13#10;
-            end;
-        end;
-        Result := result + #13#10;
-    finally
-
-    end;
-end;
-
 
 function TwndMSAAV.MSAAText4HTML(pAcc: IAccessible = nil; tab: string = ''): string;
 var
@@ -3709,7 +3517,7 @@ end;
 function TwndMSAAV.HTMLText4FF: string;
 var
 
-    hAttrs, s, Path, d: string;
+    hAttrs, Path, d: string;
     i: integer;
     aPC, aPC2: array [0..64] of pWidechar;
     aSI: array [0..64] of Smallint;
@@ -3879,90 +3687,16 @@ begin
     end;
   end;
 
-procedure TwndMSAAV.RecursiveID(sID: string; isEle: ISimpleDOMNODE; Labelled: boolean = true);
-var
-    pEle, TempEle, IDEle: ISimpleDOMNode;
-    Serv: IServiceProvider;
-    PC, PC2:PChar;
-    SI: Smallint;
-    iChild, PU2: PUINT;
-    WD: Word;
-    i: integer;
-    lAcc: IAccessible;
-    RC: TRect;
-
-begin
-    isEle.get_nodeInfo(PC, SI, PC2, iChild, PU2, WD);
-    TempEle := isEle;
-    i := 0;
-    while (LowerCase(String(PC)) <> '#document') do
-    begin
-        TempEle.get_parentNode(pEle);
-        pEle.get_nodeInfo(PC, SI, PC2, iChild, PU2, WD);
-        TempEle := pEle;
-
-        if String(PC) = '#document' then
-        begin
-            iSEle := pEle;
-            //showmessage(PC);
-            break;
-        end;
-        inc(i);
-        if i > 500 then
-        begin
-            iSEle := nil;
-            Break;
-        end;
-
-    end;
-    if iSEle <> nil then
-    begin
-        IDEle := nil;
-
-        //function get_attributesForNames(numAttribs: WORD; out attribNames: TBSTR; out nameSpaceID: Smallint; out attribValues: TBSTR): HRESULT; stdcall;
-        Recursive(sID, Integer(iChild), ISEle, IDEle);
-        //showmessage('E');
-    end;
-    if IDEle <> nil then
-    begin
-        IDEle.get_nodeInfo(PC, SI, PC2, iChild, PU2, WD);
-        if SUCCEEDED(IDEle.QueryInterface(IID_IServiceProvider, Serv)) then
-        begin
-            if SUCCEEDED(Serv.QueryService(IID_IACCESSIBLE, IID_IACCESSIBLE, lAcc)) then
-            begin
-                //if SUCCEEDED(lAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, 0)) then
-                //begin
-                    lAcc.accLocation(RC.Left, RC.Top, RC.Right, RC.Bottom, 0);
-                    if Labelled then
-                        ShowLabeledWnd(clBlue, RC)
-                    else
-                        ShowDescWnd(clBlue, RC);
-                //end;
-
-            end;
-        end;
-        //showmessage(PC);
-    end;
-end;
 
 function TwndMSAAV.ARIAText: string;
 var
-
-	iAttrCol: IHTMLATTRIBUTECOLLECTION;
-	iDomAttr: IHTMLDOMATTRIBUTE;
-	aEle: IHTMLElement;
   iEle5: IHTMLElement5;
-	s: string;
 	List, List2: TStringList;
-	ovValue: OleVariant;
 	i: integer;
 	aAttrs, LowerS: string;
 	aPC, aPC2: array [0 .. 64] of PChar;
 	aSI: array [0 .. 64] of Smallint;
 	WD: Word;
-	Serv: IServiceProvider;
-	lAcc: IAccessible;
-	RC: TRect;
   hr : HResult;
 begin
 
@@ -5037,7 +4771,7 @@ begin
 			if (ActTV = TreeView1) and (Assigned(iAcc)) then
 			begin
 				if mnublnMSAA.Checked then
-					s := s + sMSAAtxt; // MSAAText4Tip;
+					s := s + MSAAText(iAcc, True);
 				if mnublnIA2.Checked  then
 					s := s + SetIA2Text(iAcc, false);
 
@@ -7495,7 +7229,7 @@ var
 						'" title="check to display details below" aria-controls="x-details'
 						+ inttostr(iCnt) + '"> ';
 					Res := Res + #13#10 + tab + '<label for="disclosure' + inttostr(iCnt)
-						+ '"><strong>' + UpperCase(GetEleName(TTreeData(pNode.Data^).Acc)) +
+						+ '"><strong>' + UpperCase(pNode.Text) +
 						'</strong></label> ';
 					Res := Res + #13#10 + tab + '<section id="x-details' +
 						inttostr(iCnt) + '">';
@@ -7646,39 +7380,6 @@ begin
 	mnuTVSSelClick(self);
 end;
 
-
-
-function TwndMSAAV.GetEleName(Acc: IAccessible): string;
-var
-  isp: iserviceprovider;
-  hr: hResult;
-  isEle: ISimpleDOMNode;
-  PC, PC2:PChar;
-  SI: Smallint;
-  PU, PU2: PUINT;
-  WD: Word;
-  iEle: IHTMLElement;
-begin
-  Result := '';
-  hr := Acc.QueryInterface(IID_IServiceProvider, iSP);
-  if (hr = 0) and Assigned(iSP) then
-	begin
-		hr := iSP.QueryService(IID_IHTMLElement, IID_IHTMLElement, iEle);
-		if (hr = 0) and Assigned(iEle) then
-		begin
-			Result := iEle.tagName;
-		end
-    else
-    begin
-    	hr := iSP.QueryService(IID_ISIMPLEDOMNODE, IID_ISIMPLEDOMNODE, isEle);
-      if (hr = 0) and Assigned(isEle) then
-      begin
-        isEle.get_nodeInfo(PC, SI, PC2, PU, PU2, WD);
-        Result := PC;
-      end;
-    end;
-	end;
-end;
 
 function TwndMSAAV.GetTVAllItems: string;
 var
@@ -7862,7 +7563,7 @@ var
 
     	try
   		Res := Res + #13#10 + tab + '<li class="element">' + #13#10 + tab + '<input type="checkbox" id="disclosure' + inttostr(iCnt) + '" title="check to display details below" aria-controls="x-details' + inttostr(iCnt) + '"> ';
-    	Res := Res + #13#10 + tab + '<label for="disclosure' + inttostr(iCnt) + '"><strong>' + UpperCase(GetElename(TTreeData(pNode.Data^).Acc)) + '</strong></label> ';
+    	Res := Res + #13#10 + tab + '<label for="disclosure' + inttostr(iCnt) + '"><strong>' + UpperCase(pNode.Text) + '</strong></label> ';
     	Res := Res + #13#10 + tab + '<section id="x-details' + inttostr(iCnt) + '">';
       Res := Res + #13#10#9 + tab + '<ul>' + #13#10 + tab + #9 + '<li class="API">';
       Res := Res + MSAAText4HTML(Acc, tab + #9) + #13#10 + tab + #9 + '</li>';
