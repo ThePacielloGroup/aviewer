@@ -4,8 +4,8 @@ object WndSet: TWndSet
   BorderIcons = [biSystemMenu, biMinimize]
   BorderStyle = bsSingle
   Caption = 'Settings'
-  ClientHeight = 366
-  ClientWidth = 534
+  ClientHeight = 493
+  ClientWidth = 837
   Color = clBtnFace
   DoubleBuffered = True
   Font.Charset = DEFAULT_CHARSET
@@ -2462,7 +2462,7 @@ object WndSet: TWndSet
     Left = 8
     Top = 8
     Width = 297
-    Height = 353
+    Height = 473
     Caption = 'Use of properties'
     TabOrder = 0
     TabStop = True
@@ -2471,7 +2471,7 @@ object WndSet: TWndSet
       Left = 16
       Top = 16
       Width = 265
-      Height = 313
+      Height = 441
       HeaderColor = clWindow
       HeaderBackgroundColor = clWindowText
       ItemHeight = 13
@@ -2480,10 +2480,10 @@ object WndSet: TWndSet
     end
   end
   object gbFont: TAccGroupBox
-    Left = 311
+    Left = 695
     Top = 8
-    Width = 214
-    Height = 153
+    Width = 130
+    Height = 145
     Caption = 'Font'
     TabOrder = 1
     TabStop = True
@@ -2491,7 +2491,7 @@ object WndSet: TWndSet
     object btnFont: TAccButton
       Left = 16
       Top = 16
-      Width = 89
+      Width = 105
       Height = 25
       Caption = '&Font...'
       TabOrder = 0
@@ -2504,8 +2504,8 @@ object WndSet: TWndSet
     object Memo1: TAccMemo
       Left = 16
       Top = 55
-      Width = 185
-      Height = 82
+      Width = 105
+      Height = 74
       Alignment = taCenter
       ReadOnly = True
       TabOrder = 1
@@ -2515,9 +2515,9 @@ object WndSet: TWndSet
     end
   end
   object gbRegDll: TAccGroupBox
-    Left = 311
-    Top = 167
-    Width = 122
+    Left = 695
+    Top = 159
+    Width = 130
     Height = 98
     Caption = 'IAccessible2Proxy.dll'
     TabOrder = 2
@@ -2525,7 +2525,7 @@ object WndSet: TWndSet
     object btnReg: TAccButton
       Left = 16
       Top = 24
-      Width = 89
+      Width = 105
       Height = 25
       Caption = '&Register'
       ElevationRequired = True
@@ -2537,9 +2537,9 @@ object WndSet: TWndSet
       CtrlUp = Memo1
     end
     object btnUnreg: TAccButton
-      Left = 15
+      Left = 16
       Top = 55
-      Width = 89
+      Width = 105
       Height = 25
       Caption = '&Unregister'
       ElevationRequired = True
@@ -2553,8 +2553,8 @@ object WndSet: TWndSet
     end
   end
   object btnOK: TAccButton
-    Left = 450
-    Top = 302
+    Left = 754
+    Top = 425
     Width = 75
     Height = 25
     Caption = '&OK'
@@ -2564,8 +2564,8 @@ object WndSet: TWndSet
     CtrlDown = btnCancel
   end
   object btnCancel: TAccButton
-    Left = 451
-    Top = 333
+    Left = 754
+    Top = 456
     Width = 75
     Height = 25
     Caption = '&Cancel'
@@ -2576,13 +2576,60 @@ object WndSet: TWndSet
     CtrlUp = btnOK
   end
   object cbExTip: TTransCheckBox
-    Left = 311
-    Top = 271
-    Width = 210
+    Left = 695
+    Top = 263
+    Width = 130
     Height = 17
     Caption = 'Expansion tooltip'
     TabOrder = 5
     Visible = False
+  end
+  object gbShortCut: TAccGroupBox
+    Left = 311
+    Top = 8
+    Width = 378
+    Height = 473
+    Caption = 'Shortcut Key'
+    TabOrder = 6
+    object clShortcut: TListView
+      Left = 3
+      Top = 17
+      Width = 372
+      Height = 413
+      Columns = <
+        item
+          AutoSize = True
+          Caption = 'Name'
+        end
+        item
+          AutoSize = True
+          Caption = 'Shortcut key'
+        end>
+      RowSelect = True
+      TabOrder = 0
+      ViewStyle = vsReport
+      OnClick = clShortcutClick
+    end
+  end
+  object cmbShortCut: TAccComboBox
+    Left = 328
+    Top = 444
+    Width = 263
+    Height = 21
+    Style = csDropDownList
+    DropDownCount = 20
+    Enabled = False
+    TabOrder = 7
+  end
+  object btnAssign: TAccButton
+    Left = 597
+    Top = 442
+    Width = 75
+    Height = 25
+    Caption = 'Assign'
+    Enabled = False
+    TabOrder = 8
+    OnClick = btnAssignClick
   end
   object FontDialog1: TFontDialog
     Font.Charset = DEFAULT_CHARSET
